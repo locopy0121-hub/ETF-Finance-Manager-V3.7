@@ -17,7 +17,7 @@ jobs:
   build-apk:
     name: Build standalone side-by-side V3.6.0 verification APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout exact frozen baseline
@@ -91,15 +91,15 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
-      - name: Build standalone Release APK with embedded JS bundle
+      - name: Build standalone ARM64 Release APK with embedded JS bundle
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
 
       - name: Prepare verification artifact
         run: |
           mkdir -p artifacts
-          cp android/app/build/outputs/apk/release/app-release.apk artifacts/ETF-Finance-Manager-V3.6.0-SIDE-BY-SIDE-VERIFY.apk
-          sha256sum artifacts/ETF-Finance-Manager-V3.6.0-SIDE-BY-SIDE-VERIFY.apk | tee artifacts/SHA256.txt
+          cp android/app/build/outputs/apk/release/app-release.apk artifacts/ETF-Finance-Manager-V3.6.0-SIDE-BY-SIDE-VERIFY-ARM64.apk
+          sha256sum artifacts/ETF-Finance-Manager-V3.6.0-SIDE-BY-SIDE-VERIFY-ARM64.apk | tee artifacts/SHA256.txt
           {
             echo 'baseline_commit=b907d7aeced266e914c360c2f70b475dd9e42b62'
             echo 'source_changes_before_build=none'
@@ -109,6 +109,7 @@ jobs:
             echo 'versionName=3.6.0'
             echo 'versionCode=37'
             echo 'buildType=release'
+            echo 'architecture=arm64-v8a'
             echo 'js_bundle=embedded'
             echo 'purpose=side-by-side installation without touching existing com.etfpilot.twselive data'
           } | tee artifacts/BUILD_INFO.txt
@@ -116,7 +117,7 @@ jobs:
       - name: Upload side-by-side verification APK
         uses: actions/upload-artifact@v4
         with:
-          name: ETF-Finance-Manager-V3.6.0-SIDE-BY-SIDE-VERIFY
+          name: ETF-Finance-Manager-V3.6.0-SIDE-BY-SIDE-VERIFY-ARM64
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
