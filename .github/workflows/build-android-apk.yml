@@ -22,7 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply deterministic V3.7 upgrade
-        run: node scripts/APPLY_V370_UPGRADE.cjs
+        run: python3 scripts/APPLY_V370_UPGRADE.py
       - name: V3.7 acceptance audit
         run: node scripts/V370_UPGRADE_AUDIT.cjs
       - name: TypeScript
