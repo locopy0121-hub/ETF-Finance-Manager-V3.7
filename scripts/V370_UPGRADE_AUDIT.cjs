@@ -1,0 +1,35 @@
+const fs=require('fs');
+const assert=(ok,msg)=>{if(!ok){console.error(`FAIL: ${msg}`);process.exitCode=1}else console.log(`PASS: ${msg}`)};
+const read=p=>fs.readFileSync(p,'utf8');
+const model=read('src/v3/model.ts');
+const storage=read('src/v3/storage.ts');
+const screens=read('src/v3/screens.tsx');
+const designer=read('src/v3/GlobalCardDesigner.tsx');
+const app=read('App.tsx');
+const appJson=JSON.parse(read('app.json'));
+const pkg=JSON.parse(read('package.json'));
+const gradle=read('android/app/build.gradle');
+
+assert(appJson.expo.version==='3.7.0','app.json version is 3.7.0');
+assert(appJson.expo.runtimeVersion==='3.7.0','runtimeVersion is 3.7.0');
+assert(appJson.expo.android?.package==='com.etfpilot.twselive','Android package remains production package');
+assert(Number(appJson.expo.android?.versionCode)===38,'Android versionCode is 38');
+assert(pkg.version==='3.7.0','package.json version is 3.7.0');
+assert(/globalEditMode\s*:\s*boolean/.test(model),'global edit mode is persisted in preferences');
+assert(/editorPresets\s*:/.test(model),'editor configuration presets are persisted');
+assert(/fieldGap\?\s*:\s*number/.test(model),'card data framework supports configurable field gap');
+assert(/SCHEMA\s*=\s*13/.test(storage),'state schema migrated to V3.7');
+assert(/portfolio-list/.test(storage)&&/span/.test(storage),'portfolio list layout migration is present');
+assert(/全局修改模式/.test(screens),'settings exposes global edit mode switch');
+assert(/prefs\.globalEditMode/.test(screens),'long-press editor respects global edit mode');
+assert(/市場列表/.test(screens)&&/展開/.test(screens)&&/收合/.test(screens),'home market list supports expand/collapse');
+assert(/onLongPress/.test(screens)&&/openFrame/.test(screens),'frames/data blocks can open editor by long press');
+assert(/資料框架快速排版/.test(designer),'card editor exposes data framework quick layout');
+assert(/儲存目前配置/.test(designer),'editor can save current configuration');
+assert(/讀取/.test(designer)&&/寫入/.test(designer),'editor can read and write saved configuration');
+assert(/directMode/.test(designer),'direct editor mode returns to originating screen');
+assert(/versionName\s+["']3\.7\.0["']/.test(gradle),'native Android versionName is 3.7.0');
+assert(/versionCode\s+38/.test(gradle),'native Android versionCode is 38');
+assert(/onPreferencesChange/.test(app),'root provider persists direct global editor changes');
+if(process.exitCode){console.error('\nV3.7 upgrade acceptance: FAIL');process.exit(process.exitCode)}
+console.log('\nV3.7 upgrade acceptance: PASS');
