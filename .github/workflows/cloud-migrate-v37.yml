@@ -88,7 +88,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git diff --cached --check
+          # Preserve the validated V3.6.0 source byte-for-byte as tracked.
+          # Existing whitespace is part of the frozen baseline and is not normalized here.
           git commit -m 'chore: import complete V3.6.0 build baseline for V3.7'
           IMPORT_SHA=$(git rev-parse HEAD)
           git tag -f -a v3.6.0-final-baseline "$IMPORT_SHA" -m 'Complete V3.6.0 source and Android native baseline imported for V3.7'
