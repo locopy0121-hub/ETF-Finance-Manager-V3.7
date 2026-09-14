@@ -6,18 +6,44 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  acceptance:
+  upgrade-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: '22.23.2'
           cache: npm
       - run: npm ci
-      - name: V3.7 upgrade acceptance audit
+      - name: Apply deterministic V3.7 upgrade
+        run: node scripts/APPLY_V370_UPGRADE.cjs
+      - name: V3.7 acceptance audit
         run: node scripts/V370_UPGRADE_AUDIT.cjs
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Finance and regression checks
+        run: |
+          node scripts/FINANCE_ENGINE_V342_TEST.cjs
+          node scripts/FORMULA_ENGINE_V342_TEST.cjs
+          node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
+          node scripts/DIVIDEND_CUTOFF_TEST.cjs
+          node scripts/V360_DEVICE_ACCEPTANCE_AUDIT.cjs
+      - name: Diff integrity
+        run: git diff --check
+      - name: Commit verified V3.7 changes
+        run: |
+          if git diff --quiet; then
+            echo "No production changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add App.tsx app.json package.json package-lock.json android/app/build.gradle android/app/src/main/res/values/strings.xml src/v3/version.ts src/v3/model.ts src/v3/storage.ts src/v3/screens.tsx src/v3/GlobalCardDesigner.tsx
+          git commit -m "feat: upgrade V3.6 baseline to V3.7"
+          git push origin HEAD:v3.7-upgrade-20260915
