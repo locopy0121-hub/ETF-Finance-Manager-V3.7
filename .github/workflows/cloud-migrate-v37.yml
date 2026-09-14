@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/cloud-migrate-v37.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/MIGRATION_TRIGGER.md'
 
 permissions:
   contents: write
@@ -17,9 +21,10 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout V3.7 target
+      - name: Checkout V3.7 target main
         uses: actions/checkout@v5
         with:
+          ref: main
           path: target
           fetch-depth: 0
 
