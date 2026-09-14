@@ -2,6 +2,10 @@ name: Cloud Migrate V3.6.0 to V3.7
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cloud-migrate-v37.yml'
 
 permissions:
   contents: write
