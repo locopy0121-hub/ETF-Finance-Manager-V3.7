@@ -76,6 +76,20 @@ jobs:
           grep -F 'ETF財務管家 V3.6.0 驗證版' android/app/src/main/res/values/strings.xml
           git diff -- android/app/build.gradle android/app/src/main/res/values/strings.xml
 
+      - name: Raise Gradle Metaspace for release build in runner only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/gradle.properties')
+          text = p.read_text(encoding='utf-8')
+          old = 'org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m'
+          new = 'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m'
+          assert text.count(old) == 1, f'unexpected gradle jvmargs count: {text.count(old)}'
+          p.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          grep -F 'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m' android/gradle.properties
+
       - name: Ensure signing keystore exists
         run: |
           if [ ! -f android/app/debug.keystore ]; then
@@ -104,6 +118,7 @@ jobs:
             echo 'baseline_commit=b907d7aeced266e914c360c2f70b475dd9e42b62'
             echo 'source_changes_before_build=none'
             echo 'runner_only_identity_patch=applicationId+app_name'
+            echo 'runner_only_gradle_memory_patch=-Xmx3072m,MaxMetaspaceSize=1024m'
             echo 'installed_package=com.etfpilot.twselive.baselineverify'
             echo 'display_name=ETF財務管家 V3.6.0 驗證版'
             echo 'versionName=3.6.0'
