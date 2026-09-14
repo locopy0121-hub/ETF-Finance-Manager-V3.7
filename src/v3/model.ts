@@ -71,9 +71,10 @@ export type V3ChartSource='intraday'|'daily';
 export type V3ChartType='line'|'area'|'bar'|'positiveBar'|'multiLine'|'pie'|'donut'|'stackedBar'|'candlestick'|'volume'|'pnlTrend'|'progress'|'heatmap'|'waterfall'|'radar'|'scatter';
 export type V3ChartColorMode='theme'|'profitLoss'|'custom';
 export type V3ChartConfig={enabled?:boolean;source:V3ChartSource;metric:V3ChartMetric;range:number;showPoints:boolean;showZeroLine:boolean;chartType?:V3ChartType;colorMode?:V3ChartColorMode;primaryColor?:string;positiveColor?:string;negativeColor?:string;seriesColors?:string[];fillOpacity?:number;lineWidth?:number;barRadius?:number;showGrid?:boolean;showAxis?:boolean;showLabels?:boolean;showLegend?:boolean;animation?:boolean;targetValue?:number;layout:'chartOnly'|'dataLeftChartRight'|'chartLeftDataRight'|'dataTopChartBottom'|'chartTopDataBottom';dataRatio:'1/4'|'1/3'|'1/2'|'2/3'|'3/4'};
-export type V3PageCard={id:string;title:string;kind:'system'|'custom'|'chart'|'mixed';role?:'summary'|'listTemplate'|'normal';fields:string[];fieldSpans?:Record<string,V3CardSpan>;fieldConfigs?:Record<string,V3FieldConfig>;chartConfig?:V3ChartConfig;x:number;y:number;w:number;h:number;hidden:boolean;style:V3CardStyle};
+export type V3PageCard={id:string;title:string;kind:'system'|'custom'|'chart'|'mixed';role?:'summary'|'listTemplate'|'normal';fields:string[];fieldSpans?:Record<string,V3CardSpan>;fieldConfigs?:Record<string,V3FieldConfig>;fieldGap?:number;chartConfig?:V3ChartConfig;x:number;y:number;w:number;h:number;hidden:boolean;style:V3CardStyle};
 export type V3PageLayout={columns:5|6;cards:V3PageCard[]};
 export type V3PageLayouts=Record<PageFieldKey,V3PageLayout>;
+export type V3EditorPreset={id:string;name:string;page:PageFieldKey;cardId:string;card:V3PageCard;savedAt:number};
 
 export type SavingsPlanAllocation = { symbol:string; name?:string; weight:number };
 export type SavingsPlan = {
@@ -155,6 +156,8 @@ export type V3Preferences = {
   iconDisplay: IconDisplaySettings;
   appIconKey:'icon-01'|'icon-02'|'icon-03'|'icon-04'|'icon-05'|'icon-06'|'icon-07'|'icon-08'|'icon-09'|'icon-10';
   immersiveEditor:boolean;
+  globalEditMode:boolean;
+  editorPresets:V3EditorPreset[];
   customThemes: CustomThemeSlot[];
   backgroundPreset: 'deepFinance' | 'taipeiDawn' | 'emeraldGlass' | 'goldenValley' | 'greenGrowth' | 'neonCity' | 'futureEarth' | 'mistyGrowth' | 'glassTech' | 'tealCity' | 'custom';
   backgroundImageUri: string;
@@ -260,6 +263,8 @@ export const defaultV3Preferences: V3Preferences = {
   iconDisplay:{enabled:true,section:true,nav:true,ai:true,widget:true},
   appIconKey:'icon-01',
   immersiveEditor:true,
+  globalEditMode:false,
+  editorPresets:[],
   customThemes:[],
   backgroundPreset: 'deepFinance',
   backgroundImageUri: '',

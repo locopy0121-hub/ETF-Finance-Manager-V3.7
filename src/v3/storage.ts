@@ -8,7 +8,7 @@ import { defaultRegisteredNodes } from '../ui/universalRegistry';
 
 export const V3_STATE_KEY='@etf-finance-manager/v3-state';
 const KEY=V3_STATE_KEY;
-const SCHEMA=12;
+const SCHEMA=13;
 
 const LEGACY_FIELD_KEYS:Record<string,string>={
  totalInvestedCost:'historicalCashOutflow',
@@ -42,6 +42,7 @@ function mergeState(p:Partial<V3State>):V3State{
    card.fields=normalizeFieldList(card.fields,[]);
    card.fieldSpans=card.fieldSpans??{};
    card.fieldConfigs=card.fieldConfigs??{};
+   card.fieldGap=Math.max(0,Math.min(32,Number(card.fieldGap??7)));
    for(const [legacy,current] of Object.entries(LEGACY_FIELD_KEYS)){
     if(card.fieldSpans[legacy]!=null&&card.fieldSpans[current]==null)card.fieldSpans[current]=card.fieldSpans[legacy];
     if(card.fieldConfigs[legacy]!=null&&card.fieldConfigs[current]==null)card.fieldConfigs[current]=card.fieldConfigs[legacy];
@@ -75,6 +76,17 @@ function mergeState(p:Partial<V3State>):V3State{
   const src=portfolio.cards?.find((c:any)=>c.id==='portfolio-summary')??portfolio.cards?.[0];
   if(src){const clone=JSON.parse(JSON.stringify(src));clone.id='portfolio-list';clone.title='庫存清單模板';clone.role='listTemplate';clone.y=(src.y??0)+(src.h??2);portfolio.cards.push(clone);}
  }
+ const portfolioList=portfolio?.cards?.find((c:any)=>c.role==='listTemplate'||c.id==='portfolio-list');
+ if(portfolioList&&sourceSchema<13){
+  const spans=(portfolioList.fields??[]).map((k:string)=>Number(portfolioList.fieldConfigs?.[k]?.span??portfolioList.fieldSpans?.[k]??6));
+  const full=spans.filter((v:number)=>v===12).length;
+  if(spans.length>=4&&full>=Math.ceil(spans.length*.6)){
+   for(const key of portfolioList.fields??[]){
+    const cfg=portfolioList.fieldConfigs?.[key]??{};
+    if(Number(cfg.span??portfolioList.fieldSpans?.[key]??6)===12){portfolioList.fieldConfigs[key]={...cfg,span:6};portfolioList.fieldSpans[key]=6;}
+   }
+  }
+ }
  return {
   schemaVersion:SCHEMA,
   holdings:Array.isArray(p.holdings)?p.holdings:[],
@@ -82,7 +94,7 @@ function mergeState(p:Partial<V3State>):V3State{
   ledger:Array.isArray(p.ledger)?p.ledger:[],
   cashBalance:Number(p.cashBalance??0),
   cashReconciliation:(p as any).cashReconciliation&&typeof (p as any).cashReconciliation==='object'?(p as any).cashReconciliation:{},
-  preferences:{...defaultV3Preferences,...pp,market,ai,visibility,money,calendar,lifestyleProgress,ticker,dailyPnl,chartInteraction,themeId:pp.themeId??defaultV3Preferences.themeId,navDisplayMode:pp.navDisplayMode??defaultV3Preferences.navDisplayMode,iconDisplay:{...defaultV3Preferences.iconDisplay,...(pp.iconDisplay??{})},customThemes:Array.isArray(pp.customThemes)?pp.customThemes.slice(0,5):[],pageCardFields,pageCardSpans,homeCardFields:home,homeCardSpans:Array.isArray(pp.homeCardSpans)?pp.homeCardSpans:[{},{},{}],pageLayouts,selectedEtfFields:normalizeFieldList(pp.selectedEtfFields,defaultV3Preferences.selectedEtfFields),selectedEtfFieldSpans:(pp.selectedEtfFieldSpans&&typeof pp.selectedEtfFieldSpans==='object')?pp.selectedEtfFieldSpans:{},selectedEtfSymbols:Array.isArray(pp.selectedEtfSymbols)?pp.selectedEtfSymbols:[],watchlistSymbols:normalizeFieldList(pp.watchlistSymbols,[]),editorNodes:{...defaultRegisteredNodes(),...(pp.editorNodes&&typeof pp.editorNodes==='object'?pp.editorNodes:{})},holdingFocusSort:pp.holdingFocusSort??defaultV3Preferences.holdingFocusSort,holdingFocusMax:Number(pp.holdingFocusMax??defaultV3Preferences.holdingFocusMax),holdingFocusOnDashboard:pp.holdingFocusOnDashboard??defaultV3Preferences.holdingFocusOnDashboard,holdingFocusOnPortfolio:pp.holdingFocusOnPortfolio??defaultV3Preferences.holdingFocusOnPortfolio,pageTitles:(pp.pageTitles&&typeof pp.pageTitles==='object')?pp.pageTitles:{},customMetrics:Array.isArray(pp.customMetrics)?pp.customMetrics:[],monitoring:mergeUnifiedMonitorPreferences(pp.monitoring)},
+  preferences:{...defaultV3Preferences,...pp,market,ai,visibility,money,calendar,lifestyleProgress,ticker,dailyPnl,chartInteraction,themeId:pp.themeId??defaultV3Preferences.themeId,navDisplayMode:pp.navDisplayMode??defaultV3Preferences.navDisplayMode,iconDisplay:{...defaultV3Preferences.iconDisplay,...(pp.iconDisplay??{})},customThemes:Array.isArray(pp.customThemes)?pp.customThemes.slice(0,5):[],pageCardFields,pageCardSpans,homeCardFields:home,homeCardSpans:Array.isArray(pp.homeCardSpans)?pp.homeCardSpans:[{},{},{}],pageLayouts,selectedEtfFields:normalizeFieldList(pp.selectedEtfFields,defaultV3Preferences.selectedEtfFields),selectedEtfFieldSpans:(pp.selectedEtfFieldSpans&&typeof pp.selectedEtfFieldSpans==='object')?pp.selectedEtfFieldSpans:{},selectedEtfSymbols:Array.isArray(pp.selectedEtfSymbols)?pp.selectedEtfSymbols:[],watchlistSymbols:normalizeFieldList(pp.watchlistSymbols,[]),globalEditMode:Boolean(pp.globalEditMode??false),editorPresets:Array.isArray(pp.editorPresets)?pp.editorPresets.slice(-30):[],editorNodes:{...defaultRegisteredNodes(),...(pp.editorNodes&&typeof pp.editorNodes==='object'?pp.editorNodes:{})},holdingFocusSort:pp.holdingFocusSort??defaultV3Preferences.holdingFocusSort,holdingFocusMax:Number(pp.holdingFocusMax??defaultV3Preferences.holdingFocusMax),holdingFocusOnDashboard:pp.holdingFocusOnDashboard??defaultV3Preferences.holdingFocusOnDashboard,holdingFocusOnPortfolio:pp.holdingFocusOnPortfolio??defaultV3Preferences.holdingFocusOnPortfolio,pageTitles:(pp.pageTitles&&typeof pp.pageTitles==='object')?pp.pageTitles:{},customMetrics:Array.isArray(pp.customMetrics)?pp.customMetrics:[],monitoring:mergeUnifiedMonitorPreferences(pp.monitoring)},
   appSettings:{...defaultAppSettings,...(p.appSettings??{}),widget:{...defaultAppSettings.widget,...(p.appSettings?.widget??{})},ota:{...defaultAppSettings.ota,...(p.appSettings?.ota??{})},goals:{...defaultAppSettings.goals,...(p.appSettings?.goals??{})},closeNotification:{...defaultAppSettings.closeNotification,...(p.appSettings?.closeNotification??{})},layout:{...defaultAppSettings.layout,...(p.appSettings?.layout??{})}},
   feeSettings:{...defaultFeeSettings,...(p.feeSettings??{})},
   dailySnapshots:Array.isArray(p.dailySnapshots)?p.dailySnapshots:[],
