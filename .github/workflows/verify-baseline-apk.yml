@@ -74,12 +74,11 @@ jobs:
           sha256sum artifacts/ETF-Finance-Manager-V3.6.0-baseline-b907d7a.apk | tee artifacts/SHA256.txt
           {
             echo "repository=locopy0121-hub/ETF-Finance-Manager-V3.7"
-            echo "source_commit=$(git rev-parse HEAD)"
-            echo "source_tree=$(git rev-parse HEAD^{tree})"
-            echo "app_json_version=$(node -p \"require('./app.json').expo.version\")"
-            echo "runtime_version=$(node -p \"require('./app.json').expo.runtimeVersion\")"
-            echo "android_version_code=$(node -p \"require('./app.json').expo.android.versionCode\")"
-            echo "android_package=$(node -p \"require('./app.json').expo.android.package\")"
+            printf "source_commit="
+            git rev-parse HEAD
+            printf "source_tree="
+            git rev-parse HEAD^{tree}
+            node -e "const e=require('./app.json').expo; console.log('app_json_version='+e.version); console.log('runtime_version='+e.runtimeVersion); console.log('android_version_code='+e.android.versionCode); console.log('android_package='+e.android.package);"
           } | tee artifacts/BUILD_INFO.txt
 
       - name: Upload verification APK
