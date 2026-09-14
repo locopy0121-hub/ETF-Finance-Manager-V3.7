@@ -31,20 +31,21 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
+
           gradle = Path('android/app/build.gradle')
-          text = gradle.read_text(encoding='utf-8')
-          old = '''        release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug'''
-          new = '''        release {
-            applicationIdSuffix ".verify"
-            versionNameSuffix "-VERIFY"
-            // Verification-only side-by-side identity; source baseline remains unchanged.
-            signingConfig signingConfigs.debug'''
-          if old not in text:
-              raise SystemExit('release buildType anchor not found')
-          gradle.write_text(text.replace(old, new, 1), encoding='utf-8')
+          lines = gradle.read_text(encoding='utf-8').splitlines()
+          for i, line in enumerate(lines):
+              if line.strip() == 'release {':
+                  indent = line[:len(line) - len(line.lstrip())]
+                  lines[i+1:i+1] = [
+                      indent + '    applicationIdSuffix ".verify"',
+                      indent + '    versionNameSuffix "-VERIFY"',
+                      indent + '    // Verification-only side-by-side identity; source baseline remains unchanged.'
+                  ]
+                  break
+          else:
+              raise SystemExit('release buildType not found')
+          gradle.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
           strings = Path('android/app/src/main/res/values/strings.xml')
           s = strings.read_text(encoding='utf-8')
