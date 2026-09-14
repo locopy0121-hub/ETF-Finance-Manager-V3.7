@@ -1,0 +1,48 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Android generated / local
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+**/android/build/
+.gradle/
+
+# Git worktrees
+.worktrees/
+
+# iOS generated
+ios/Pods/
+ios/build/
+
+# EAS / local output
+*.apk
+*.aab
+*.ipa
+*.zip
+
+# Environment / secrets
+.env
+.env.*
+*.jks
+*.keystore
+google-services.json
+
+# Temp / cache
+.cache/
+tmp/
+temp/
+*.log
+
+# Windows
+Thumbs.db
+Desktop.ini

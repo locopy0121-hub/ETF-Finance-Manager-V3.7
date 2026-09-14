@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="160dp"
+    android:minHeight="90dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:maxResizeWidth="520dp"
+    android:maxResizeHeight="520dp"
+
+    android:resizeMode="horizontal|vertical"
+
+    android:description="@string/widget_etfprofit_description"
+
+    android:initialLayout="@layout/rn_widget"
+    android:previewImage="@drawable/etfprofit_preview"
+
+    android:configure="com.etfpilot.twselive.WidgetConfigurationActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional"
+
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen">
+</appwidget-provider>

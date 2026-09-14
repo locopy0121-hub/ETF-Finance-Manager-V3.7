@@ -1,0 +1,78 @@
+{
+  "name": "etf-finance-manager",
+  "version": "3.6.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "doctor": "expo-doctor",
+    "typecheck": "tsc --noEmit",
+    "build:apk": "eas build -p android --profile preview",
+    "update:preview": "eas update --branch preview",
+    "check:expo": "expo install --check",
+    "check": "node scripts/V350_NATIVE_MONITOR_AUDIT.cjs && node scripts/V350_REGRESSION_FROM_V342.cjs && node scripts/FINANCE_ENGINE_V342_TEST.cjs && node scripts/FORMULA_ENGINE_V342_TEST.cjs && node scripts/V340_FIX1_REGRESSION_AUDIT.cjs && node scripts/DIVIDEND_CUTOFF_TEST.cjs && tsc --noEmit",
+    "update:production": "eas update --branch production",
+    "prepare:native": "expo install expo-notifications expo-background-task expo-task-manager expo-file-system expo-sharing expo-secure-store expo-image-picker @react-native-community/datetimepicker @react-native-async-storage/async-storage @react-native-community/netinfo react-native-svg expo-document-picker expo-local-authentication expo-clipboard expo-application expo-device expo-intent-launcher expo-sqlite expo-print react-native-safe-area-context",
+    "audit:v340": "node scripts/V340_ALL14_AUDIT.cjs",
+    "test:dividend-cutoff": "node scripts/DIVIDEND_CUTOFF_TEST.cjs",
+    "audit:v341": "node scripts/V341_FINAL_AUDIT.cjs",
+    "audit:v342": "node scripts/V342_ISSUE1_2_AUDIT.cjs",
+    "audit:v350": "node scripts/V350_NATIVE_MONITOR_AUDIT.cjs",
+    "audit:v351": "node scripts/V351_OTA_ENHANCEMENT_AUDIT.cjs",
+    "check:v351": "node scripts/V351_OTA_ENHANCEMENT_AUDIT.cjs && node scripts/FINANCE_ENGINE_V342_TEST.cjs && node scripts/FORMULA_ENGINE_V342_TEST.cjs && node scripts/V340_FIX1_REGRESSION_AUDIT.cjs && node scripts/DIVIDEND_CUTOFF_TEST.cjs && tsc --noEmit",
+    "update:preview:v351": "powershell -ExecutionPolicy Bypass -File .\\OTA_V3.5.1_PREVIEW.ps1",
+    "audit:v352": "node scripts/V352_GLOBAL_EDITOR_MONITOR_AUDIT.cjs",
+    "check:v352": "node scripts/V352_GLOBAL_EDITOR_MONITOR_AUDIT.cjs && tsc --noEmit",
+    "update:preview:v352": "powershell -ExecutionPolicy Bypass -File .\\OTA_V3.5.2_PREVIEW.ps1",
+    "audit:v360": "node scripts/V360_NATIVE_COMPLETE_AUDIT.cjs",
+    "audit:architecture": "node scripts/GENERATE_UI_INVENTORY.cjs && node scripts/V360_APP_ARCHITECTURE_AUDIT.cjs",
+    "preflight": "npm run audit:architecture && npm run check:v360",
+    "audit:device-acceptance": "node scripts/V360_DEVICE_ACCEPTANCE_AUDIT.cjs",
+    "preflight:acceptance": "npm run preflight && npm run audit:device-acceptance",
+    "check:v360": "npm run audit:v360 && node scripts/FINANCE_ENGINE_V342_TEST.cjs && node scripts/FORMULA_ENGINE_V342_TEST.cjs && node scripts/V340_FIX1_REGRESSION_AUDIT.cjs && node scripts/DIVIDEND_CUTOFF_TEST.cjs && tsc --noEmit",
+    "build:apk:v360": "powershell -ExecutionPolicy Bypass -File .\\BUILD_V3.6.0_APK.ps1",
+    "update:preview:v360": "powershell -ExecutionPolicy Bypass -File .\\OTA_V3.6.0_PREVIEW.ps1",
+    "audit:ui-inventory": "node scripts/GENERATE_UI_INVENTORY.cjs"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "@react-native-community/netinfo": "12.0.1",
+    "expo": "~57.0.21",
+    "expo-application": "~57.0.3",
+    "expo-background-task": "~57.0.17",
+    "expo-clipboard": "~57.0.2",
+    "expo-device": "~57.0.2",
+    "expo-document-picker": "~57.0.2",
+    "expo-file-system": "~57.0.7",
+    "expo-image-picker": "~57.0.17",
+    "expo-intent-launcher": "~57.0.1",
+    "expo-local-authentication": "~57.0.3",
+    "expo-notifications": "~57.0.18",
+    "expo-print": "~57.0.2",
+    "expo-secure-store": "~57.0.4",
+    "expo-sharing": "~57.0.19",
+    "expo-sqlite": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "expo-task-manager": "~57.0.17",
+    "expo-updates": "~57.0.22",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-android-widget": "0.22.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    }
+  }
+}

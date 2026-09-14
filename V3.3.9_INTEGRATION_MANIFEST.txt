@@ -1,0 +1,31 @@
+V3.3.9 integration source chain
+===============================
+Base package: V3.3.8 DIVIDEND-WIDGET-CASH-OTA
+Cumulative predecessors: V3.3.7 ALL-ISSUES-INTEGRATED-OTA + V3.3.6 CORE-ENGINE-CONSOLIDATED-OTA
+
+V3.3.6 retained areas:
+- 12-grid card/layout engine
+- label/value independent styling and spacing
+- theme/color controls
+- finance precision rules
+- market controller
+
+V3.3.7 retained areas:
+- Widget snapshot diagnostics/status/time
+- V3 persistent Widget data path
+- daily P&L history
+- intraday P&L persistence
+- chart/mixed-card designer
+
+V3.3.8 retained areas:
+- full dividend calendar
+- Widget tap safety / last-valid-payload protection
+- cash reconciliation separated from investment assets
+- shared integer trade amount rules
+
+V3.3.9 fixes:
+- ColorPalettePicker invalid palette.gold compile error
+- missing SelectedMetrics compile error
+- Widget status union compile error
+- stale accounting tests aligned to V3.3.8 cash/asset contract
+- Windows/EAS OTA launcher hardening

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="v360_shortcut_add_buy">新增買進</string>
+  <string name="v360_shortcut_monitor">浮動監視器</string>
+  <string name="v360_shortcut_today_pnl">今日損益</string>
+  <string name="v360_shortcut_dividend">股息日曆</string>
+  <string name="v360_shortcut_ai">AI 助理</string>
+</resources>

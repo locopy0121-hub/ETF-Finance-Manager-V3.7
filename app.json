@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "ETF財務管家 V3.6.0 NATIVE",
+    "slug": "etf-pilot-twse-live",
+    "version": "3.6.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "runtimeVersion": "3.6.0",
+    "android": {
+      "package": "com.etfpilot.twselive",
+      "versionCode": 37,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/v3-icon.png",
+        "backgroundColor": "#0B111E"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.etfpilot.twselive",
+      "buildNumber": "37"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "79d32e8c-6d52-4969-86dd-17f12531558e"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/79d32e8c-6d52-4969-86dd-17f12531558e",
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0
+    },
+    "plugins": [
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "ETFProfit",
+              "label": "ETF財務管家 即時損益",
+              "minWidth": "160dp",
+              "minHeight": "90dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "maxResizeWidth": "520dp",
+              "maxResizeHeight": "520dp",
+              "description": "總損益固定顯示，可縮放、自訂資料與透明度；⚙ 可直達設定",
+              "previewImage": "./assets/widget-preview/etf-profit.png",
+              "updatePeriodMillis": 1800000,
+              "resizeMode": "horizontal|vertical",
+              "widgetFeatures": "reconfigurable|configuration_optional"
+            }
+          ]
+        }
+      ],
+      "expo-notifications",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ETF財務管家需要存取您選擇的圖片，用於頁面與卡片背景自訂。",
+          "cameraPermission": "ETF財務管家目前不使用相機掃描功能。",
+          "microphonePermission": false
+        }
+      ],
+      "expo-background-task",
+      "expo-sharing",
+      "@react-native-community/datetimepicker",
+      "expo-sqlite",
+      "./plugins/withAlternateIcons"
+    ],
+    "scheme": "etffinance",
+    "icon": "./assets/v3-icon.png"
+  }
+}

@@ -1,0 +1,47 @@
+PASS package version 3.6.0
+PASS app version/runtime 3.6.0
+PASS Android versionCode 37
+PASS Expo SDK pinned ~57.0.21
+PASS preview APK + preview channel
+PASS storage schema 12
+PASS Global Editor persists individual field settings
+PASS Global Editor effects + live preview
+PASS App renderer consumes field effect
+PASS Settings sub-tabs adaptive height
+PASS Editor navigation-bar immersive control
+PASS Chart single tap changes type immediately
+PASS Chart remembers last style
+PASS AI dividend query has scope parser
+PASS AI latest dividend is one-record path
+PASS AI in-app diagnosis
+PASS Legacy Cross-App BOT implementation removed
+PASS Floating monitor payload owns style/schedule/lock
+PASS Native overlay consumes fieldStyles
+PASS Native overlay lock blocks drag + resize
+PASS Native schedule receiver + boot restore
+PASS Native App Icon switcher
+PASS Alternate icon config plugin
+PASS App icon 01 asset
+PASS App icon 02 asset
+PASS App icon 03 asset
+PASS App icon 04 asset
+PASS App icon 05 asset
+PASS App icon 06 asset
+PASS App icon 07 asset
+PASS App icon 08 asset
+PASS App icon 09 asset
+PASS App icon 10 asset
+PASS App Icon Center UI
+PASS Static launcher shortcuts wired
+PASS No deprecated React Native SafeAreaView imports
+
+V3.6.0 Native audit 36/36
+FINANCE_ENGINE_V342_TEST: PASS
+FORMULA_ENGINE_V342_TEST: PASS
+PASS: portfolioListTemplate helper exists
+PASS: chartTypeLabel helper exists
+PASS: no 5-arg holdingMetrics sort call
+PASS: focus sort uses canonical 4-arg holdingMetrics
+PASS: portfolio list template resolves from pageLayouts
+V340 FIX1 REGRESSION AUDIT PASS (5 checks)
+DIVIDEND_CUTOFF_TEST: PASS

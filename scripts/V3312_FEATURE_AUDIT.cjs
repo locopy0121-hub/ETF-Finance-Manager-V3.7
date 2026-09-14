@@ -1,0 +1,37 @@
+const fs=require('fs');
+const path=require('path');
+const root=path.resolve(__dirname,'..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const checks=[];
+function must(name,file,needles){const text=read(file);const missing=needles.filter(x=>!text.includes(x));if(missing.length)throw new Error(`${name}: missing ${missing.join(' | ')}`);checks.push(name);}
+function mustNot(name,file,needles){const text=read(file);const found=needles.filter(x=>text.includes(x));if(found.length)throw new Error(`${name}: forbidden ${found.join(' | ')}`);checks.push(name);}
+must('V3.3.12 version constants','src/v3/version.ts',["APP_DISPLAY_VERSION='V3.3.12'","APP_SEMVER='3.3.12'","OTA_RUNTIME_VERSION='3.2.0'"]);
+must('10 official global themes','src/v3/themes.ts',['曜石黑金','深海科技藍','經典金融藍','森林護眼綠','紫晶夜色','晨曦暖橙','冰川藍白','霧灰極簡','曜石紅銅','星夜霓虹']);
+must('5 custom theme slots','src/v3/model.ts',['`custom${1|2|3|4|5}`','slot:1|2|3|4|5']);
+must('theme draft confirm flow','src/v3/screens.tsx',['草稿 → 預覽 → 確認','確認並套用此全局佈景','目前只儲存，尚未套用']);
+must('theme icon controls','src/v3/screens.tsx',['全局顯示圖示','頁面 / 區塊圖示','底部導航圖示','AI 資訊卡圖示','Widget 圖示']);
+must('nav display modes','src/v3/model.ts',["'iconText'|'text'|'icon'"]);
+must('nav labels','App.tsx',["'首頁'","'股息'"]);
+mustNot('legacy nav labels removed from active App nav','App.tsx',["navIcons.home,'總覽'","navIcons.dividend,'息收'"]);
+must('chart style choices','src/v3/model.ts',["chartType?:'line'|'area'|'bar'"]);
+must('embedded chart layouts','src/v3/model.ts',['dataLeftChartRight','chartLeftDataRight','dataTopChartBottom','chartTopDataBottom']);
+must('home data + chart hero','src/v3/model.ts',["metric:'totalAssets'","chartType:'area'","layout:'dataLeftChartRight'"]);
+must('widget trend chart','src/storage/appStorage.ts',["WidgetTrendChartType='line'|'area'|'bar'",'showTrendChart:boolean','trendMetric:WidgetTrendMetric','trendSource:WidgetTrendSource']);
+must('widget trend settings UI','src/v3/screens.tsx',['Widget 走勢圖','折線圖','面積圖','柱狀圖','今日盤中','每日歷史']);
+must('historical purchase date support','src/screens/AddHoldingScreen.tsx',['localIsoDate','purchaseDate','購入日期請使用 YYYY-MM-DD']);
+mustNot('purchase date has no today-only max','src/screens/AddHoldingScreen.tsx',['maximumDate={new Date()','minimumDate={new Date()']);
+must('record entry decoupled from live quote','src/v3/screens.tsx',['成交價格請依券商實際成交紀錄輸入','市場參考行情（不寫入交易）','市場行情僅供參考，不會改動交易日期或成交價格']);
+mustNot('live quote cannot write execution price','src/v3/screens.tsx',['if(!priceTouched)setPrice(row.price.toFixed(2))']);
+must('global cards loads active theme settings','src/v3/screens.tsx',['全局卡片｜目前佈景','載入目前佈景的卡片外觀設定','開啟全局拖曳卡片設計器','換主題不會清空卡片資料']);
+must('ledger edit/delete','src/v3/screens.tsx',['LedgerEditorModal','儲存修改','刪除本筆','不會強制改成今天']);
+must('dividend calendar fixed page core','src/v3/screens.tsx',['<ScreenTitle title="股息日曆"','/><DividendMonthCalendar cursor={calendarCursor}','/><SelectedMetrics page="dividend"']);
+must('AI dual news sources','src/services/aiResearch.ts',['Google News','Bing News','fetchGoogleNews','fetchBingNews']);
+must('AI research source expansion','src/services/aiResearch.ts',['site:capitalfund.com.tw','site:twse.com.tw','site:ctee.com.tw','site:money.udn.com','site:tw.stock.yahoo.com']);
+must('AI research sections','src/services/aiResearch.ts',['最新重點','ETF 基本檔案','募集 / 成立 / 掛牌重要日期','發行價格與配息機制','投資策略','選股方向','最新新聞','投資風險','資料來源']);
+must('AI gateway evidence prompt','src/services/aiResearch.ts',['不可自行杜撰','來源衝突時明確標示','官方來源優先']);
+must('bulk holding dividend sync','src/v3/AiAssistantModal.tsx',['更新所有持有 ETF 股息日','批次同步持有 ETF 股息','確認全部套用']);
+must('TWSE dividend source','src/services/twseDividends.ts',['https://www.twse.com.tw/zh/ETFortune/dividendList','臺灣證券交易所 ETF e添富']);
+must('AI writes remain confirmed','src/v3/screens.tsx',['此版本固定要求 AI 寫入前確認，不能關閉']);
+must('storage migration schema 7','src/v3/storage.ts',['const SCHEMA=7;','customThemes:Array.isArray(pp.customThemes)?pp.customThemes.slice(0,5):[]']);
+console.log('V3312_FEATURE_AUDIT: PASS');
+for(const x of checks)console.log(`- ${x}: PASS`);
