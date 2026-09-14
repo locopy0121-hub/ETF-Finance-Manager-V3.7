@@ -1,4 +1,4 @@
-name: V3.7 Upgrade CI
+name: V3.7 Release APK
 
 on:
   push:
@@ -6,27 +6,48 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  NODE_ENV: production
+  CI: 'true'
 
 jobs:
-  upgrade-and-verify:
+  verify-and-build:
+    name: Verify V3.7 and build ARM64 Release APK
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
+
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout V3.7 source
+        uses: actions/checkout@v5
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v6
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: '22.23.2'
           cache: npm
-      - run: npm ci
-      - name: Apply deterministic V3.7 upgrade
-        run: python3 scripts/APPLY_V370_UPGRADE.py
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: V3.7 acceptance audit
         run: node scripts/V370_UPGRADE_AUDIT.cjs
+
       - name: TypeScript
         run: npm run typecheck
+
       - name: Finance and regression checks
         run: |
           node scripts/FINANCE_ENGINE_V342_TEST.cjs
@@ -34,16 +55,75 @@ jobs:
           node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
           node scripts/DIVIDEND_CUTOFF_TEST.cjs
           node scripts/V360_DEVICE_ACCEPTANCE_AUDIT.cjs
-      - name: Diff integrity
+
+      - name: Source diff integrity
         run: git diff --check
-      - name: Commit verified V3.7 changes
+
+      - name: Raise Gradle memory for release build in runner only
+        shell: bash
         run: |
-          if git diff --quiet; then
-            echo "No production changes to commit."
-            exit 0
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/gradle.properties')
+          text = p.read_text(encoding='utf-8')
+          old = 'org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m'
+          new = 'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m'
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('Unexpected org.gradle.jvmargs value')
+          p.write_text(text, encoding='utf-8')
+          PY
+          grep -F 'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m' android/gradle.properties
+
+      - name: Ensure signing keystore exists
+        shell: bash
+        run: |
+          if [ ! -f android/app/debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore android/app/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10000
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add App.tsx app.json package.json package-lock.json android/app/build.gradle android/app/src/main/res/values/strings.xml src/v3/version.ts src/v3/model.ts src/v3/storage.ts src/v3/screens.tsx src/v3/GlobalCardDesigner.tsx
-          git commit -m "feat: upgrade V3.6 baseline to V3.7"
-          git push origin HEAD:v3.7-upgrade-20260915
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
+      - name: Build ARM64 standalone Release APK with embedded JS bundle
+        working-directory: android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=2
+
+      - name: Verify and package APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='android/app/build/outputs/apk/release/app-release.apk'
+          test -s "$APK"
+          mkdir -p artifacts
+          OUT='artifacts/ETF-Finance-Manager-V3.7.0-ARM64-Release.apk'
+          cp "$APK" "$OUT"
+          sha256sum "$OUT" | tee artifacts/SHA256.txt
+          stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
+          {
+            echo 'source_commit='$(git rev-parse HEAD)
+            echo 'package=com.etfpilot.twselive'
+            echo 'display_name=ETF財務管家 V3.7.0 NATIVE'
+            echo 'versionName=3.7.0'
+            echo 'versionCode=38'
+            echo 'buildType=release'
+            echo 'architecture=arm64-v8a'
+            echo 'js_bundle=embedded'
+            echo 'gradle_memory_runner_only=-Xmx3072m,MaxMetaspaceSize=1024m'
+          } >> artifacts/BUILD_INFO.txt
+          unzip -l "$OUT" | grep -E 'assets/index.android.bundle|index.android.bundle'
+
+      - name: Upload V3.7 Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ETF-Finance-Manager-V3.7.0-ARM64-Release
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
