@@ -17,11 +17,9 @@ export function lastBuyDate(h:Holding){const rows=(h.purchaseRecords??[]).map(x=
 
 export function sharesOnDate(symbol:string,date:string,ledger:LedgerEntry[],fallbackCurrent=0){
  if(!isIsoDate(date))return fallbackCurrent;
- // Legacy holdings may have no buy/sell ledger at all; only those may use current shares as fallback.
  const symbolTrades=ledger.filter(x=>x.symbol===symbol&&(x.kind==='buy'||x.kind==='sell')&&isIsoDate(x.date));
  if(!symbolTrades.length)return fallbackCurrent;
  const rows=symbolTrades.filter(x=>x.date<=date);
- // If trade history exists but every trade is after the eligibility cutoff, qualified shares are zero.
  if(!rows.length)return 0;
  const buys=rows.filter(x=>x.kind==='buy').reduce((sum,x)=>sum+Number(x.shares??0),0);
  const sells=rows.filter(x=>x.kind==='sell').reduce((sum,x)=>sum+Number(x.shares??0),0);
@@ -60,11 +58,12 @@ export type PositionCostStats={
 };
 
 /**
- * V3.2 accounting contract
- * - 成交金額 = 股數 × 成交價，永遠不混入費用。
- * - 買進手續費只增加現金支出，不是資產。
+ * Canonical accounting contract
+ * - 成交金額 = floor(股數 × 成交價)，永遠不混入費用。
+ * - 買進現金支出 = 成交金額 + 買進手續費。
+ * - 賣出現金流入 = 成交金額 - 賣出手續費 - 交易稅。
  * - 目前市值 = 即時行情 × 目前持有股數。
- * - 部分賣出採平均成交成本法；平均買進價不因賣出改變。
+ * - 部分賣出採移動平均成本法；賣出只等比例釋放成本池，剩餘平均成本不改變。
  */
 export function positionCostStats(h:Holding,ledger:LedgerEntry[]):PositionCostStats{
  const trades=ledger
@@ -98,7 +97,6 @@ export function positionCostStats(h:Holding,ledger:LedgerEntry[]):PositionCostSt
    if(poolShares<1e-9){poolShares=0;poolTradeCost=0;poolBuyFees=0}
   }
  }
- // Legacy holdings without ledger rows: each purchase record is independently floored.
  if(!trades.length){
   const records=h.purchaseRecords??[];
   if(records.length){
@@ -131,6 +129,7 @@ export function positionCostStats(h:Holding,ledger:LedgerEntry[]):PositionCostSt
  const netSellProceeds=grossSellProceeds-sellFees-sellTaxes;
  return {symbol:h.symbol,buyShares,soldShares,currentShares,historicalTradeCost,historicalBuyFees,historicalCashOutflow:historicalTradeCost+historicalBuyFees,avgTradePrice,avgBuyFeePerShare,currentTradeCost,currentAllocatedBuyFees,currentCashBasis,soldTradeCost,soldAllocatedBuyFees,grossSellProceeds,sellFees,sellTaxes,netSellProceeds,realizedPricePnl,realizedCashPnl};
 }
+
 export function portfolioMetrics(holdings:Holding[],quotes:Record<string,QuoteLike>,cashBalance:number,ledger:LedgerEntry[],dividends:DividendEvent[]){
  let currentTradeCost=0,currentAllocatedBuyFees=0,currentCashBasis=0,marketValue=0,todayPnl=0,previousValue=0;
  let historicalTradeCost=0,historicalBuyFees=0,historicalCashOutflow=0,realizedPricePnl=0,realizedCashPnl=0;
@@ -142,7 +141,6 @@ export function portfolioMetrics(holdings:Holding[],quotes:Record<string,QuoteLi
   realizedPricePnl+=c.realizedPricePnl; realizedCashPnl+=c.realizedCashPnl;
   marketValue+=value; previousValue+=prev*h.shares; todayPnl+=(price-prev)*h.shares;
  }
- // Preserve history for completely sold symbols that are no longer present in holdings.
  const historicalSymbols=[...new Set(ledger.filter(e=>e.symbol&&(e.kind==='buy'||e.kind==='sell')).map(e=>String(e.symbol)))].filter(sym=>!holdingSymbols.has(sym));
  for(const symbol of historicalSymbols){
   const fake:Holding={symbol,name:symbol,subtitle:'歷史部位',shares:0,avgCost:0,fallbackPrice:0,targetWeight:0,annualDividendPerShare:0,tag:'歷史'} as Holding;
@@ -153,30 +151,34 @@ export function portfolioMetrics(holdings:Holding[],quotes:Record<string,QuoteLi
  const cashUnrealizedPnl=marketValue-currentCashBasis;
  const pricePnl=priceUnrealizedPnl+realizedPricePnl;
  const comprehensivePnl=cashUnrealizedPnl+realizedCashPnl+cumulativeDividends;
- const totalPnl=priceUnrealizedPnl; // V3.4.2「損益試算」= 總市值 - 目前純成本
- const totalRoi=currentTradeCost>0?totalPnl/currentTradeCost*100:0;
+ const totalPnl=comprehensivePnl;
+ const totalRoi=historicalCashOutflow>0?totalPnl/historicalCashOutflow*100:0;
  const priceRoi=historicalTradeCost>0?(pricePnl+cumulativeDividends)/historicalTradeCost*100:0;
  const todayPnlPct=previousValue>0?todayPnl/previousValue*100:0;
  const pendingDividends=dividends.filter(e=>Number(e.actualAmount??0)<=0).reduce((s,e)=>s+Number(e.estimatedAmount??0),0);
- // 現金資金是獨立核帳帳本，不直接灌入投資總資產，避免手動存入造成資產被重複加總。
- const totalAssets=marketValue;
+ const totalAssets=marketValue+Math.max(0,Number(cashBalance)||0);
+ const accountEquity=totalAssets;
  return {
-  // Canonical V3.2 names
   historicalTradeCost,historicalBuyFees,historicalCashOutflow,
   currentTradeCost,currentAllocatedBuyFees,currentCashBasis,
-  marketValue,cashBalance,totalAssets,priceUnrealizedPnl,cashUnrealizedPnl,realizedPricePnl,realizedCashPnl,pricePnl,cumulativeDividends,totalPnl,totalRoi,priceRoi,todayPnl,todayPnlPct,pendingDividends,holdingCount:holdings.length,comprehensivePnl,
-  // Compatibility aliases used by older V3 UI. Keep semantics explicit in UI labels.
+  marketValue,cashBalance,totalAssets,accountEquity,priceUnrealizedPnl,cashUnrealizedPnl,realizedPricePnl,realizedCashPnl,pricePnl,cumulativeDividends,totalPnl,totalRoi,priceRoi,todayPnl,todayPnlPct,pendingDividends,holdingCount:holdings.length,comprehensivePnl,
   totalInvestedCost:historicalCashOutflow,currentCost:currentCashBasis,pureCost:currentTradeCost,totalFees:historicalBuyFees,unrealizedPnl:cashUnrealizedPnl,realizedPnl:realizedCashPnl,
  };
 }
 
 export function holdingMetrics(h:Holding,quotes:Record<string,QuoteLike>,ledger:LedgerEntry[]=[],dividends:DividendEvent[]=[]){
  const q=quotes[h.symbol]??{}; const price=quotePrice(h,quotes), c=positionCostStats(h,ledger), marketValue=price*h.shares;
- // Canonical instant/unrealized P&L includes allocated buy fees.
- const pricePnl=marketValue-c.currentTradeCost; const cashPnl=marketValue-c.currentCashBasis;
- const pnl=pricePnl; const roi=c.currentTradeCost>0?pnl/c.currentTradeCost*100:0; const cashRoi=c.currentCashBasis>0?cashPnl/c.currentCashBasis*100:0;
+ const pricePnl=marketValue-c.currentTradeCost;
+ const cashPnl=marketValue-c.currentCashBasis;
+ const priceRoi=c.currentTradeCost>0?pricePnl/c.currentTradeCost*100:0;
+ const cashRoi=c.currentCashBasis>0?cashPnl/c.currentCashBasis*100:0;
+ const pnl=cashPnl;
+ const roi=cashRoi;
  const prev=Number(q.previousClose??price); const todayPnl=(price-prev)*h.shares; const prevValue=prev*h.shares; const todayPnlPct=prevValue>0?todayPnl/prevValue*100:0;
- const cumulativeDividend=dividendTotals(ledger,dividends,h.symbol); const costYield=c.currentTradeCost>0?cumulativeDividend/c.currentTradeCost*100:0;
+ const cumulativeDividend=dividendTotals(ledger,dividends,h.symbol);
+ const comprehensivePnl=cashPnl+c.realizedCashPnl+cumulativeDividend;
+ const comprehensiveRoi=c.historicalCashOutflow>0?comprehensivePnl/c.historicalCashOutflow*100:0;
+ const costYield=c.currentCashBasis>0?cumulativeDividend/c.currentCashBasis*100:0;
  return {
   price,
   pureCost:c.currentTradeCost,
@@ -185,7 +187,7 @@ export function holdingMetrics(h:Holding,quotes:Record<string,QuoteLike>,ledger:
   historicalTradeCost:c.historicalTradeCost,
   historicalBuyFees:c.historicalBuyFees,
   historicalCashOutflow:c.historicalCashOutflow,
-  marketValue,pnl,pricePnl,cashPnl,roi,cashRoi,
+  marketValue,pnl,pricePnl,cashPnl,roi,priceRoi,cashRoi,comprehensivePnl,comprehensiveRoi,
   avgCost:c.avgTradePrice,
   cashAvgCost:h.shares>0?c.currentCashBasis/h.shares:0,
   realizedPricePnl:c.realizedPricePnl,realizedCashPnl:c.realizedCashPnl,
