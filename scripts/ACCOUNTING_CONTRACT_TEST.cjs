@@ -10,7 +10,7 @@ const requiredSourceRules = [
   ['賣出淨收入扣賣出費與交易稅', 'const netSellProceeds=grossSellProceeds-sellFees-sellTaxes'],
   ['總損益使用綜合損益', 'const totalPnl=comprehensivePnl'],
   ['總 ROI 使用歷史含費投入', 'const totalRoi=historicalCashOutflow>0?totalPnl/historicalCashOutflow*100:0'],
-  ['總資產包含證券現金', 'const totalAssets=marketValue+Math.max(0,Number(cashBalance)||0)'],
+  ['總資產包含正負證券現金且不得 clamp', 'const totalAssets=marketValue+(Number.isFinite(Number(cashBalance))?Number(cashBalance):0)'],
   ['單檔預設即時損益採含費口徑', 'const pnl=cashPnl'],
 ];
 for (const [label, snippet] of requiredSourceRules) {
@@ -52,6 +52,8 @@ const cashUnrealized = marketValue - currentCashBasis;
 const totalPnl = cashUnrealized + realizedCash + dividend;
 const roi = totalPnl / cashOutflow * 100;
 const totalAssets = marketValue + cashBalance;
+const negativeCashBalance = -20000;
+const totalAssetsWithNegativeCash = 100000 + negativeCashBalance;
 
 approx(tradeCost, 16000, 1e-9, '累積成交成本');
 approx(buyFees, 15, 1e-9, '累積買進手續費');
@@ -67,6 +69,7 @@ approx(cashUnrealized, 2188, 1e-9, '含費未實現損益');
 approx(totalPnl, 3107, 1e-9, '累積總損益');
 approx(roi, 3107/16015*100, 1e-9, '總 ROI');
 approx(totalAssets, 65000, 1e-9, '總資產');
+approx(totalAssetsWithNegativeCash, 80000, 1e-9, '負現金總資產不得被歸零');
 
 console.log('ACCOUNTING_CONTRACT_TEST: PASS');
-console.log(JSON.stringify({tradeCost,buyFees,cashOutflow,currentShares,currentTradeCost,currentCashBasis,marketValue,realizedPrice,realizedCash,priceUnrealized,cashUnrealized,dividend,totalPnl,roi:Number(roi.toFixed(6)),cashBalance,totalAssets}, null, 2));
+console.log(JSON.stringify({tradeCost,buyFees,cashOutflow,currentShares,currentTradeCost,currentCashBasis,marketValue,realizedPrice,realizedCash,priceUnrealized,cashUnrealized,dividend,totalPnl,roi:Number(roi.toFixed(6)),cashBalance,totalAssets,negativeCashBalance,totalAssetsWithNegativeCash}, null, 2));
