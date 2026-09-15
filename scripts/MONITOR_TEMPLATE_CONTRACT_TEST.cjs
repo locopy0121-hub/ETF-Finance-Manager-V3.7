@@ -18,6 +18,9 @@ check(s.includes('function MonitorFieldPicker')&&s.includes('onPress={()=>onEdit
 check(o.includes('mode:template.nativeMode'),'payload uses explicit template nativeMode');
 check(o.includes('templateFields:template.fields'),'payload carries template composition for native fallback');
 check(o.includes('profile?.fieldsCustomized===true'),'payload distinguishes template composition from custom field composition');
+check(native.includes('private fun signed2(v:Double):String='),'native renderer retains signed percentage formatter');
+check(native.includes('private fun selectedMetricLines(): MutableList<String>'),'native strip/legacy renderer retains field line builder');
+check(native.includes('private fun renderText():String'),'native strip/legacy renderer retains text renderer');
 const tableStart=native.indexOf('  private fun renderTableOverlay() {');
 const puzzleStart=native.indexOf('  private fun renderPuzzleOverlay() {',tableStart+1);
 const table=tableStart>=0&&puzzleStart>tableStart?native.slice(tableStart,puzzleStart):'';
