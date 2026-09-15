@@ -8,8 +8,6 @@ const templateRows=[...t.matchAll(/\{id:'([^']+)',name:'([^']+)',fields:\[([^\]]
 check(templateRows.length===12,'exactly 12 monitor templates are declared');
 check(templateRows.every(x=>x[3].trim().length>0),'every template has composition fields');
 check(templateRows.every(x=>x[5]==='table'||x[5]==='puzzle'||x[5]==='strip'),'every template declares nativeMode');
-const fieldCount=row=>(row[3].match(/'/g)||[]).length/2;
-check(templateRows.filter(x=>x[5]==='table').every(x=>fieldCount(x)<=4),'default table templates never silently drop fields at standard width');
 check(t.includes("export const templateDefaultFields=(id:MonitorDisplayMode)=>[...monitorTemplate(id).fields]"),'template default field helper exists');
 check(s.includes('function MonitorTemplateEditor'),'template editor component exists');
 check(s.includes('模板內容與組合項目'),'template editor exposes composition content');
@@ -23,9 +21,10 @@ check(o.includes('profile?.fieldsCustomized===true'),'payload distinguishes temp
 const tableStart=native.indexOf('  private fun renderTableOverlay() {');
 const puzzleStart=native.indexOf('  private fun renderPuzzleOverlay() {',tableStart+1);
 const table=tableStart>=0&&puzzleStart>tableStart?native.slice(tableStart,puzzleStart):'';
+check(table.includes('fields.chunked(max(1,columnCount))')&&table.includes('for(group in groups)'),'native table renderer preserves all configured fields by chunking overflow columns');
 check(table.includes('"totalAssets" to "總資產"'),'native table renderer labels totalAssets');
 check(table.includes('"dividend" to "股息事件"'),'native table renderer labels dividend');
 check(table.includes('"totalAssets"->money(payload.optDouble("totalAssets",0.0))'),'native table renderer reads canonical totalAssets payload');
-check(table.includes('"dividend"->if(payload.optString("dividendSymbol").isNotBlank())'),'native table renderer reads dividend payload');
+check(table.includes('fun dividendText():String=if(payload.optString("dividendSymbol").isNotBlank())')&&table.includes('"dividend"->dividendText()'),'native table renderer reads dividend payload');
 if(failed){console.error(`MONITOR TEMPLATE CONTRACT: FAIL (${failed})`);process.exit(1)}
 console.log('MONITOR TEMPLATE CONTRACT: PASS');
