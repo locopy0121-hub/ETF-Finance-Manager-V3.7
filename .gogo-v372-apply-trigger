@@ -1,1 +1,2 @@
-apply integrated V3.7.2 finance/cash/settings foundation
+rerun integrated V3.7.2 finance/cash/settings foundation after sell JSX anchor fix
+source_fix_commit: 1ddbc510b04f1a4e3cafa1eb57891bb3fb379091
