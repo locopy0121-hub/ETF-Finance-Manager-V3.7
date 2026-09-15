@@ -26,11 +26,8 @@ jobs:
         with:
           node-version: '22.23.2'
           cache: npm
-      - name: Apply deterministic production patch
-        run: |
-          python3 scripts/APPLY_GOGO_V373.py
-          python3 scripts/FIX_GOGO_V373_TSC.py
-          python3 scripts/FIX_V373_TABLE_FIELDS.py
+      - name: Apply final monitor table renderer patch
+        run: python3 scripts/FIX_V373_TABLE_FIELDS.py
       - name: Install dependencies
         run: npm ci
       - name: V3.7.3 focused contracts
@@ -51,16 +48,16 @@ jobs:
           node scripts/DIVIDEND_CUTOFF_TEST.cjs
       - name: Source diff integrity
         run: git diff --check
-      - name: Commit verified V3.7.3 production changes
+      - name: Commit verified V3.7.3 renderer completion
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app.json android/app/build.gradle android/app/src/main/res/values/strings.xml src scripts modules/floating-investment-bot
+          git add modules/floating-investment-bot scripts
           if git diff --cached --quiet; then
-            echo 'No production changes to commit.'
+            echo 'No renderer changes to commit.'
           else
-            git commit -m 'fix(v3.7.3): complete monitor table fields and finance renderer'
+            git commit -m 'fix(v3.7.3): complete monitor table fields and preserve template composition'
             git push origin HEAD:v3.7.3-release-20260916
           fi
