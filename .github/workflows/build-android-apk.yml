@@ -6,14 +6,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CI: 'true'
 
 jobs:
   verify-and-build:
-    name: Verify integrated V3.7.1 fixes and build signed APK
+    name: Verify V3.7.1 and build signed APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -24,255 +24,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
-
-      - name: Apply V3.7.1 integrated GOGO fixes
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path, old, new, count=1):
-              p=Path(path); text=p.read_text(encoding='utf-8')
-              if new in text:
-                  print('ALREADY:', path, new[:70])
-                  return
-              if old not in text:
-                  raise SystemExit(f'PATCH TARGET NOT FOUND: {path}: {old[:180]}')
-              p.write_text(text.replace(old,new,count),encoding='utf-8')
-              print('PATCHED:', path)
-
-          def insert_before(path, marker, block):
-              p=Path(path); text=p.read_text(encoding='utf-8')
-              if block.strip() in text:
-                  print('ALREADY BLOCK:', path); return
-              if marker not in text: raise SystemExit(f'INSERT MARKER NOT FOUND: {path}: {marker[:120]}')
-              p.write_text(text.replace(marker,block+'\n'+marker,1),encoding='utf-8')
-              print('INSERTED:', path)
-
-          # 1) Monitor data model: each displayed function/data item can be pinned.
-          replace_once('src/v3/monitoring.ts',
-              "export type MonitorFieldStyle={visible:boolean;order:number;fontScale:number;",
-              "export type MonitorFieldStyle={visible:boolean;order:number;fixed:boolean;fontScale:number;")
-
-          # 2) Monitor field editor: pin option + real-data preview value.
-          replace_once('src/v3/MonitorFieldEditor.tsx',
-              "const base=(order=1):MonitorFieldStyle=>({visible:true,order,fontScale:100,",
-              "const base=(order=1):MonitorFieldStyle=>({visible:true,order,fixed:false,fontScale:100,")
-          replace_once('src/v3/MonitorFieldEditor.tsx',
-              "export default function MonitorFieldEditor({visible,field,style,orderMax,positive,negative,onSave,onClose}:{visible:boolean;field:MonitorField|null;style?:MonitorFieldStyle;orderMax:number;positive:string;negative:string;onSave:(v:MonitorFieldStyle)=>void;onClose:()=>void}){",
-              "export default function MonitorFieldEditor({visible,field,style,orderMax,positive,negative,sampleValue,onSave,onClose}:{visible:boolean;field:MonitorField|null;style?:MonitorFieldStyle;orderMax:number;positive:string;negative:string;sampleValue?:string;onSave:(v:MonitorFieldStyle)=>void;onClose:()=>void}){")
-          replace_once('src/v3/MonitorFieldEditor.tsx',
-              " <View style={s.setting}><Text style={s.label}>顯示順序</Text><Step value={d.order} min={1} max={Math.max(1,orderMax)} step={1} onChange={v=>patch({order:v})}/></View>",
-              " <View style={s.setting}><Text style={s.label}>顯示順序</Text><Step value={d.order} min={1} max={Math.max(1,orderMax)} step={1} onChange={v=>patch({order:v})}/></View>\n <View style={s.setting}><Text style={s.label}>固定此功能項目 📌</Text><Switch value={d.fixed===true} onValueChange={v=>patch({fixed:v})}/></View>")
-          replace_once('src/v3/MonitorFieldEditor.tsx',
-              "{field==='symbol'?'00919':pnl?'+186':'32.48'}",
-              "{sampleValue??(field==='symbol'?'—':'資料不足')}")
-          replace_once('src/v3/MonitorFieldEditor.tsx',
-              "{LABELS[field]} · 預覽不會直接寫入桌面監視器",
-              "{LABELS[field]} · 使用目前 App 真實資料 · 儲存後才正式套用")
-
-          # 3) Universal Editor: palette-only color editing + movable live preview.
-          replace_once('src/ui/UniversalEditor.tsx',
-              "import React,{useEffect,useState} from 'react';",
-              "import React,{useEffect,useMemo,useRef,useState} from 'react';")
-          replace_once('src/ui/UniversalEditor.tsx',
-              "import {Modal,Pressable,StyleSheet,Switch,Text,TextInput,View} from 'react-native';",
-              "import {Animated,Modal,PanResponder,Pressable,StyleSheet,Switch,Text,TextInput,View} from 'react-native';")
-          replace_once('src/ui/UniversalEditor.tsx',
-              "import {KeyboardAwareScrollView,KeyboardSafeFooter} from './KeyboardAware';",
-              "import {KeyboardAwareScrollView,KeyboardSafeFooter} from './KeyboardAware';\nimport ColorPalettePicker from '../components/ColorPalettePicker';")
-          replace_once('src/ui/UniversalEditor.tsx',
-              '<TextInput style={s.input} value={effect.color??\'\'} placeholder="效果顏色 #RRGGBB（可留空）" placeholderTextColor="#64748B" onChangeText={color=>onChange({...effect,color})}/>',
-              '<ColorPalettePicker label="效果顏色" value={effect.color} allowTheme onChange={color=>onChange({...effect,color})}/>')
-          old_appearance='''<Choices label="文字顏色模式" value={text.colorMode} items={[[\'fixed\',\'固定色\'],[\'theme\',\'跟隨主題\'],[\'profitLoss\',\'跟隨損益色\'],[\'auto\',\'自動\']]} onChange={colorMode=>patchText({colorMode})}/><TextInput style={s.input} value={text.color??\'\'} placeholder="固定文字色 #RRGGBB" placeholderTextColor="#64748B" onChangeText={color=>patchText({color})}/><Choices label="背景顏色模式" value={d.backgroundColorMode??\'theme\'} items={[[\'fixed\',\'固定色\'],[\'theme\',\'跟隨主題\'],[\'profitLoss\',\'跟隨損益色\'],[\'auto\',\'自動\']]} onChange={backgroundColorMode=>patch({backgroundColorMode})}/><TextInput style={s.input} value={d.backgroundColor??\'\'} placeholder="固定背景色 #RRGGBB" placeholderTextColor="#64748B" onChangeText={backgroundColor=>patch({backgroundColor})}/><Choices label="邊框顏色模式" value={d.borderColorMode??\'theme\'} items={[[\'fixed\',\'固定色\'],[\'theme\',\'跟隨主題\'],[\'profitLoss\',\'跟隨損益色\'],[\'auto\',\'自動\']]} onChange={borderColorMode=>patch({borderColorMode})}/><TextInput style={s.input} value={d.borderColor??\'\'} placeholder="固定邊框色 #RRGGBB" placeholderTextColor="#64748B" onChangeText={borderColor=>patch({borderColor})}/>'''
-          new_appearance='''<Choices label="文字顏色模式" value={text.colorMode} items={[[\'fixed\',\'固定色\'],[\'theme\',\'跟隨主題\'],[\'profitLoss\',\'跟隨損益色\'],[\'auto\',\'自動\']]} onChange={colorMode=>patchText({colorMode})}/>{text.colorMode===\'fixed\'||text.colorMode===\'auto\'?<ColorPalettePicker label="文字顏色" value={text.color} allowTheme={false} onChange={color=>patchText({color})}/>:null}<Choices label="背景顏色模式" value={d.backgroundColorMode??\'theme\'} items={[[\'fixed\',\'固定色\'],[\'theme\',\'跟隨主題\'],[\'profitLoss\',\'跟隨損益色\'],[\'auto\',\'自動\']]} onChange={backgroundColorMode=>patch({backgroundColorMode})}/>{d.backgroundColorMode===\'fixed\'||d.backgroundColorMode===\'auto\'?<ColorPalettePicker label="背景顏色" value={d.backgroundColor} allowTheme={false} onChange={backgroundColor=>patch({backgroundColor})}/>:null}<Choices label="邊框顏色模式" value={d.borderColorMode??\'theme\'} items={[[\'fixed\',\'固定色\'],[\'theme\',\'跟隨主題\'],[\'profitLoss\',\'跟隨損益色\'],[\'auto\',\'自動\']]} onChange={borderColorMode=>patch({borderColorMode})}/>{d.borderColorMode===\'fixed\'||d.borderColorMode===\'auto\'?<ColorPalettePicker label="邊框顏色" value={d.borderColor} allowTheme={false} onChange={borderColor=>patch({borderColor})}/>:null}'''
-          replace_once('src/ui/UniversalEditor.tsx',old_appearance,new_appearance)
-          preview_component='''function FloatingEditorPreview({node}:{node:UniversalEditorNode}){const origin=useRef({x:0,y:0});const pos=useRef(new Animated.ValueXY({x:0,y:0})).current;const pan=useMemo(()=>PanResponder.create({onStartShouldSetPanResponder:()=>true,onMoveShouldSetPanResponder:(_e,g)=>Math.abs(g.dx)>2||Math.abs(g.dy)>2,onPanResponderMove:(_e,g)=>pos.setValue({x:origin.current.x+g.dx,y:origin.current.y+g.dy}),onPanResponderRelease:(_e,g)=>{origin.current={x:origin.current.x+g.dx,y:origin.current.y+g.dy};pos.setValue(origin.current)},onPanResponderTerminate:()=>pos.setValue(origin.current)}),[pos]);const t=node.text!;const shown=t.visible?displayNameOf(node):'（目前設定為隱藏）';const color=(t.colorMode==='fixed'||t.colorMode==='auto')&&t.color?t.color:'#F3D675';const background=(node.backgroundColorMode==='fixed'||node.backgroundColorMode==='auto')&&node.backgroundColor?node.backgroundColor:'#101827';const border=(node.borderColorMode==='fixed'||node.borderColorMode==='auto')&&node.borderColor?node.borderColor:'#475569';return <Animated.View {...pan.panHandlers} style={[s.livePreview,{backgroundColor:background,borderColor:border,transform:pos.getTranslateTransform()}]}><Text style={s.livePreviewHead}>☰ 即時資料預覽｜可自由移動</Text><Text style={{fontSize:t.fontSize,fontWeight:t.fontWeight,color,textAlign:t.align,letterSpacing:t.letterSpacing,lineHeight:t.lineHeight,opacity:t.visible?t.opacity:.45}}>{shown}</Text><Text style={s.livePreviewMeta}>{node.kind} · 目前資料：{node.systemName}</Text></Animated.View>}'''
-          insert_before('src/ui/UniversalEditor.tsx','export function UniversalEditor',preview_component)
-          old_static='''<View style={[s.preview,{backgroundColor:d.backgroundColor||'#101827'}]}><Text style={{fontSize:text.fontSize,fontWeight:text.fontWeight,color:text.color||'#F3D675',textAlign:text.align,letterSpacing:text.letterSpacing,lineHeight:text.lineHeight,opacity:text.opacity}}>{displayNameOf(d)}</Text></View>'''
-          replace_once('src/ui/UniversalEditor.tsx',old_static,'<Text style={s.hint}>浮動即時預覽使用目前正在編輯物件的真實文字 / 數值；拖曳只移動預覽窗，不會改變正式版面位置。</Text>')
-          replace_once('src/ui/UniversalEditor.tsx',
-              '</KeyboardAwareScrollView><KeyboardSafeFooter style={s.footer}>',
-              '</KeyboardAwareScrollView><FloatingEditorPreview node={d}/><KeyboardSafeFooter style={s.footer}>')
-          replace_once('src/ui/UniversalEditor.tsx',
-              "safe:{flex:1,backgroundColor:'#0B111E'},header:",
-              "safe:{flex:1,backgroundColor:'#0B111E'},livePreview:{position:'absolute',zIndex:30,top:86,right:12,width:220,minHeight:92,borderWidth:1.5,borderRadius:14,padding:11,shadowColor:'#000',shadowOpacity:.38,shadowRadius:12,elevation:12},livePreviewHead:{color:'#94A3B8',fontSize:9,fontWeight:'900',marginBottom:8},livePreviewMeta:{color:'#64748B',fontSize:8,marginTop:7},header:")
-
-          # 4) Card/data-frame editor: real current values in preview + draggable small preview.
-          replace_once('src/v3/GlobalCardDesigner.tsx',
-              "function FieldConfigModal({visible,label,config,onSave,onClose}:{visible:boolean;label:string;config:V3FieldConfig|null;onSave:(c:V3FieldConfig)=>void;onClose:()=>void}){",
-              "function FieldConfigModal({visible,label,previewValue,config,onSave,onClose}:{visible:boolean;label:string;previewValue?:string;config:V3FieldConfig|null;onSave:(c:V3FieldConfig)=>void;onClose:()=>void}){")
-          replace_once('src/v3/GlobalCardDesigner.tsx',
-              " const [local,setLocal]=useState<V3FieldConfig|null>(config); useEffect(()=>{if(visible&&config)setLocal(JSON.parse(JSON.stringify(config)))},[visible,config]); if(!local)return null;",
-              " const [local,setLocal]=useState<V3FieldConfig|null>(config); useEffect(()=>{if(visible&&config)setLocal(JSON.parse(JSON.stringify(config)))},[visible,config]); const previewOrigin=useRef({x:0,y:0});const previewPos=useRef(new Animated.ValueXY({x:0,y:0})).current;const previewPan=useMemo(()=>PanResponder.create({onStartShouldSetPanResponder:()=>true,onMoveShouldSetPanResponder:(_e,g)=>Math.abs(g.dx)>2||Math.abs(g.dy)>2,onPanResponderMove:(_e,g)=>previewPos.setValue({x:previewOrigin.current.x+g.dx,y:previewOrigin.current.y+g.dy}),onPanResponderRelease:(_e,g)=>{previewOrigin.current={x:previewOrigin.current.x+g.dx,y:previewOrigin.current.y+g.dy};previewPos.setValue(previewOrigin.current)}}),[previewPos]); if(!local)return null;")
-          replace_once('src/v3/GlobalCardDesigner.tsx',
-              '<Text style={styles.label}>即時預覽</Text><View style={[styles.innerBlock,',
-              '<Text style={styles.label}>☰ 可拖曳即時預覽｜使用目前資料</Text><Animated.View {...previewPan.panHandlers} style={[styles.innerBlock,')
-          replace_once('src/v3/GlobalCardDesigner.tsx','>名稱 Label</Text>','>{label}</Text>')
-          replace_once('src/v3/GlobalCardDesigner.tsx','>+1,234</Text></View></ScrollView>','>{previewValue??\'—\'}</Text></Animated.View></ScrollView>')
-          replace_once('src/v3/GlobalCardDesigner.tsx',
-              "function CardDetailEditor({visible,card,choices,onApply,onClose}:{visible:boolean;card:V3PageCard|null;choices:DesignerChoice[];onApply:(patch:Partial<V3PageCard>)=>void;onClose:()=>void}){",
-              "function CardDetailEditor({visible,card,choices,previewValues,onApply,onClose}:{visible:boolean;card:V3PageCard|null;choices:DesignerChoice[];previewValues?:Record<string,string>;onApply:(patch:Partial<V3PageCard>)=>void;onClose:()=>void}){")
-          replace_once('src/v3/GlobalCardDesigner.tsx',
-              '<Text style={styles.innerLabel} numberOfLines={2}>{labels[key]??key}</Text><Text style={styles.innerMeta}>',
-              '<Text style={styles.innerLabel} numberOfLines={2}>{labels[key]??key}</Text><Text style={{color:\'#FFFFFF\',fontSize:13,fontWeight:\'900\',marginTop:5}} numberOfLines={2}>{previewValues?.[key]??\'—\'}</Text><Text style={styles.innerMeta}>')
-          replace_once('src/v3/GlobalCardDesigner.tsx',
-              '<FieldConfigModal visible={!!editingKey} label={editingKey?labels[editingKey]??editingKey:\'\'} config={editingKey?configs[editingKey]??defaultField():null}',
-              '<FieldConfigModal visible={!!editingKey} label={editingKey?labels[editingKey]??editingKey:\'\'} previewValue={editingKey?previewValues?.[editingKey]:undefined} config={editingKey?configs[editingKey]??defaultField():null}')
-          replace_once('src/v3/GlobalCardDesigner.tsx',
-              "export function GlobalCardDesigner({visible,layouts,choicesByPage,onSave,onClose,entryTarget,directMode=false,presets=[],onPresetsChange}:{visible:boolean;layouts:V3PageLayouts;choicesByPage:Record<PageFieldKey,DesignerChoice[]>;onSave:(layouts:V3PageLayouts)=>void;onClose:()=>void;entryTarget?:{page:PageFieldKey;cardId:string};directMode?:boolean;presets?:V3EditorPreset[];onPresetsChange?:(presets:V3EditorPreset[])=>void}){",
-              "export function GlobalCardDesigner({visible,layouts,choicesByPage,previewValuesByPage,onSave,onClose,entryTarget,directMode=false,presets=[],onPresetsChange}:{visible:boolean;layouts:V3PageLayouts;choicesByPage:Record<PageFieldKey,DesignerChoice[]>;previewValuesByPage?:Partial<Record<PageFieldKey,Record<string,string>>>;onSave:(layouts:V3PageLayouts)=>void;onClose:()=>void;entryTarget?:{page:PageFieldKey;cardId:string};directMode?:boolean;presets?:V3EditorPreset[];onPresetsChange?:(presets:V3EditorPreset[])=>void}){")
-          replace_once('src/v3/GlobalCardDesigner.tsx',
-              '<CardDetailEditor visible={detailOpen} card={selected??null} choices={choicesByPage[page]} onApply=',
-              '<CardDetailEditor visible={detailOpen} card={selected??null} choices={choicesByPage[page]} previewValues={previewValuesByPage?.[page]} onApply=')
-
-          # 5) Screen-level bugs + contextual Mini ids + monitor preview/settings.
-          replace_once('src/v3/screens.tsx',
-              "import { setImmersiveEditor } from '../services/nativeUi';",
-              "import { setImmersiveEditor } from '../services/nativeUi';\nimport { setFloatingOverlayLayoutSize } from '../services/floatingOverlay';")
-          replace_once('src/v3/screens.tsx',
-              "export function V3ThemeProvider({prefs,onEditorNodesChange,onPreferencesChange,children}:{prefs:V3Preferences;onEditorNodesChange?:(nodes:Record<string,UniversalEditorNode>)=>void;onPreferencesChange?:(patch:Partial<V3Preferences>)=>void;children:React.ReactNode}){",
-              "export function V3ThemeProvider({prefs,editorPreviewValues,onEditorNodesChange,onPreferencesChange,children}:{prefs:V3Preferences;editorPreviewValues?:Partial<Record<PageFieldKey,Record<string,string>>>;onEditorNodesChange?:(nodes:Record<string,UniversalEditorNode>)=>void;onPreferencesChange?:(patch:Partial<V3Preferences>)=>void;children:React.ReactNode}){")
-          replace_once('src/v3/screens.tsx',
-              '<GlobalCardDesigner visible={!!frameTarget} layouts={prefs.pageLayouts} choicesByPage=',
-              '<GlobalCardDesigner visible={!!frameTarget} layouts={prefs.pageLayouts} previewValuesByPage={editorPreviewValues} choicesByPage=')
-          replace_once('src/v3/screens.tsx',
-              "function Mini({label,value,width,valueColor}:{label:string;value:string;width?:ViewStyle['width'];valueColor?:string}){const p=theme();const id=label.replace(/\\s/g,'-');",
-              "function Mini({label,value,width,valueColor,scope}:{label:string;value:string;width?:ViewStyle['width'];valueColor?:string;scope?:string}){const p=theme();const id=`${scope?scope+':':''}${label.replace(/\\s/g,'-')}`;")
-          replace_once('src/v3/screens.tsx',
-              '<Mini label="當日總損益" value={`${selected.todayPnl>0?\'+\':\'\'}${money(selected.todayPnl)}`}/><Mini label="當日損益率" value={pct(selected.todayPnlPct*100)}/><Mini label="當日總資產" value={money(selected.totalAssets??selected.marketValue)}/><Mini label="當日持有 ETF" value={`${selected.holdings.length} 檔`}/>',
-              '<Mini scope="daily-history" label="當日總損益" value={`${selected.todayPnl>0?\'+\':\'\'}${money(selected.todayPnl)}`}/><Mini scope="daily-history" label="當日損益率" value={pct(selected.todayPnlPct*100)}/><Mini scope="daily-history" label="當日總資產" value={money(selected.totalAssets??selected.marketValue)}/><Mini scope="daily-history" label="當日持有 ETF" value={`${selected.holdings.length} 檔`}/>')
-          old_daily='''<View style={{alignItems:'flex-end'}}><Text style={[s.etfValue,{color}]}>{valid&&pnl>0?'+':''}{valid?money(pnl):'待更新'}</Text>{prefs.dailyPnl.showPercent&&valid?<Text style={[s.muted,{color}]}>{pnl>0?'+':''}{pct(pnlPct)}</Text>:null}</View>'''
-          new_daily='''<View style={{alignItems:'flex-end'}}><EditableText id={`daily-pnl:${h.symbol}:amount`} kind="value" systemName={valid?`${pnl>0?'+':''}${money(pnl)}`:'待更新'} pnl={pnl} style={[s.etfValue,{color}]}>{valid?`${pnl>0?'+':''}${money(pnl)}`:'待更新'}</EditableText>{prefs.dailyPnl.showPercent&&valid?<EditableText id={`daily-pnl:${h.symbol}:rate`} kind="value" systemName={pct(pnlPct)} pnl={pnl} style={[s.muted,{color}]}>{pct(pnlPct)}</EditableText>:null}</View>'''
-          replace_once('src/v3/screens.tsx',old_daily,new_daily)
-          replace_once('src/v3/screens.tsx',
-              '<Mini label="公告日" value={event.announcementDate||\'—\'}/><Mini label="最後買進日" value={event.lastBuyDate||\'—\'}/><Mini label="除息日" value={event.exDate||\'—\'}/><Mini label="發放日" value={event.payDate||\'—\'}/><Mini label="每股配息" value={event.dividend?Number(event.dividend).toFixed(2):\'—\'}/><Mini label="資格股數快照" value={`${Number(event.eligibleShares??0).toLocaleString()} 股`}/><Mini label={paid?\'實際入帳\':\'預估股息\'} value={money(Number(paid?event.actualAmount:event.estimatedAmount??0))}/>',
-              '<Mini scope="dividend-event" label="公告日" value={event.announcementDate||\'—\'}/><Mini scope="dividend-event" label="最後買進日" value={event.lastBuyDate||\'—\'}/><Mini scope="dividend-event" label="除息日" value={event.exDate||\'—\'}/><Mini scope="dividend-event" label="發放日" value={event.payDate||\'—\'}/><Mini scope="dividend-event" label="每股配息" value={event.dividend?Number(event.dividend).toFixed(2):\'—\'}/><Mini scope="dividend-event" label="資格股數快照" value={`${Number(event.eligibleShares??0).toLocaleString()} 股`}/><Mini scope="dividend-event" label={paid?\'實際入帳\':\'預估股息\'} value={money(Number(paid?event.actualAmount:event.estimatedAmount??0))}/>')
-
-          monitor_preview='''function MonitorLivePreview({profile,ordered,labels,values,prefs}:{profile:MonitorProfile;ordered:MonitorField[];labels:Record<string,string>;values:Record<string,string>;prefs:V3Preferences}){const origin=useRef({x:0,y:0});const pos=useRef(new Animated.ValueXY({x:0,y:0})).current;const pan=useMemo(()=>PanResponder.create({onStartShouldSetPanResponder:()=>true,onMoveShouldSetPanResponder:(_e,g)=>Math.abs(g.dx)>2||Math.abs(g.dy)>2,onPanResponderMove:(_e,g)=>pos.setValue({x:origin.current.x+g.dx,y:origin.current.y+g.dy}),onPanResponderRelease:(_e,g)=>{origin.current={x:origin.current.x+g.dx,y:origin.current.y+g.dy};pos.setValue(origin.current)}}),[pos]);const scale=Math.min(1,300/Math.max(120,profile.width),205/Math.max(80,profile.height));const visible=ordered.filter(k=>profile.fieldStyles?.[k]?.visible!==false).slice(0,7);return <View style={{height:245,borderWidth:1,borderColor:'rgba(255,255,255,.08)',borderRadius:12,backgroundColor:'rgba(0,0,0,.16)',overflow:'hidden',marginTop:8}}><Animated.View {...pan.panHandlers} style={{position:'absolute',left:10,top:10,width:profile.width*scale,height:profile.height*scale,minWidth:120,minHeight:78,padding:8,borderRadius:Math.max(4,profile.radius*scale),borderWidth:Math.max(1,profile.borderWidth),borderColor:profile.borderColor,backgroundColor:profile.backgroundColor,opacity:Math.max(.25,profile.activeOpacity/100),transform:pos.getTranslateTransform(),elevation:8}}><Text style={{color:prefs.accentColor,fontWeight:'900',fontSize:Math.max(8,11*profile.fontScale/100)}} numberOfLines={1}>☰ {profile.title}　{profile.locked?'🔒':'🔓'}</Text><Text style={{color:prefs.secondaryTextColor,fontSize:8,marginTop:2}}>{profile.width} × {profile.height}px · 真實資料預覽</Text><View style={{marginTop:5,gap:2}}>{visible.map(k=>{const st=profile.fieldStyles?.[k];const pnl=['premium','change','changePct','instantPnl','instantRoi','todayPnl','todayPnlPct'].includes(k);const raw=Number(String(values[k]??'').replace(/[^0-9.+-]/g,''));const color=st?.profitLossColor&&pnl&&Number.isFinite(raw)?raw>0?(st.positiveColor||prefs.positiveColor):raw<0?(st.negativeColor||prefs.negativeColor):(st.neutralColor||prefs.secondaryTextColor):(st?.textColor||prefs.primaryTextColor);return <View key={k} style={{flexDirection:'row',justifyContent:'space-between',gap:6,paddingHorizontal:Math.max(1,st?.padding??2),borderRadius:st?.radius??3}}><Text style={{color:prefs.secondaryTextColor,fontSize:Math.max(7,8*(st?.fontScale??100)/100),fontWeight:'700',flex:1}} numberOfLines={1}>{st?.fixed?'📌 ':''}{labels[k]??k}</Text><Text style={{color,fontSize:Math.max(7,9*(st?.fontScale??100)/100),fontWeight:st?.fontWeight??'bold',textAlign:st?.align??'right',flex:1}} numberOfLines={1}>{values[k]??'—'}</Text></View>})}</View></Animated.View></View>}'''
-          insert_before('src/v3/screens.tsx','export function SettingsModal',monitor_preview)
-          replace_once('src/v3/screens.tsx',
-              "export function SettingsModal({visible,embedded=false,prefs,appSettings,feeSettings,marketMeta,holdings,onChange,",
-              "export function SettingsModal({visible,embedded=false,prefs,appSettings,feeSettings,marketMeta,holdings,quotes,ledger,dividends,cashBalance,lastSuccessAt,onChange,")
-          replace_once('src/v3/screens.tsx',
-              "marketMeta:MarketMeta;holdings:Holding[];onChange:(p:Partial<V3Preferences>)=>void;",
-              "marketMeta:MarketMeta;holdings:Holding[];quotes:Record<string,QuoteLike>;ledger:LedgerEntry[];dividends:DividendEvent[];cashBalance:number;lastSuccessAt?:number;onChange:(p:Partial<V3Preferences>)=>void;")
-          old_monitor_start="{section==='monitor'?<>{(()=>{const mp=prefs.monitoring.floating;const patchMonitor=(x:Partial<MonitorProfile>)=>onChange({monitoring:{...prefs.monitoring,floating:{...mp,...x}}});const monitorFields:Array<[MonitorField,string]>="
-          new_monitor_start="{section==='monitor'?<>{(()=>{const mp=prefs.monitoring.floating;const patchMonitor=(x:Partial<MonitorProfile>)=>{const next={...mp,...x};if(x.width!=null||x.height!=null)setFloatingOverlayLayoutSize(next.width,next.height);onChange({monitoring:{...prefs.monitoring,floating:next}})};const monitorFields:Array<[MonitorField,string]>="
-          replace_once('src/v3/screens.tsx',old_monitor_start,new_monitor_start)
-          monitor_fields_end="]];const ordered=[...mp.fields].sort((a,b)=>(mp.fieldStyles?.[a]?.order??mp.fields.indexOf(a)+1)-(mp.fieldStyles?.[b]?.order??mp.fields.indexOf(b)+1));const setOrder=(field:MonitorField,dir:number)=>{const idx=ordered.indexOf(field),j=Math.max(0,Math.min(ordered.length-1,idx+dir));if(idx===j)return;const next=[...ordered];[next[idx],next[j]]=[next[j],next[idx]];patchMonitor({fields:next,fieldStyles:{...mp.fieldStyles,...Object.fromEntries(next.map((k,i)=>[k,{...(mp.fieldStyles?.[k]??{}),order:i+1}]))} as any})};return <>"
-          monitor_fields_new="]];const ordered=[...mp.fields].sort((a,b)=>(mp.fieldStyles?.[a]?.order??mp.fields.indexOf(a)+1)-(mp.fieldStyles?.[b]?.order??mp.fields.indexOf(b)+1));const selectedMonitor=mp.selectedSymbols.find(sym=>holdings.some(h=>h.symbol===sym))??holdings[0]?.symbol;const mh=selectedMonitor?holdings.find(h=>h.symbol===selectedMonitor):undefined;const hm=mh?holdingMetrics(mh,quotes,ledger,dividends):undefined;const pm=portfolioMetrics(holdings,quotes,cashBalance,ledger,dividends);const prev=Number(hm?.previousClose??hm?.price??0);const upcoming=[...dividends].filter(e=>e.payDate).sort((a,b)=>String(a.payDate).localeCompare(String(b.payDate)))[0];const monitorSample:Record<string,string>={symbol:mh?.symbol??'—',name:mh?.name??'—',price:hm?hm.price.toFixed(2):'—',nav:hm?.nav!=null?Number(hm.nav).toFixed(2):'—',premium:hm?.nav&&Number(hm.nav)>0?pct((hm.price/Number(hm.nav)-1)*100):'—',change:hm?money(hm.price-prev):'—',changePct:hm&&prev>0?pct((hm.price/prev-1)*100):'—',shares:mh?`${mh.shares.toLocaleString()} 股`:'—',marketValue:hm?money(hm.marketValue):'—',pureCost:hm?money(hm.pureCost):'—',instantPnl:hm?money(hm.pnl):'—',instantRoi:hm?pct(hm.roi):'—',todayPnl:hm?money(hm.todayPnl):'—',todayPnlPct:hm?pct(hm.todayPnlPct):'—',previousClose:hm?.previousClose!=null?Number(hm.previousClose).toFixed(2):'—',open:hm?.open!=null?Number(hm.open).toFixed(2):'—',high:hm?.high!=null?Number(hm.high).toFixed(2):'—',low:hm?.low!=null?Number(hm.low).toFixed(2):'—',volume:hm?.volume!=null?Number(hm.volume).toLocaleString():'—',updatedAt:lastSuccessAt?new Date(lastSuccessAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—',totalAssets:money(pm.totalAssets),dividend:upcoming?`${upcoming.symbol} ${upcoming.payDate} ${money(Number(upcoming.actualAmount??upcoming.estimatedAmount??0))}`:'—'};const monitorLabels=Object.fromEntries(monitorFields);const setOrder=(field:MonitorField,dir:number)=>{if(mp.fieldStyles?.[field]?.fixed)return;const idx=ordered.indexOf(field),j=Math.max(0,Math.min(ordered.length-1,idx+dir));if(idx===j||mp.fieldStyles?.[ordered[j]]?.fixed)return;const next=[...ordered];[next[idx],next[j]]=[next[j],next[idx]];patchMonitor({fields:next,fieldStyles:{...mp.fieldStyles,...Object.fromEntries(next.map((k,i)=>[k,{...(mp.fieldStyles?.[k]??{}),order:i+1}]))} as any})};return <><Card><SectionTitle title=\"監視器即時預覽\" right={`${mp.width} × ${mp.height}px`}/><Text style={s.note}>預覽直接使用目前 App 的持倉與行情資料；拖曳只移動預覽小視窗，不改桌面位置。</Text><MonitorLivePreview profile={mp} ordered={ordered} labels={monitorLabels} values={monitorSample} prefs={prefs}/></Card>"
-          replace_once('src/v3/screens.tsx',monitor_fields_end,monitor_fields_new)
-          replace_once('src/v3/screens.tsx',
-              '<SettingRow label={`監視器高度 ${mp.height}px`}><Stepper value={mp.height} min={120} max={720} step={12} onChange={v=>patchMonitor({height:v})}/></SettingRow>',
-              '<SettingRow label={`監視器寬度 ${mp.width}px`}><Stepper value={mp.width} min={120} max={720} step={12} onChange={v=>patchMonitor({width:v})}/></SettingRow><SettingRow label={`監視器高度 ${mp.height}px`}><Stepper value={mp.height} min={80} max={720} step={12} onChange={v=>patchMonitor({height:v})}/></SettingRow>')
-          old_order='<Text style={s.monitorOrderLabel}>{label}</Text><TouchableOpacity style={s.monitorOrderBtn} onPress={()=>setOrder(k,-1)}><Text style={s.monitorOrderBtnText}>↑</Text></TouchableOpacity><TouchableOpacity style={s.monitorOrderBtn} onPress={()=>setOrder(k,1)}><Text style={s.monitorOrderBtnText}>↓</Text></TouchableOpacity><TouchableOpacity style={s.monitorEditBtn} onPress={()=>setMonitorFieldEdit(k)}><Text style={s.monitorEditText}>✎ 編輯</Text></TouchableOpacity>'
-          new_order='<Text style={s.monitorOrderLabel}>{label}</Text><TouchableOpacity style={[s.monitorOrderBtn,mp.fieldStyles?.[k]?.fixed&&{borderColor:prefs.accentColor}]} onPress={()=>patchMonitor({fieldStyles:{...mp.fieldStyles,[k]:{...(mp.fieldStyles?.[k]??{}),fixed:!(mp.fieldStyles?.[k]?.fixed??false)} as any} as any})}><Text style={s.monitorOrderBtnText}>{mp.fieldStyles?.[k]?.fixed?\'📌\':\'固定\'}</Text></TouchableOpacity><TouchableOpacity disabled={!!mp.fieldStyles?.[k]?.fixed} style={[s.monitorOrderBtn,mp.fieldStyles?.[k]?.fixed&&{opacity:.35}]} onPress={()=>setOrder(k,-1)}><Text style={s.monitorOrderBtnText}>↑</Text></TouchableOpacity><TouchableOpacity disabled={!!mp.fieldStyles?.[k]?.fixed} style={[s.monitorOrderBtn,mp.fieldStyles?.[k]?.fixed&&{opacity:.35}]} onPress={()=>setOrder(k,1)}><Text style={s.monitorOrderBtnText}>↓</Text></TouchableOpacity><TouchableOpacity style={s.monitorEditBtn} onPress={()=>setMonitorFieldEdit(k)}><Text style={s.monitorEditText}>✎ 編輯</Text></TouchableOpacity>'
-          replace_once('src/v3/screens.tsx',old_order,new_order)
-          replace_once('src/v3/screens.tsx',
-              'positive={prefs.positiveColor} negative={prefs.negativeColor} onClose=',
-              'positive={prefs.positiveColor} negative={prefs.negativeColor} sampleValue={monitorFieldEdit?monitorSample[monitorFieldEdit]:undefined} onClose=')
-
-          # 6) Native monitor layout sync: read/write desktop width & height.
-          replace_once('src/services/floatingOverlay.ts',
-              "type NativeOverlay={hasOverlayPermission:()=>boolean;requestOverlayPermission:()=>boolean;start:(payload:string)=>boolean;update:(payload:string)=>boolean;stop:()=>boolean};",
-              "type NativeOverlay={hasOverlayPermission:()=>boolean;requestOverlayPermission:()=>boolean;start:(payload:string)=>boolean;update:(payload:string)=>boolean;stop:()=>boolean;getLayoutSnapshot:()=>string;setLayoutSize:(width:number,height:number)=>boolean};")
-          replace_once('src/services/floatingOverlay.ts',
-              "export function stopFloatingOverlay(){try{return !!Native?.stop()}catch{return false}}",
-              "export function stopFloatingOverlay(){try{return !!Native?.stop()}catch{return false}}\nexport function getFloatingOverlayLayoutSize(){try{const raw=Native?.getLayoutSnapshot?.();if(!raw)return undefined;const x=JSON.parse(raw);const width=Number(x.width),height=Number(x.height);return width>0&&height>0?{width,height}:undefined}catch{return undefined}}\nexport function setFloatingOverlayLayoutSize(width:number,height:number){try{return !!Native?.setLayoutSize?.(Math.max(120,Math.round(width)),Math.max(48,Math.round(height)))}catch{return false}}")
-          replace_once('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotModule.kt',
-              '''    Function("stop") {
-      val context = appContext.reactContext ?: return@Function false
-      FloatingInvestmentBotService.stop(context)
-      true
-    }
-''',
-              '''    Function("stop") {
-      val context = appContext.reactContext ?: return@Function false
-      FloatingInvestmentBotService.stop(context)
-      true
-    }
-
-    Function("getLayoutSnapshot") {
-      val context = appContext.reactContext ?: return@Function "{}"
-      val prefs = context.getSharedPreferences("floating_investment_bot", 0)
-      val width = prefs.getInt("w", 0)
-      val height = prefs.getInt("h", 0)
-      "{\\\"width\\\":$width,\\\"height\\\":$height}"
-    }
-
-    Function("setLayoutSize") { width: Int, height: Int ->
-      val context = appContext.reactContext ?: return@Function false
-      context.getSharedPreferences("floating_investment_bot", 0).edit()
-        .putInt("w", width.coerceAtLeast(120))
-        .putInt("h", height.coerceAtLeast(48))
-        .apply()
-      true
-    }
-''')
-          replace_once('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt',
-              '''    if(expanded){p.width=minW;p.height=minH}else{p.width=min(resources.displayMetrics.widthPixels-dp(16),dp(payload.optInt("width",390)));p.height=min((resources.displayMetrics.heightPixels*.72).toInt(),dp(payload.optInt("height",240)))}
-    try{wm.updateViewLayout(root,p)}catch(_:Throwable){}
-  }
-''',
-              '''    if(expanded){p.width=minW;p.height=minH}else{p.width=min(resources.displayMetrics.widthPixels-dp(16),dp(payload.optInt("width",390)));p.height=min((resources.displayMetrics.heightPixels*.72).toInt(),dp(payload.optInt("height",240)))}
-    try{wm.updateViewLayout(root,p)}catch(_:Throwable){}
-    getSharedPreferences(PREF,MODE_PRIVATE).edit().putInt(PREF_W,(p.width/resources.displayMetrics.density).toInt()).putInt(PREF_H,(p.height/resources.displayMetrics.density).toInt()).apply()
-  }
-''')
-
-          # 7) App wiring: true-data preview values + foreground desktop-size sync.
-          replace_once('App.tsx',
-              "import { configureDisplayPreferences, dividendTotals, portfolioMetrics, sharesOnDate, money } from './src/v3/engine';",
-              "import { configureDisplayPreferences, dividendTotals, holdingMetrics, portfolioMetrics, sharesOnDate, money, pct } from './src/v3/engine';")
-          replace_once('App.tsx',
-              "import { floatingOverlayPayload, hasFloatingOverlayPermission, requestFloatingOverlayPermission, startOrUpdateFloatingOverlay, stopFloatingOverlay } from './src/services/floatingOverlay';",
-              "import { floatingOverlayPayload, getFloatingOverlayLayoutSize, hasFloatingOverlayPermission, requestFloatingOverlayPermission, startOrUpdateFloatingOverlay, stopFloatingOverlay } from './src/services/floatingOverlay';")
-          replace_once('App.tsx',
-              "if(next==='active'){stopFloatingOverlay();return}",
-              "if(next==='active'){const layout=getFloatingOverlayLayoutSize();if(layout)setState(cur=>cur?{...cur,preferences:{...cur.preferences,monitoring:{...cur.preferences.monitoring,floating:{...cur.preferences.monitoring.floating,width:layout.width,height:layout.height}}}}:cur);stopFloatingOverlay();return}")
-          preview_values='''const editorPm=portfolioMetrics(state.holdings,quotes.quotes as any,state.cashBalance,state.ledger,state.dividends);const editorH=state.holdings[0];const editorHm=editorH?holdingMetrics(editorH,quotes.quotes as any,state.ledger,state.dividends):undefined;const editorBase:any={historicalTradeCost:money(editorPm.historicalTradeCost),historicalBuyFees:money(editorPm.historicalBuyFees),historicalCashOutflow:money(editorPm.historicalCashOutflow),currentTradeCost:money(editorPm.currentTradeCost),currentCashBasis:money(editorPm.currentCashBasis),totalAssets:money(editorPm.totalAssets),totalPnl:money(editorPm.totalPnl),totalRoi:pct(editorPm.totalRoi),pricePnl:money(editorPm.pricePnl),marketValue:money(editorPm.marketValue),cashBalance:money(editorPm.cashBalance),cumulativeDividends:money(editorPm.cumulativeDividends),todayPnl:money(editorPm.todayPnl),todayPnlPct:pct(editorPm.todayPnlPct),cashUnrealizedPnl:money(editorPm.cashUnrealizedPnl),realizedPnl:money(editorPm.realizedCashPnl),holdingCount:`${editorPm.holdingCount} 檔`,pendingDividends:money(editorPm.pendingDividends)};const editorHolding:any=editorH&&editorHm?{shares:`${editorH.shares.toLocaleString()} 股`,avgCost:editorHm.avgCost.toFixed(2),pureCost:money(editorHm.pureCost),totalFees:money(editorHm.totalFees),totalCost:money(editorHm.totalCost),historicalTradeCost:money(editorHm.historicalTradeCost),historicalBuyFees:money(editorHm.historicalBuyFees),historicalCashOutflow:money(editorHm.historicalCashOutflow),price:editorHm.price.toFixed(2),marketValue:money(editorHm.marketValue),todayPnl:money(editorHm.todayPnl),todayPnlPct:pct(editorHm.todayPnlPct),pnl:money(editorHm.pnl),roi:pct(editorHm.roi),cashPnl:money(editorHm.cashPnl),cashRoi:pct(editorHm.cashRoi),cumulativeDividend:money(editorHm.cumulativeDividend),lastBuyDate:editorH.purchaseRecords?.map(r=>r.date).sort().slice(-1)[0]??'—',broker:editorH.broker??'—',account:editorH.account??'—',purchaseCount:`${editorH.purchaseRecords?.length??0} 筆`,cashAvgCost:editorHm.cashAvgCost.toFixed(2),previousClose:editorHm.previousClose!=null?Number(editorHm.previousClose).toFixed(2):'—',open:editorHm.open!=null?Number(editorHm.open).toFixed(2):'—',high:editorHm.high!=null?Number(editorHm.high).toFixed(2):'—',low:editorHm.low!=null?Number(editorHm.low).toFixed(2):'—',volume:editorHm.volume!=null?Number(editorHm.volume).toLocaleString():'—',realizedPricePnl:money(editorHm.realizedPricePnl),realizedCashPnl:money(editorHm.realizedCashPnl),costYield:pct(editorHm.costYield)}:{};const editorPreviewValues:any={dashboard:editorBase,ledger:{...editorBase,ledgerCount:`${state.ledger.length} 筆`},portfolio:editorHolding,detail:editorHolding,dividend:{cumulativeDividends:money(editorPm.cumulativeDividends),pendingDividend:money(editorPm.pendingDividends),eventCount:`${state.dividends.length} 筆`},calculator:{currentSnapshotValue:money(editorPm.marketValue),initialCapital:money(editorPm.marketValue),invested:money(editorPm.currentTradeCost),futureValue:money(editorPm.marketValue)}};'''
-          replace_once('App.tsx',
-              " const tickerItems=p.ticker.sources.flatMap(k=>tickerGroups[k]??[]).slice(0,Math.max(1,p.ticker.maxItems));\n const source=",
-              " const tickerItems=p.ticker.sources.flatMap(k=>tickerGroups[k]??[]).slice(0,Math.max(1,p.ticker.maxItems));\n "+preview_values+"\n const source=")
-          replace_once('App.tsx',
-              '<V3ThemeProvider prefs={p} onEditorNodesChange=',
-              '<V3ThemeProvider prefs={p} editorPreviewValues={editorPreviewValues} onEditorNodesChange=')
-          replace_once('App.tsx',
-              '<SettingsModal embedded visible prefs={p} appSettings={state.appSettings} feeSettings={state.feeSettings} marketMeta={marketMeta} holdings={state.holdings}',
-              '<SettingsModal embedded visible prefs={p} appSettings={state.appSettings} feeSettings={state.feeSettings} marketMeta={marketMeta} holdings={state.holdings} quotes={quotes.quotes as any} ledger={state.ledger} dividends={state.dividends} cashBalance={state.cashBalance} lastSuccessAt={quotes.lastSuccessAt}')
-
-          # 8) Version bump for clean in-place update install.
-          replace_once('app.json','"name": "ETF財務管家 V3.7.0 NATIVE"','"name": "ETF財務管家 V3.7.1 NATIVE"')
-          replace_once('app.json','"version": "3.7.0"','"version": "3.7.1"')
-          replace_once('app.json','"runtimeVersion": "3.7.0"','"runtimeVersion": "3.7.1"')
-          replace_once('app.json','"versionCode": 38','"versionCode": 39')
-          replace_once('app.json','"buildNumber": "38"','"buildNumber": "39"')
-          replace_once('src/v3/version.ts',"export const APP_DISPLAY_VERSION = 'V3.7.0 NATIVE · COMPLETE';\nexport const APP_SEMVER='3.7.0';\nexport const OTA_RUNTIME_VERSION='3.7.0';","export const APP_DISPLAY_VERSION = 'V3.7.1 NATIVE · EDITOR + MONITOR';\nexport const APP_SEMVER='3.7.1';\nexport const OTA_RUNTIME_VERSION='3.7.1';")
-
-          # 9) Extend regression audit with this round's contracts.
-          p=Path('scripts/check-v37-editor-modules.cjs'); text=p.read_text(encoding='utf-8')
-          if "movable live preview uses current node data" not in text:
-              anchor="if(process.exitCode) process.exit(process.exitCode);"
-              block="""const universal=read('src/ui/UniversalEditor.tsx');\nconst monitor=read('src/v3/monitoring.ts');\nconst monitorEditor=read('src/v3/MonitorFieldEditor.tsx');\nconst overlay=read('src/services/floatingOverlay.ts');\nconst nativeModule=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotModule.kt');\nexpect(universal.includes('ColorPalettePicker')&&!universal.includes('固定文字色 #RRGGBB'),'Universal Editor color editing uses palette instead of manual HEX input');\nexpect(universal.includes('FloatingEditorPreview')&&universal.includes('目前資料：{node.systemName}'),'movable live preview uses current node data');\nexpect(designer.includes('previewValuesByPage')&&designer.includes("previewValue??'—'"),'card/data-frame preview receives live current values');\nexpect(screens.includes('scope=\"daily-history\"')&&screens.includes('scope=\"dividend-event\"'),'blank Mini regression isolated from stale legacy editor-node ids');\nexpect(screens.includes('daily-pnl:${h.symbol}:amount')&&screens.includes('daily-pnl:${h.symbol}:rate'),'daily ETF PnL amount and rate are editable nodes');\nexpect(monitor.includes('fixed:boolean')&&monitorEditor.includes('固定此功能項目 📌'),'monitor items support pinned position');\nexpect(screens.includes('監視器即時預覽')&&screens.includes('監視器寬度 ${mp.width}px'),'monitor settings exposes live data preview and outer-frame width');\nexpect(overlay.includes('getFloatingOverlayLayoutSize')&&overlay.includes('setFloatingOverlayLayoutSize')&&nativeModule.includes('getLayoutSnapshot')&&nativeModule.includes('setLayoutSize'),'desktop monitor resize and settings size use bidirectional native sync');\n\n"""
-              if anchor not in text: raise SystemExit('audit anchor missing')
-              p.write_text(text.replace(anchor,block+anchor,1),encoding='utf-8')
-              print('PATCHED: audit')
-          PY
-
-          git diff --check
-          git status --short
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add App.tsx app.json src scripts modules
-          if git diff --cached --quiet; then
-            echo 'No integrated source changes needed.'
-          else
-            git commit -m 'feat(v3.7.1): live editor preview and synchronized monitor controls'
-            git push origin HEAD:v3.7-upgrade-20260915
-          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -322,6 +73,12 @@ jobs:
           node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
           node scripts/DIVIDEND_CUTOFF_TEST.cjs
           node scripts/V360_DEVICE_ACCEPTANCE_AUDIT.cjs
+
+      - name: Confirm finance formula sources unchanged by this round
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff HEAD~3..HEAD -- src/v3/engine.ts src/v3/financeFormat.ts src/data/tradeSettings.ts || true
 
       - name: Source diff integrity
         run: git diff --check
@@ -385,6 +142,7 @@ jobs:
           stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
           {
             echo 'source_commit='$(git rev-parse HEAD)
+            echo 'feature_commit=f8511b9a0a1cfd47ea5ac57a2d410c2dd0af0634'
             echo 'package=com.etfpilot.twselive'
             echo 'versionName=3.7.1'
             echo 'versionCode=39'
