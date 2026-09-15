@@ -13,17 +13,17 @@ env:
 
 jobs:
   verify-and-build:
-    name: Verify V3.7.1 and build signed APK
+    name: Verify V3.7.2 and build signed APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
-      - name: Checkout V3.7 source
+      - name: Checkout V3.7.2 source
         uses: actions/checkout@v5
         with:
-          fetch-depth: 1
+          fetch-depth: 4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -54,6 +54,17 @@ jobs:
           npx --yes eas-cli@latest whoami --non-interactive
           npx --yes eas-cli@latest project:info
 
+      - name: Verify V3.7.2 version chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F "APP_SEMVER='3.7.2'" src/v3/version.ts
+          grep -F '"version": "3.7.2"' app.json
+          grep -F '"runtimeVersion": "3.7.2"' app.json
+          grep -F '"versionCode": 40' app.json
+          grep -F 'versionCode 40' android/app/build.gradle
+          grep -F 'versionName "3.7.2"' android/app/build.gradle
+
       - name: V3.7 acceptance audit
         run: node scripts/V370_UPGRADE_AUDIT.cjs
 
@@ -66,6 +77,12 @@ jobs:
       - name: TypeScript
         run: npm run typecheck
 
+      - name: V3.7.2 accounting contracts
+        run: |
+          node scripts/ACCOUNTING_CONTRACT_TEST.cjs
+          node scripts/ACCOUNTING_GOLDEN_00878.cjs
+          node scripts/CASH_LEDGER_CONTRACT_TEST.cjs
+
       - name: Finance and regression checks
         run: |
           node scripts/FINANCE_ENGINE_V342_TEST.cjs
@@ -73,12 +90,6 @@ jobs:
           node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
           node scripts/DIVIDEND_CUTOFF_TEST.cjs
           node scripts/V360_DEVICE_ACCEPTANCE_AUDIT.cjs
-
-      - name: Confirm finance formula sources unchanged by this round
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff HEAD~3..HEAD -- src/v3/engine.ts src/v3/financeFormat.ts src/data/tradeSettings.ts || true
 
       - name: Source diff integrity
         run: git diff --check
@@ -110,7 +121,7 @@ jobs:
           grep -F 'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m' android/gradle.properties
           grep -F 'reactNativeArchitectures=arm64-v8a' android/gradle.properties
 
-      - name: Build APK locally with EAS-managed signing credentials
+      - name: Build V3.7.2 APK locally with EAS-managed signing credentials
         shell: bash
         run: |
           set -euo pipefail
@@ -121,13 +132,13 @@ jobs:
             --local \
             --non-interactive \
             --freeze-credentials \
-            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.1-GOGO-Editor-Monitor-EAS-Signed-ARM64.apk"
+            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.2-GOGO-Finance-Ledger-EAS-Signed-ARM64.apk"
 
-      - name: Verify signed APK and package metadata
+      - name: Verify signed V3.7.2 APK and package metadata
         shell: bash
         run: |
           set -euo pipefail
-          OUT='artifacts/ETF-Finance-Manager-V3.7.1-GOGO-Editor-Monitor-EAS-Signed-ARM64.apk'
+          OUT='artifacts/ETF-Finance-Manager-V3.7.2-GOGO-Finance-Ledger-EAS-Signed-ARM64.apk'
           test -s "$OUT"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
@@ -136,18 +147,17 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/SIGNING_CERT.txt
           "$AAPT" dump badging "$OUT" | grep -E "^package:|^application-label:" | tee artifacts/APK_BADGING.txt
           grep -F "name='com.etfpilot.twselive'" artifacts/APK_BADGING.txt
-          grep -F "versionName='3.7.1'" artifacts/APK_BADGING.txt
-          grep -F "versionCode='39'" artifacts/APK_BADGING.txt
+          grep -F "versionName='3.7.2'" artifacts/APK_BADGING.txt
+          grep -F "versionCode='40'" artifacts/APK_BADGING.txt
           sha256sum "$OUT" | tee artifacts/SHA256.txt
           stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
           {
             echo 'source_commit='$(git rev-parse HEAD)
-            echo 'feature_commit=f8511b9a0a1cfd47ea5ac57a2d410c2dd0af0634'
             echo 'package=com.etfpilot.twselive'
-            echo 'versionName=3.7.1'
-            echo 'versionCode=39'
-            echo 'scope=blank data-frame fix + editable daily PnL + movable live preview + palette colors + monitor live preview/pinning/size sync'
-            echo 'finance_formulas_changed=false'
+            echo 'versionName=3.7.2'
+            echo 'versionCode=40'
+            echo 'scope=V3.7.2 unified finance cash ledger sell fee/tax and migration + V3.7.1 editor/monitor foundation'
+            echo 'accounting_contracts=passed_before_build'
             echo 'build_executor=GitHub Actions local EAS build'
             echo 'credentials_source=EAS remote managed credentials'
             echo 'credentials_frozen=true'
@@ -155,10 +165,10 @@ jobs:
           } >> artifacts/BUILD_INFO.txt
           unzip -l "$OUT" | grep -E 'assets/index.android.bundle|index.android.bundle'
 
-      - name: Upload V3.7.1 signed APK
+      - name: Upload V3.7.2 signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: ETF-Finance-Manager-V3.7.1-GOGO-Editor-Monitor-EAS-Signed-ARM64
+          name: ETF-Finance-Manager-V3.7.2-GOGO-Finance-Ledger-EAS-Signed-ARM64
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
