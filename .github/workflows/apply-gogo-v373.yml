@@ -30,6 +30,7 @@ jobs:
         run: |
           python3 scripts/APPLY_GOGO_V373.py
           python3 scripts/FIX_GOGO_V373_TSC.py
+          python3 scripts/FIX_V373_TABLE_FIELDS.py
       - name: Install dependencies
         run: npm ci
       - name: V3.7.3 focused contracts
@@ -60,6 +61,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No production changes to commit.'
           else
-            git commit -m 'fix(v3.7.3): unify finance monitor templates palette and renderer'
+            git commit -m 'fix(v3.7.3): complete monitor table fields and finance renderer'
             git push origin HEAD:v3.7.3-release-20260916
           fi
