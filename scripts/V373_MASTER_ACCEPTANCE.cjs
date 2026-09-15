@@ -1,0 +1,29 @@
+const fs=require('fs');
+const read=p=>fs.readFileSync(p,'utf8');
+let failed=0;const check=(ok,msg)=>{if(ok)console.log('PASS',msg);else{console.error('FAIL',msg);failed++}};
+const engine=read('src/v3/engine.ts');
+const overlay=read('src/services/floatingOverlay.ts');
+const native=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt');
+const screens=read('src/v3/screens.tsx');
+const version=read('src/v3/version.ts');
+const app=JSON.parse(read('app.json'));
+const gradle=read('android/app/build.gradle');
+const strings=read('android/app/src/main/res/values/strings.xml');
+
+check(!engine.includes('marketValue+Math.max(0,Number(cashBalance)||0)'), 'portfolio totalAssets does not clamp negative cash');
+check(/const totalAssets=marketValue\+\(Number\.isFinite\(Number\(cashBalance\)\)\?Number\(cashBalance\):0\)/.test(engine), 'portfolio totalAssets includes signed canonical cash');
+check(overlay.includes('cashBalance:m.cashBalance'), 'overlay payload carries canonical cash balance');
+check(native.includes('payload.optDouble("cashBalance", 0.0)'), 'native refresh reads canonical cash balance');
+check(!native.includes('payload.put("totalAssets", totalAssets)\n        payload.put("marketValue", totalAssets)'), 'native refresh no longer aliases totalAssets to marketValue');
+check(native.includes('payload.put("totalAssets", totalAssets + cashBalance)'), 'native refresh preserves cash-aware totalAssets');
+check(screens.includes('function MonitorTemplateEditor'), 'monitor template editor exists');
+check(screens.includes('function MonitorChoice'), 'monitor settings controls are isolated from generic Universal Editor Choice');
+check(screens.includes('setMonitorTemplateEdit(t.id)'), 'template selection can enter template editor');
+check(screens.includes('onEdit={()=>setMonitorFieldEdit(key)}'), 'monitor field chips expose explicit field edit target');
+check(screens.includes('normalizeEditorNodeForRender'), 'legacy/partial editor nodes normalized before Mini render');
+check(version.includes("APP_SEMVER='3.7.3'"), 'app semver is 3.7.3');
+check(app.expo.version==='3.7.3'&&app.expo.runtimeVersion==='3.7.3'&&app.expo.android.versionCode===41, 'Expo version chain is 3.7.3/41');
+check(/versionCode\s+41/.test(gradle)&&/versionName\s+["']3\.7\.3["']/.test(gradle), 'Android native version is 3.7.3/41');
+check(strings.includes('ETF財務管家 V3.7.3 NATIVE')&&strings.includes('<string name="expo_runtime_version">3.7.3</string>'), 'native strings are 3.7.3');
+if(failed){console.error(`V3.7.3 MASTER ACCEPTANCE: FAIL (${failed})`);process.exit(1)}
+console.log('V3.7.3 MASTER ACCEPTANCE: PASS');
