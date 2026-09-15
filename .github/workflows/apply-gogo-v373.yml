@@ -2,7 +2,7 @@ name: Apply GOGO V3.7.3
 
 on:
   push:
-    branches: [v3.7.3-master-fix-20260916]
+    branches: [v3.7.3-release-20260916]
     paths: ['.gogo-v373-apply-trigger']
   workflow_dispatch:
 
@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: v3.7.3-master-fix-20260916
+          ref: v3.7.3-release-20260916
           fetch-depth: 20
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v6
@@ -61,7 +61,5 @@ jobs:
             echo 'No production changes to commit.'
           else
             git commit -m 'fix(v3.7.3): unify finance monitor templates palette and renderer'
-            git fetch origin v3.7.3-master-fix-20260916
-            git rebase origin/v3.7.3-master-fix-20260916
-            git push origin HEAD:v3.7.3-master-fix-20260916
+            git push origin HEAD:v3.7.3-release-20260916
           fi
