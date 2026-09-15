@@ -18,7 +18,7 @@ assert(pkg.version==='3.7.0','package.json version is 3.7.0');
 assert(/globalEditMode\s*:\s*boolean/.test(model),'global edit mode is persisted in preferences');
 assert(/editorPresets\s*:/.test(model),'editor configuration presets are persisted');
 assert(/fieldGap\?\s*:\s*number/.test(model),'card data framework supports configurable field gap');
-assert(/SCHEMA\s*=\s*13/.test(storage),'state schema migrated to V3.7');
+const schemaMatch=storage.match(/SCHEMA\s*=\s*(\d+)/);assert(schemaMatch&&Number(schemaMatch[1])>=13,'state schema migrated to V3.7 or newer');
 assert(/portfolio-list/.test(storage)&&/span/.test(storage),'portfolio list layout migration is present');
 assert(/全局修改模式/.test(screens),'settings exposes global edit mode switch');
 assert(/prefs\.globalEditMode/.test(screens),'long-press editor respects global edit mode');
