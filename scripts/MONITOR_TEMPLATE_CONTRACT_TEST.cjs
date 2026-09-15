@@ -12,8 +12,10 @@ check(s.includes('function MonitorTemplateEditor'),'template editor component ex
 check(s.includes('模板內容與組合項目'),'template editor exposes composition content');
 check(s.includes('套用此模板組合'),'template editor can apply template composition');
 check(s.includes('function MonitorChoice'),'monitor control choice is separate from generic editable Choice');
-check(s.includes('onPress={()=>{patchMonitor({displayMode:t.id});setMonitorTemplateEdit(t.id)}}'),'template press selects and opens editor');
+check(s.includes('setMonitorTemplateEdit(t.id)')&&s.includes('fields:templateDefaultFields(t.id)'),'template press selects, applies composition, and opens editor');
+check(s.includes('function MonitorFieldPicker')&&s.includes('onPress={()=>onEdit(key)}')&&s.includes('onEdit={key=>setMonitorFieldEdit(key)}'),'monitor field chips use explicit field edit target');
 check(o.includes('mode:template.nativeMode'),'payload uses explicit template nativeMode');
 check(o.includes('templateFields:template.fields'),'payload carries template composition for native fallback');
+check(o.includes('profile?.fieldsCustomized===true'),'payload distinguishes template composition from custom field composition');
 if(failed){console.error(`MONITOR TEMPLATE CONTRACT: FAIL (${failed})`);process.exit(1)}
 console.log('MONITOR TEMPLATE CONTRACT: PASS');
