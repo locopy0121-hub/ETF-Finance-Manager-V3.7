@@ -2,7 +2,7 @@ name: V3.7.3 Master Verify
 
 on:
   push:
-    branches: [v3.7.3-master-fix-20260916]
+    branches: [v3.7.3-release-20260916]
     paths:
       - '.gogo-v373-test-trigger'
   workflow_dispatch:
