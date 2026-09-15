@@ -9,14 +9,15 @@ permissions:
   contents: read
 
 env:
-  NODE_ENV: production
   CI: 'true'
 
 jobs:
   verify-and-build:
-    name: Verify V3.7 and build ARM64 Release APK
+    name: Verify V3.7 and build signed Release APK
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
       - name: Checkout V3.7 source
@@ -45,6 +46,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify Expo authentication and linked EAS project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EXPO_TOKEN"
+          npx --yes eas-cli@latest whoami --non-interactive
+          npx --yes eas-cli@latest project:info
+
       - name: V3.7 acceptance audit
         run: node scripts/V370_UPGRADE_AUDIT.cjs
 
@@ -62,71 +71,78 @@ jobs:
       - name: Source diff integrity
         run: git diff --check
 
-      - name: Raise Gradle memory for release build in runner only
+      - name: Prepare runner-only Android build limits
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('android/gradle.properties')
           text = p.read_text(encoding='utf-8')
-          old = 'org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m'
-          new = 'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m'
-          if old in text:
-              text = text.replace(old, new, 1)
-          elif new not in text:
-              raise SystemExit('Unexpected org.gradle.jvmargs value')
-          p.write_text(text, encoding='utf-8')
+          text = text.replace(
+              'org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m',
+              'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m',
+              1,
+          )
+          lines = []
+          found_arch = False
+          for line in text.splitlines():
+              if line.startswith('reactNativeArchitectures='):
+                  lines.append('reactNativeArchitectures=arm64-v8a')
+                  found_arch = True
+              else:
+                  lines.append(line)
+          if not found_arch:
+              lines.append('reactNativeArchitectures=arm64-v8a')
+          p.write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
           grep -F 'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m' android/gradle.properties
+          grep -F 'reactNativeArchitectures=arm64-v8a' android/gradle.properties
 
-      - name: Ensure signing keystore exists
-        shell: bash
-        run: |
-          if [ ! -f android/app/debug.keystore ]; then
-            keytool -genkeypair -v \
-              -keystore android/app/debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -keyalg RSA -keysize 2048 -validity 10000
-          fi
-
-      - name: Make Gradle wrapper executable
-        run: chmod +x android/gradlew
-
-      - name: Build ARM64 standalone Release APK with embedded JS bundle
-        working-directory: android
-        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=2
-
-      - name: Verify and package APK
+      - name: Build APK locally on GitHub with EAS-managed signing credentials
         shell: bash
         run: |
           set -euo pipefail
-          APK='android/app/build/outputs/apk/release/app-release.apk'
-          test -s "$APK"
           mkdir -p artifacts
-          OUT='artifacts/ETF-Finance-Manager-V3.7.0-ARM64-Release.apk'
-          cp "$APK" "$OUT"
+          npx --yes eas-cli@latest build \
+            --platform android \
+            --profile preview \
+            --local \
+            --non-interactive \
+            --freeze-credentials \
+            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.0-EAS-Signed-ARM64.apk"
+
+      - name: Verify signed APK and package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT='artifacts/ETF-Finance-Manager-V3.7.0-EAS-Signed-ARM64.apk'
+          test -s "$OUT"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/SIGNING_CERT.txt
+          "$AAPT" dump badging "$OUT" | grep -E "^package:|^application-label:" | tee artifacts/APK_BADGING.txt
+          grep -F "name='com.etfpilot.twselive'" artifacts/APK_BADGING.txt
+          grep -F "versionName='3.7.0'" artifacts/APK_BADGING.txt
           sha256sum "$OUT" | tee artifacts/SHA256.txt
           stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
           {
             echo 'source_commit='$(git rev-parse HEAD)
             echo 'package=com.etfpilot.twselive'
-            echo 'display_name=ETF財務管家 V3.7.0 NATIVE'
             echo 'versionName=3.7.0'
             echo 'versionCode=38'
-            echo 'buildType=release'
+            echo 'build_executor=GitHub Actions local EAS build'
+            echo 'credentials_source=EAS remote managed credentials'
+            echo 'credentials_frozen=true'
             echo 'architecture=arm64-v8a'
-            echo 'js_bundle=embedded'
-            echo 'gradle_memory_runner_only=-Xmx3072m,MaxMetaspaceSize=1024m'
           } >> artifacts/BUILD_INFO.txt
           unzip -l "$OUT" | grep -E 'assets/index.android.bundle|index.android.bundle'
 
-      - name: Upload V3.7 Release APK
+      - name: Upload V3.7 signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: ETF-Finance-Manager-V3.7.0-ARM64-Release
+          name: ETF-Finance-Manager-V3.7.0-EAS-Signed-ARM64
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
