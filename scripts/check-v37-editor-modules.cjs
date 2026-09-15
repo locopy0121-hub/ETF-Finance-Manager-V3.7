@@ -23,5 +23,12 @@ expect(flow.includes('customWidth'),'runtime FlowItem supports custom width');
 expect(screens.includes("c.role!=='module'"),'registered runtime modules are not duplicated by generic deck');
 for(const id of ['dashboard-market','dashboard-watchlist','dashboard-pnl-history','dashboard-daily-pnl','dashboard-wealth','dashboard-allocation','portfolio-contribution','portfolio-recent','portfolio-allocation']) expect(screens.includes(`cardId:'${id}'`),`runtime module links to editor target ${id}`);
 
+// Regression: FlowItem is the only owner of a nested data-frame width. The inner block must fill that cell.
+expect(screens.includes('customWidth={template.fieldConfigs?.[k]?.customWidth}><RenderFieldBlock')&&screens.includes('widthOverride="100%"'),'nested data frame fills FlowItem instead of applying span/custom width a second time');
+// Regression: portfolio summary keeps amount and percentage as independent data cells.
+expect(!screens.includes("`${money(portfolioSummary.todayPnl)} · ${pct(portfolioSummary.todayPnlPct)}`"),'portfolio today PnL no longer concatenates percentage into amount');
+expect(!screens.includes("`${money(portfolioSummary.totalPnl)} · ${pct(portfolioSummary.totalRoi)}`"),'portfolio total PnL no longer concatenates percentage into amount');
+expect(screens.includes('<Metric label="今日損益率"')&&screens.includes('<Metric label="總報酬率"'),'portfolio summary exposes separate PnL percentage cells');
+
 if(process.exitCode) process.exit(process.exitCode);
 console.log('V3.7 editor/module GOGO audit complete.');
