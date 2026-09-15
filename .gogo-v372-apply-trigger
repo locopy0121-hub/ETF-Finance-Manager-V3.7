@@ -1,2 +1,2 @@
-final release trigger after V3.7.2 finance patch and TypeScript syntax repair
-patched_source_commit: 8c4e2e2b3eba740645c6eeb713ff695c6f2d2869
+idempotency cleanup trigger for V3.7.2 finance patch
+patcher_commit: 53971904032f3d36f3ebd6aeebbc4a1be2df8bf2
