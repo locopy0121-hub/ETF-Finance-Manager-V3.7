@@ -16,6 +16,12 @@ def replace(path, old, new, count=1):
     p.write_text(text.replace(old,new,count if count is not None else -1),encoding='utf-8')
     print(f'PATCHED {path}')
 
+# Repair the first V3.7.2 patch attempt: App.tsx is intentionally compact and a // comment
+# swallowed the rest of the recalculateDerived line. Convert it to a block comment first.
+replace(Path('App.tsx'),
+"const symbols=Array.from(new Set(s.holdings.map(h=>h.symbol))); // explicit current holdings only; archived ledger rows never recreate a deleted holdingconst holdings=",
+"const symbols=Array.from(new Set(s.holdings.map(h=>h.symbol))); /* explicit current holdings only; archived ledger rows never recreate a deleted holding */const holdings=")
+
 # App.tsx — one cash truth: every economic event changes state cash symmetrically.
 replace(Path('App.tsx'),
 "import { preciseTradeAmount } from './src/v3/financeFormat';",
@@ -37,7 +43,7 @@ replace(Path('App.tsx'),
 ",preferences:")
 replace(Path('App.tsx'),
 "const symbols=Array.from(new Set([...s.holdings.map(h=>h.symbol),...s.ledger.map(e=>e.symbol).filter(Boolean) as string[]]));",
-"const symbols=Array.from(new Set(s.holdings.map(h=>h.symbol))); // explicit current holdings only; archived ledger rows never recreate a deleted holding")
+"const symbols=Array.from(new Set(s.holdings.map(h=>h.symbol))); /* explicit current holdings only; archived ledger rows never recreate a deleted holding */")
 replace(Path('App.tsx'),
 "totalAssets:marketValue,todayPnl,totalPnl,todayPnlPct:",
 "totalAssets:marketValue+Number(d.cashBalance??0),todayPnl,totalPnl,todayPnlPct:")
