@@ -156,7 +156,7 @@ export function portfolioMetrics(holdings:Holding[],quotes:Record<string,QuoteLi
  const priceRoi=historicalTradeCost>0?(pricePnl+cumulativeDividends)/historicalTradeCost*100:0;
  const todayPnlPct=previousValue>0?todayPnl/previousValue*100:0;
  const pendingDividends=dividends.filter(e=>Number(e.actualAmount??0)<=0).reduce((s,e)=>s+Number(e.estimatedAmount??0),0);
- const totalAssets=marketValue+Math.max(0,Number(cashBalance)||0);
+ const totalAssets=marketValue+(Number.isFinite(Number(cashBalance))?Number(cashBalance):0);
  const accountEquity=totalAssets;
  return {
   historicalTradeCost,historicalBuyFees,historicalCashOutflow,

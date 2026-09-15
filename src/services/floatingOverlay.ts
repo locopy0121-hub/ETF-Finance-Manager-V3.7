@@ -39,11 +39,11 @@ export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holdin
  const d0=new Date(),today=`${d0.getFullYear()}-${String(d0.getMonth()+1).padStart(2,'0')}-${String(d0.getDate()).padStart(2,'0')}`;
  const upcoming=dividends.filter(d=>d.payDate&&d.payDate>=today).sort((a,b)=>String(a.payDate).localeCompare(String(b.payDate)))[0];
  const template=monitorTemplate(profile?.displayMode??'holdingList');
- const fields:MonitorField[]=[...(profile?.fields?.length?profile.fields:template.fields)];
+ const fields:MonitorField[]=[...(profile?.fieldsCustomized===true&&profile?.fields?.length?profile.fields:template.fields)];
  fields.sort((a,b)=>(profile?.fieldStyles?.[a]?.order??999)-(profile?.fieldStyles?.[b]?.order??999));
  return JSON.stringify({
   enabled:profile?.enabled??false,
-  mode:template.columns>1?'puzzle':'table',displayMode:profile?.displayMode??'holdingList',template:template.id,title:profile?.title??'即時監控器',statusTitle:profile?.statusTitle??'市場狀態',showBreathingLight:profile?.showBreathingLight!==false,density:profile?.density??'auto',symbolSource:profile?.symbolSource??'holdings',resizeMode:profile?.resizeMode??'fluid',opacity:(profile?.activeOpacity??92)/100,idleOpacity:(profile?.idleOpacity??36)/100,scale:1,fontScale:(profile?.fontScale??100)/100,
+  mode:template.nativeMode,displayMode:profile?.displayMode??'holdingList',template:template.id,templateFields:template.fields,title:profile?.title??'即時監控器',statusTitle:profile?.statusTitle??'市場狀態',showBreathingLight:profile?.showBreathingLight!==false,density:profile?.density??'auto',symbolSource:profile?.symbolSource??'holdings',resizeMode:profile?.resizeMode??'fluid',opacity:(profile?.activeOpacity??92)/100,idleOpacity:(profile?.idleOpacity??36)/100,scale:1,fontScale:(profile?.fontScale??100)/100,
   snap:profile?.snap??true,gridSnap:profile?.gridSnap??8,refreshSeconds:Math.max(0,Number(profile?.refreshSeconds??5)),rotateSeconds:Math.max(.5,4),
   width:profile?.width??390,height:profile?.height??240,minWidth:profile?.minWidth??120,minHeight:profile?.minHeight??48,maxHeightRatio:profile?.maxHeightRatio??.72,autoHeight:template.compact===true,
   fontMin:8,fontMax:22,autoFont:profile?.resizeMode==='scale',dragHotspot:profile?.dragHotspot??'handle',dockMode:profile?.dockMode??'peek',locked:profile?.locked??false,haptics:profile?.haptics??true,doubleTapLayout:profile?.doubleTapLayout??true,tapAction:'none',scrollAfterRows:profile?.scrollAfterRows??5,
@@ -54,7 +54,7 @@ export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holdin
   healthy:!!lastSuccessAt&&Date.now()-lastSuccessAt<Math.max(20000,(prefs.market.live.refreshSeconds||1)*8000),
   accent:prefs.accentColor,
   positive:prefs.positiveColor,negative:prefs.negativeColor,neutral:prefs.secondaryTextColor,
-  instantPnl:m.totalPnl,todayPnl:m.todayPnl,totalAssets:m.totalAssets,marketValue:m.marketValue,totalCost:m.currentTradeCost,totalRoi:m.totalRoi,
+  instantPnl:m.priceUnrealizedPnl,todayPnl:m.todayPnl,totalAssets:m.totalAssets,marketValue:m.marketValue,cashBalance:m.cashBalance,totalCost:m.currentTradeCost,totalRoi:m.currentTradeCost>0?m.priceUnrealizedPnl/m.currentTradeCost*100:0,
   marketState,updatedAt:lastSuccessAt?new Date(lastSuccessAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'--:--:--',
   dividendSymbol:upcoming?.symbol??'',dividendDate:upcoming?.payDate??'',dividendAmount:Number(upcoming?.estimatedAmount??upcoming?.actualAmount??0),positions
  });
