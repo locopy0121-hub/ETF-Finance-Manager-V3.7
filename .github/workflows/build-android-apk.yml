@@ -57,6 +57,9 @@ jobs:
       - name: V3.7 acceptance audit
         run: node scripts/V370_UPGRADE_AUDIT.cjs
 
+      - name: Nested flow parent-width regression
+        run: node scripts/FLOW_LAYOUT_PARENT_WIDTH_TEST.cjs
+
       - name: TypeScript
         run: npm run typecheck
 
