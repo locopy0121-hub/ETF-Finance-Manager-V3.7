@@ -1,0 +1,13 @@
+const fs=require('fs');
+const model=fs.readFileSync('src/v3/model.ts','utf8'),storage=fs.readFileSync('src/v3/storage.ts','utf8'),designer=fs.readFileSync('src/v3/GlobalCardDesigner.tsx','utf8'),screens=fs.readFileSync('src/v3/screens.tsx','utf8'),flow=fs.readFileSync('src/ui/FlowLayout.tsx','utf8');
+const must=(ok,msg)=>{if(!ok){console.error('FAIL:',msg);process.exit(1)}console.log('PASS:',msg)};
+must(model.includes('customWidth?:number'),'custom data-frame width');
+const ids=['dashboard-core-1','dashboard-core-2','dashboard-core-3','dashboard-market','dashboard-watchlist','dashboard-pnl-history','dashboard-daily-pnl','dashboard-wealth','dashboard-allocation'];ids.forEach(id=>must(model.includes(`'${id}'`),`dashboard ${id}`));must(ids.length===9,'dashboard has 9 registered modules');
+['portfolio-summary','portfolio-list','portfolio-contribution','portfolio-recent','portfolio-allocation'].forEach(id=>must(model.includes(`'${id}'`),`portfolio ${id}`));
+must(storage.includes('const SCHEMA=14;')&&storage.includes('requiredLayouts=makeDefaultPageLayouts'),'existing-state registry migration');
+must(designer.includes('【資料框】')&&designer.includes('【卡片框架】')&&designer.includes('【頁面框架】'),'component hierarchy labels');
+must(designer.includes('customWidth:v||undefined'),'custom width editor control');
+must(flow.includes('customWidth?:number'),'FlowItem custom width');
+must(screens.includes("c.role!=='module'"),'module registry does not duplicate rendering');
+must(screens.includes("cardId:'dashboard-market'")&&screens.includes("cardId:'portfolio-contribution'"),'runtime modules linked to registered frames');
+console.log('V3.7 editor/module GOGO audit complete.');

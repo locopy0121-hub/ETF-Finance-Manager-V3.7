@@ -8,7 +8,7 @@ import { defaultRegisteredNodes } from '../ui/universalRegistry';
 
 export const V3_STATE_KEY='@etf-finance-manager/v3-state';
 const KEY=V3_STATE_KEY;
-const SCHEMA=13;
+const SCHEMA=14;
 
 const LEGACY_FIELD_KEYS:Record<string,string>={
  totalInvestedCost:'historicalCashOutflow',
@@ -36,6 +36,14 @@ function mergeState(p:Partial<V3State>):V3State{
  const home=homeRaw.map((row:any,i:number)=>normalizeFieldList(row,defaultV3Preferences.homeCardFields[i]??[]));
  const rawLayouts=(pp.pageLayouts&&typeof pp.pageLayouts==='object')?pp.pageLayouts:makeDefaultPageLayouts(home,pageCardFields);
  const pageLayouts=JSON.parse(JSON.stringify(rawLayouts));
+ const requiredLayouts=makeDefaultPageLayouts(home,pageCardFields);
+ for(const pageKey of Object.keys(requiredLayouts) as Array<keyof typeof requiredLayouts>){
+  const target=(pageLayouts as any)[pageKey];const required=(requiredLayouts as any)[pageKey];
+  if(!target){(pageLayouts as any)[pageKey]=JSON.parse(JSON.stringify(required));continue;}
+  target.cards=Array.isArray(target.cards)?target.cards:[];
+  const ids=new Set(target.cards.map((c:any)=>c.id));
+  for(const requiredCard of required.cards??[])if(!ids.has(requiredCard.id))target.cards.push(JSON.parse(JSON.stringify(requiredCard)));
+ }
  for(const layout of Object.values(pageLayouts) as any[]){
   for(const card of layout.cards??[]){
    card.kind=card.kind??'custom';

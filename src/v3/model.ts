@@ -62,7 +62,7 @@ export type V3VerticalAlign='top'|'center'|'bottom';
 export type V3ValueColorMode='theme'|'profitLoss'|'custom';
 export type V3TextConfig={visible:boolean;fontScale:number;fontWeight:'400'|'600'|'700'|'800'|'900';color?:string;colorMode?:V3ValueColorMode;align:V3CardAlign;verticalAlign:V3VerticalAlign;lineHeightScale?:number};
 export type V3FieldEffect='none'|'shadow'|'glow'|'outline';
-export type V3FieldConfig={span:V3CardSpan;height:V3FieldHeight;customHeight?:number;label:V3TextConfig;value:V3TextConfig;labelValueGap?:number;backgroundOpacity:number;backgroundColor?:string;borderColor?:string;radius:number;padding:number;paddingTop?:number;paddingRight?:number;paddingBottom?:number;paddingLeft?:number;effect?:V3FieldEffect;effectStrength?:number};
+export type V3FieldConfig={span:V3CardSpan;height:V3FieldHeight;customHeight?:number;customWidth?:number;label:V3TextConfig;value:V3TextConfig;labelValueGap?:number;backgroundOpacity:number;backgroundColor?:string;borderColor?:string;radius:number;padding:number;paddingTop?:number;paddingRight?:number;paddingBottom?:number;paddingLeft?:number;effect?:V3FieldEffect;effectStrength?:number};
 export type PageFieldSpans = Record<PageFieldKey,Record<string,V3CardSpan>>;
 export type V3CardAlign='left'|'center'|'right';
 export type V3CardStyle={fontScale:number;align:V3CardAlign;backgroundOpacity:number;radius:number;padding:number};
@@ -71,7 +71,7 @@ export type V3ChartSource='intraday'|'daily';
 export type V3ChartType='line'|'area'|'bar'|'positiveBar'|'multiLine'|'pie'|'donut'|'stackedBar'|'candlestick'|'volume'|'pnlTrend'|'progress'|'heatmap'|'waterfall'|'radar'|'scatter';
 export type V3ChartColorMode='theme'|'profitLoss'|'custom';
 export type V3ChartConfig={enabled?:boolean;source:V3ChartSource;metric:V3ChartMetric;range:number;showPoints:boolean;showZeroLine:boolean;chartType?:V3ChartType;colorMode?:V3ChartColorMode;primaryColor?:string;positiveColor?:string;negativeColor?:string;seriesColors?:string[];fillOpacity?:number;lineWidth?:number;barRadius?:number;showGrid?:boolean;showAxis?:boolean;showLabels?:boolean;showLegend?:boolean;animation?:boolean;targetValue?:number;layout:'chartOnly'|'dataLeftChartRight'|'chartLeftDataRight'|'dataTopChartBottom'|'chartTopDataBottom';dataRatio:'1/4'|'1/3'|'1/2'|'2/3'|'3/4'};
-export type V3PageCard={id:string;title:string;kind:'system'|'custom'|'chart'|'mixed';role?:'summary'|'listTemplate'|'normal';fields:string[];fieldSpans?:Record<string,V3CardSpan>;fieldConfigs?:Record<string,V3FieldConfig>;fieldGap?:number;chartConfig?:V3ChartConfig;x:number;y:number;w:number;h:number;hidden:boolean;style:V3CardStyle};
+export type V3PageCard={id:string;title:string;kind:'system'|'custom'|'chart'|'mixed';role?:'summary'|'listTemplate'|'normal'|'module';fields:string[];fieldSpans?:Record<string,V3CardSpan>;fieldConfigs?:Record<string,V3FieldConfig>;fieldGap?:number;chartConfig?:V3ChartConfig;x:number;y:number;w:number;h:number;hidden:boolean;style:V3CardStyle};
 export type V3PageLayout={columns:5|6;cards:V3PageCard[]};
 export type V3PageLayouts=Record<PageFieldKey,V3PageLayout>;
 export type V3EditorPreset={id:string;name:string;page:PageFieldKey;cardId:string;card:V3PageCard;savedAt:number};
@@ -246,9 +246,9 @@ export function makeDefaultPageLayouts(homeCards:HomeMetricKey[][]=[['totalAsset
  const hero=card('dashboard-core-1','總資產與核心指標',homeCards[0]??['totalAssets','todayPnl','todayPnlPct'],0,0,6,3);
  hero.chartConfig={enabled:true,source:'intraday',metric:'totalAssets',range:120,showPoints:false,showZeroLine:false,chartType:'area',layout:'dataLeftChartRight',dataRatio:'1/2'};
  return {
-  dashboard:{columns:6,cards:[hero,card('dashboard-core-2','資產與現金',homeCards[1]??[],0,3,3,2),card('dashboard-core-3','損益與股息',homeCards[2]??[],3,3,3,2)]},
+  dashboard:{columns:6,cards:[hero,card('dashboard-core-2','資產與現金',homeCards[1]??[],0,3,3,2),card('dashboard-core-3','損益與股息',homeCards[2]??[],3,3,3,2),{...card('dashboard-market','市場總覽｜熱門 ETF',[],0,5,6,2),role:'module'},{...card('dashboard-watchlist','ETF 搜尋 / 自選管理',[],0,7,6,2),role:'module'},{...card('dashboard-pnl-history','累積損益紀錄',[],0,9,6,2),role:'module'},{...card('dashboard-daily-pnl','每日損益紀錄',[],0,11,6,2),role:'module'},{...card('dashboard-wealth','資產成長｜投入 vs 資產',[],0,13,6,2),role:'module'},{...card('dashboard-allocation','資產配置',[],0,15,6,2),role:'module'}]},
   ledger:{columns:6,cards:[card('ledger-summary','智慧記帳摘要',pageFields.ledger??[],0,0,6,2)]},
-  portfolio:{columns:6,cards:[{...card('portfolio-summary','庫存摘要',pageFields.portfolio??[],0,0,6,2),role:'summary'},{...card('portfolio-list','庫存清單模板',pageFields.portfolio??[],0,2,6,2),role:'listTemplate'}]},
+  portfolio:{columns:6,cards:[{...card('portfolio-summary','庫存摘要',pageFields.portfolio??[],0,0,6,2),role:'summary'},{...card('portfolio-list','庫存清單模板',pageFields.portfolio??[],0,2,6,2),role:'listTemplate'},{...card('portfolio-contribution','損益貢獻排行',[],0,4,6,2),role:'module'},{...card('portfolio-recent','最近交易 / 股息',[],0,6,6,2),role:'module'},{...card('portfolio-allocation','ETF 市值配置',[],0,8,6,2),role:'module'}]},
   dividend:{columns:6,cards:[card('dividend-summary','股息摘要',pageFields.dividend??[],0,0,6,2)]},
   calculator:{columns:6,cards:[card('calculator-summary','試算摘要',pageFields.calculator??[],0,0,6,2)]},
   detail:{columns:6,cards:[card('detail-summary','ETF 詳情摘要',pageFields.detail??[],0,0,6,2)]},
