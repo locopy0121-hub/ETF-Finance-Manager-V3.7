@@ -1,2 +1,2 @@
-rerun integrated V3.7.2 finance/cash/settings foundation after compact App comment syntax repair
-source_fix_commit: 1c18ef3e5acbcff2047276937a87da261caaefa9
+final release trigger after V3.7.2 finance patch and TypeScript syntax repair
+patched_source_commit: 8c4e2e2b3eba740645c6eeb713ff695c6f2d2869
