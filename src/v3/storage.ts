@@ -8,7 +8,7 @@ import { defaultRegisteredNodes } from '../ui/universalRegistry';
 
 export const V3_STATE_KEY='@etf-finance-manager/v3-state';
 const KEY=V3_STATE_KEY;
-const SCHEMA=14;
+const SCHEMA=15;
 
 const LEGACY_FIELD_KEYS:Record<string,string>={
  totalInvestedCost:'historicalCashOutflow',
@@ -95,12 +95,13 @@ function mergeState(p:Partial<V3State>):V3State{
    }
   }
  }
+ const reconciledCash=Number((p as any).cashReconciliation?.actualBalance);
  return {
   schemaVersion:SCHEMA,
   holdings:Array.isArray(p.holdings)?p.holdings:[],
   dividends:Array.isArray(p.dividends)?p.dividends:[],
   ledger:Array.isArray(p.ledger)?p.ledger:[],
-  cashBalance:Number(p.cashBalance??0),
+  cashBalance:Number.isFinite(reconciledCash)?reconciledCash:Number(p.cashBalance??0),
   cashReconciliation:(p as any).cashReconciliation&&typeof (p as any).cashReconciliation==='object'?(p as any).cashReconciliation:{},
   preferences:{...defaultV3Preferences,...pp,market,ai,visibility,money,calendar,lifestyleProgress,ticker,dailyPnl,chartInteraction,themeId:pp.themeId??defaultV3Preferences.themeId,navDisplayMode:pp.navDisplayMode??defaultV3Preferences.navDisplayMode,iconDisplay:{...defaultV3Preferences.iconDisplay,...(pp.iconDisplay??{})},customThemes:Array.isArray(pp.customThemes)?pp.customThemes.slice(0,5):[],pageCardFields,pageCardSpans,homeCardFields:home,homeCardSpans:Array.isArray(pp.homeCardSpans)?pp.homeCardSpans:[{},{},{}],pageLayouts,selectedEtfFields:normalizeFieldList(pp.selectedEtfFields,defaultV3Preferences.selectedEtfFields),selectedEtfFieldSpans:(pp.selectedEtfFieldSpans&&typeof pp.selectedEtfFieldSpans==='object')?pp.selectedEtfFieldSpans:{},selectedEtfSymbols:Array.isArray(pp.selectedEtfSymbols)?pp.selectedEtfSymbols:[],watchlistSymbols:normalizeFieldList(pp.watchlistSymbols,[]),globalEditMode:Boolean(pp.globalEditMode??false),editorPresets:Array.isArray(pp.editorPresets)?pp.editorPresets.slice(-30):[],editorNodes:{...defaultRegisteredNodes(),...(pp.editorNodes&&typeof pp.editorNodes==='object'?pp.editorNodes:{})},holdingFocusSort:pp.holdingFocusSort??defaultV3Preferences.holdingFocusSort,holdingFocusMax:Number(pp.holdingFocusMax??defaultV3Preferences.holdingFocusMax),holdingFocusOnDashboard:pp.holdingFocusOnDashboard??defaultV3Preferences.holdingFocusOnDashboard,holdingFocusOnPortfolio:pp.holdingFocusOnPortfolio??defaultV3Preferences.holdingFocusOnPortfolio,pageTitles:(pp.pageTitles&&typeof pp.pageTitles==='object')?pp.pageTitles:{},customMetrics:Array.isArray(pp.customMetrics)?pp.customMetrics:[],monitoring:mergeUnifiedMonitorPreferences(pp.monitoring)},
   appSettings:{...defaultAppSettings,...(p.appSettings??{}),widget:{...defaultAppSettings.widget,...(p.appSettings?.widget??{})},ota:{...defaultAppSettings.ota,...(p.appSettings?.ota??{})},goals:{...defaultAppSettings.goals,...(p.appSettings?.goals??{})},closeNotification:{...defaultAppSettings.closeNotification,...(p.appSettings?.closeNotification??{})},layout:{...defaultAppSettings.layout,...(p.appSettings?.layout??{})}},
