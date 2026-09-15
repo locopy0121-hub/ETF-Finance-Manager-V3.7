@@ -1,0 +1,26 @@
+name: V3.7.3 Master Verify
+
+on:
+  push:
+    branches: [v3.7.3-master-fix-20260916]
+    paths:
+      - '.gogo-v373-test-trigger'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+      - name: V3.7.3 master acceptance RED/GREEN gate
+        run: |
+          node scripts/V373_MASTER_ACCEPTANCE.cjs
+          node scripts/MONITOR_TEMPLATE_CONTRACT_TEST.cjs
+          node scripts/COLOR_PALETTE_CONTRACT_TEST.cjs
