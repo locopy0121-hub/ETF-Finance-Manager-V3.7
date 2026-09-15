@@ -26,10 +26,8 @@ jobs:
         with:
           node-version: '22.23.2'
           cache: npm
-      - name: Apply final native monitor renderer patches
-        run: |
-          python3 scripts/FIX_V373_TABLE_FIELDS.py
-          python3 scripts/FIX_V373_NATIVE_HELPERS.py
+      - name: Restore missing native monitor helpers
+        run: python3 scripts/FIX_V373_NATIVE_HELPERS.py
       - name: Install dependencies
         run: npm ci
       - name: V3.7.3 focused contracts
@@ -50,7 +48,7 @@ jobs:
           node scripts/DIVIDEND_CUTOFF_TEST.cjs
       - name: Source diff integrity
         run: git diff --check
-      - name: Commit verified V3.7.3 native monitor completion
+      - name: Commit verified V3.7.3 native helper recovery
         shell: bash
         run: |
           set -euo pipefail
@@ -58,8 +56,8 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add modules/floating-investment-bot scripts
           if git diff --cached --quiet; then
-            echo 'No renderer changes to commit.'
+            echo 'No native helper changes to commit.'
           else
-            git commit -m 'fix(v3.7.3): restore native monitor helpers and complete table renderer'
+            git commit -m 'fix(v3.7.3): restore native monitor text helpers'
             git push origin HEAD:v3.7.3-release-20260916
           fi
