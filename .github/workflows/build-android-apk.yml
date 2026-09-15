@@ -1,20 +1,33 @@
-name: Build Android APK
+name: V3.7 Release APK
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+env:
+  CI: 'true'
 
 jobs:
-  build-apk:
-    name: Build V3.6.0 Debug APK
+  repair-verify-build:
+    name: Repair, verify and build signed V3.7 APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout V3.7 development branch
         uses: actions/checkout@v5
+        with:
+          ref: v3.7-upgrade-20260915
+          fetch-depth: 1
+
+      - name: Apply targeted V3.7 fixes
+        run: python3 scripts/GOGO_V370_EDITOR_FIX.py
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -23,49 +36,104 @@ jobs:
           cache: npm
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Expo / EAS tooling
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          packager: npm
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run V3.6.0 acceptance preflight
-        run: npm run preflight:acceptance
+      - name: V3.7 editor/module audit
+        run: node scripts/V370_EDITOR_GOGO_AUDIT.cjs
 
-      - name: Generate Android native project
-        env:
-          CI: '1'
-        run: npx expo prebuild --platform android
-
-      - name: Make Gradle wrapper executable
-        run: chmod +x android/gradlew
-
-      - name: Build Debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
-
-      - name: Prepare APK artifact
+      - name: Existing V3.7 acceptance and layout regression
         run: |
-          mkdir -p artifacts
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/ETF-Finance-Manager-V3.6.0-debug.apk
+          node scripts/V370_UPGRADE_AUDIT.cjs
+          node scripts/FLOW_LAYOUT_PARENT_WIDTH_TEST.cjs
 
-      - name: Upload APK
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Finance and regression checks
+        run: |
+          node scripts/FINANCE_ENGINE_V342_TEST.cjs
+          node scripts/FORMULA_ENGINE_V342_TEST.cjs
+          node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
+          node scripts/DIVIDEND_CUTOFF_TEST.cjs
+          node scripts/V360_DEVICE_ACCEPTANCE_AUDIT.cjs
+
+      - name: Source diff integrity
+        run: git diff --check
+
+      - name: Commit repaired V3.7 source
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/v3/model.ts src/v3/storage.ts src/ui/FlowLayout.tsx src/v3/GlobalCardDesigner.tsx src/v3/screens.tsx scripts/V370_EDITOR_GOGO_AUDIT.cjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(v3.7): editor widths hierarchy and full module registry'
+            git push origin HEAD:v3.7-upgrade-20260915
+          fi
+
+      - name: Verify Expo authentication and linked EAS project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EXPO_TOKEN"
+          npx --yes eas-cli@latest whoami --non-interactive
+          npx --yes eas-cli@latest project:info
+
+      - name: Prepare runner-only Android build limits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('android/gradle.properties')
+          t=p.read_text(encoding='utf-8')
+          t=t.replace('org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m','org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m')
+          lines=[]; found=False
+          for line in t.splitlines():
+            if line.startswith('reactNativeArchitectures='):
+              lines.append('reactNativeArchitectures=arm64-v8a'); found=True
+            else: lines.append(line)
+          if not found: lines.append('reactNativeArchitectures=arm64-v8a')
+          p.write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          PY
+
+      - name: Build APK locally on GitHub with EAS-managed signing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          npx --yes eas-cli@latest build --platform android --profile preview --local --non-interactive --freeze-credentials --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.0-GOGO-Editor-Module-Fix-EAS.apk"
+
+      - name: Verify signed APK and package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT='artifacts/ETF-Finance-Manager-V3.7.0-GOGO-Editor-Module-Fix-EAS.apk'
+          test -s "$OUT"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/SIGNING_CERT.txt
+          "$AAPT" dump badging "$OUT" | grep -E "^package:|^application-label:" | tee artifacts/APK_BADGING.txt
+          grep -F "name='com.etfpilot.twselive'" artifacts/APK_BADGING.txt
+          grep -F "versionName='3.7.0'" artifacts/APK_BADGING.txt
+          sha256sum "$OUT" | tee artifacts/SHA256.txt
+          stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
+          echo source_commit=$(git rev-parse HEAD) >> artifacts/BUILD_INFO.txt
+          unzip -l "$OUT" | grep -E 'assets/index.android.bundle|index.android.bundle'
+
+      - name: Upload V3.7 signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: ETF-Finance-Manager-V3.6.0-APK
-          path: artifacts/ETF-Finance-Manager-V3.6.0-debug.apk
+          name: ETF-Finance-Manager-V3.7.0-GOGO-Editor-Module-Fix-EAS
+          path: artifacts/
           if-no-files-found: error
           retention-days: 14
