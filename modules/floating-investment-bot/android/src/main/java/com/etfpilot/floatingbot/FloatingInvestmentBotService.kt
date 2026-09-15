@@ -283,6 +283,7 @@ class FloatingInvestmentBotService : Service() {
     val p=params?:return;val minW=dp(max(120,payload.optInt("minWidth",120)));val minH=dp(max(48,payload.optInt("minHeight",48)));val expanded=p.width>minW*2
     if(expanded){p.width=minW;p.height=minH}else{p.width=min(resources.displayMetrics.widthPixels-dp(16),dp(payload.optInt("width",390)));p.height=min((resources.displayMetrics.heightPixels*.72).toInt(),dp(payload.optInt("height",240)))}
     try{wm.updateViewLayout(root,p)}catch(_:Throwable){}
+    getSharedPreferences(PREF,MODE_PRIVATE).edit().putInt(PREF_W,(p.width/resources.displayMetrics.density).toInt()).putInt(PREF_H,(p.height/resources.displayMetrics.density).toInt()).apply()
   }
 
   private fun launchApp() {

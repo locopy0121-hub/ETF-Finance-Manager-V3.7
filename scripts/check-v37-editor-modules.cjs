@@ -30,5 +30,19 @@ expect(!screens.includes("`${money(portfolioSummary.todayPnl)} · ${pct(portfoli
 expect(!screens.includes("`${money(portfolioSummary.totalPnl)} · ${pct(portfolioSummary.totalRoi)}`"),'portfolio total PnL no longer concatenates percentage into amount');
 expect(screens.includes('<Metric label="今日損益率"')&&screens.includes('<Metric label="總報酬率"'),'portfolio summary exposes separate PnL percentage cells');
 
+const universal=read('src/ui/UniversalEditor.tsx');
+const monitor=read('src/v3/monitoring.ts');
+const monitorEditor=read('src/v3/MonitorFieldEditor.tsx');
+const overlay=read('src/services/floatingOverlay.ts');
+const nativeModule=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotModule.kt');
+expect(universal.includes('ColorPalettePicker')&&!universal.includes('固定文字色 #RRGGBB'),'Universal Editor color editing uses palette instead of manual HEX input');
+expect(universal.includes('FloatingEditorPreview')&&universal.includes('目前資料：{node.systemName}'),'movable live preview uses current node data');
+expect(designer.includes('previewValuesByPage')&&designer.includes("previewValue??'—'"),'card/data-frame preview receives live current values');
+expect(screens.includes('scope="daily-history"')&&screens.includes('scope="dividend-event"'),'blank Mini regression isolated from stale legacy editor-node ids');
+expect(screens.includes('daily-pnl:${h.symbol}:amount')&&screens.includes('daily-pnl:${h.symbol}:rate'),'daily ETF PnL amount and rate are editable nodes');
+expect(monitor.includes('fixed:boolean')&&monitorEditor.includes('固定此功能項目 📌'),'monitor items support pinned position');
+expect(screens.includes('監視器即時預覽')&&screens.includes('監視器寬度 ${mp.width}px'),'monitor settings exposes live data preview and outer-frame width');
+expect(overlay.includes('getFloatingOverlayLayoutSize')&&overlay.includes('setFloatingOverlayLayoutSize')&&nativeModule.includes('getLayoutSnapshot')&&nativeModule.includes('setLayoutSize'),'desktop monitor resize and settings size use bidirectional native sync');
+
 if(process.exitCode) process.exit(process.exitCode);
 console.log('V3.7 editor/module GOGO audit complete.');

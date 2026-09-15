@@ -7,12 +7,14 @@ import { holdingMetrics, portfolioMetrics } from '../v3/engine';
 import type { MonitorField } from '../v3/monitoring';
 import { monitorTemplate } from '../v3/monitorTemplates';
 
-type NativeOverlay={hasOverlayPermission:()=>boolean;requestOverlayPermission:()=>boolean;start:(payload:string)=>boolean;update:(payload:string)=>boolean;stop:()=>boolean};
+type NativeOverlay={hasOverlayPermission:()=>boolean;requestOverlayPermission:()=>boolean;start:(payload:string)=>boolean;update:(payload:string)=>boolean;stop:()=>boolean;getLayoutSnapshot:()=>string;setLayoutSize:(width:number,height:number)=>boolean};
 const Native:NativeOverlay|null=Platform.OS==='android'?requireOptionalNativeModule<NativeOverlay>('FloatingInvestmentBot'):null;
 
 export function hasFloatingOverlayPermission(){try{return !!Native?.hasOverlayPermission()}catch{return false}}
 export function requestFloatingOverlayPermission(){try{return !!Native?.requestOverlayPermission()}catch{return false}}
 export function stopFloatingOverlay(){try{return !!Native?.stop()}catch{return false}}
+export function getFloatingOverlayLayoutSize(){try{const raw=Native?.getLayoutSnapshot?.();if(!raw)return undefined;const x=JSON.parse(raw);const width=Number(x.width),height=Number(x.height);return width>0&&height>0?{width,height}:undefined}catch{return undefined}}
+export function setFloatingOverlayLayoutSize(width:number,height:number){try{return !!Native?.setLayoutSize?.(Math.max(120,Math.round(width)),Math.max(48,Math.round(height)))}catch{return false}}
 
 export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holding[];quotes:Record<string,any>;ledger:LedgerEntry[];dividends:DividendEvent[];cashBalance:number;lastSuccessAt?:number;marketState:string}){
  const {prefs,holdings,quotes,ledger,dividends,cashBalance,lastSuccessAt,marketState}=args;

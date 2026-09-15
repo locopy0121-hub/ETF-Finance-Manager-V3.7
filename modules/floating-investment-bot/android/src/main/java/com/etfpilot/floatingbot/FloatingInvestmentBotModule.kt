@@ -49,6 +49,23 @@ class FloatingInvestmentBotModule : Module() {
       true
     }
 
+    Function("getLayoutSnapshot") {
+      val context = appContext.reactContext ?: return@Function "{}"
+      val prefs = context.getSharedPreferences("floating_investment_bot", 0)
+      val width = prefs.getInt("w", 0)
+      val height = prefs.getInt("h", 0)
+      "{\"width\":$width,\"height\":$height}"
+    }
+
+    Function("setLayoutSize") { width: Int, height: Int ->
+      val context = appContext.reactContext ?: return@Function false
+      context.getSharedPreferences("floating_investment_bot", 0).edit()
+        .putInt("w", width.coerceAtLeast(120))
+        .putInt("h", height.coerceAtLeast(48))
+        .apply()
+      true
+    }
+
     Function("setImmersiveEditor") { enabled: Boolean ->
       val activity = appContext.currentActivity ?: return@Function false
       activity.runOnUiThread {
