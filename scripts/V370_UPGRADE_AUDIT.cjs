@@ -10,15 +10,15 @@ const appJson=JSON.parse(read('app.json'));
 const pkg=JSON.parse(read('package.json'));
 const gradle=read('android/app/build.gradle');
 
-assert(appJson.expo.version==='3.7.2','app.json version is 3.7.2');
-assert(appJson.expo.runtimeVersion==='3.7.2','runtimeVersion is 3.7.2');
+assert(appJson.expo.version==='3.7.3','app.json version is 3.7.3');
+assert(appJson.expo.runtimeVersion==='3.7.3','runtimeVersion is 3.7.3');
 assert(appJson.expo.android?.package==='com.etfpilot.twselive','Android package remains production package');
-assert(Number(appJson.expo.android?.versionCode)===40,'Android versionCode is 40');
+assert(Number(appJson.expo.android?.versionCode)===41,'Android versionCode is 41');
 assert(pkg.version==='3.7.0','package.json dependency manifest baseline remains 3.7.0');
 assert(/globalEditMode\s*:\s*boolean/.test(model),'global edit mode is persisted in preferences');
 assert(/editorPresets\s*:/.test(model),'editor configuration presets are persisted');
 assert(/fieldGap\?\s*:\s*number/.test(model),'card data framework supports configurable field gap');
-const schemaMatch=storage.match(/SCHEMA\s*=\s*(\d+)/);assert(schemaMatch&&Number(schemaMatch[1])>=13,'state schema migrated to V3.7 or newer');
+const schemaMatch=storage.match(/SCHEMA\s*=\s*(\d+)/);assert(schemaMatch&&Number(schemaMatch[1])>=16,'state schema migrated to V3.7.3 or newer');
 assert(/portfolio-list/.test(storage)&&/span/.test(storage),'portfolio list layout migration is present');
 assert(/全局修改模式/.test(screens),'settings exposes global edit mode switch');
 assert(/prefs\.globalEditMode/.test(screens),'long-press editor respects global edit mode');
@@ -28,8 +28,9 @@ assert(/資料框架快速排版/.test(designer),'card editor exposes data frame
 assert(/儲存目前配置/.test(designer),'editor can save current configuration');
 assert(/讀取/.test(designer)&&/寫入/.test(designer),'editor can read and write saved configuration');
 assert(/directMode/.test(designer),'direct editor mode returns to originating screen');
-assert(/versionName\s+["']3\.7\.2["']/.test(gradle),'native Android versionName is 3.7.2');
-assert(/versionCode\s+40/.test(gradle),'native Android versionCode is 40');
+assert(/versionName\s+["']3\.7\.3["']/.test(gradle),'native Android versionName is 3.7.3');
+assert(/versionCode\s+41/.test(gradle),'native Android versionCode is 41');
 assert(/onPreferencesChange/.test(app),'root provider persists direct global editor changes');
-if(process.exitCode){console.error('\nV3.7.2 upgrade acceptance: FAIL');process.exit(process.exitCode)}
-console.log('\nV3.7.2 upgrade acceptance: PASS');
+assert(/MonitorTemplateEditor/.test(screens)&&/MonitorFieldPicker/.test(screens),'monitor template and single-field editor targets exist');
+if(process.exitCode){console.error('\nV3.7.3 upgrade acceptance: FAIL');process.exit(process.exitCode)}
+console.log('\nV3.7.3 upgrade acceptance: PASS');
