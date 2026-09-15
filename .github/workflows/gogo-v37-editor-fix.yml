@@ -1,4 +1,4 @@
-name: V3.7 Editor + Module Registry GOGO
+name: V3.7 Targeted Layout Repair
 
 on:
   push:
@@ -12,263 +12,70 @@ env:
   CI: 'true'
 
 jobs:
-  patch-verify-build:
-    name: Patch, verify and build V3.7 editor fixes
+  patch-and-verify:
+    name: Patch and verify targeted V3.7 layout fixes
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
+    timeout-minutes: 15
     steps:
       - name: Checkout V3.7 source
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
-      - name: Apply targeted V3.7 fixes
+      - name: Apply only the confirmed layout and PnL fixes
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          def patch(path, old, new, count=1):
-              p=Path(path); text=p.read_text(encoding='utf-8')
+          def patch_once(path, old, new, count=1):
+              p=Path(path)
+              text=p.read_text(encoding='utf-8')
+              if new in text:
+                  print(f'ALREADY FIXED: {path}')
+                  return
               if old not in text:
-                  raise SystemExit(f'PATCH TARGET NOT FOUND: {path}: {old[:120]}')
-              text=text.replace(old,new,count)
-              p.write_text(text,encoding='utf-8')
+                  raise SystemExit(f'PATCH TARGET NOT FOUND: {path}: {old[:160]}')
+              p.write_text(text.replace(old,new,count),encoding='utf-8')
+              print(f'PATCHED: {path}')
 
-          # 1) Model: custom field width + module-only registry role.
-          patch('src/v3/model.ts',
-            "export type V3FieldConfig={span:V3CardSpan;height:V3FieldHeight;customHeight?:number;label:V3TextConfig;value:V3TextConfig;labelValueGap?:number;backgroundOpacity:number;backgroundColor?:string;borderColor?:string;radius:number;padding:number;paddingTop?:number;paddingRight?:number;paddingBottom?:number;paddingLeft?:number;effect?:V3FieldEffect;effectStrength?:number};",
-            "export type V3FieldConfig={span:V3CardSpan;height:V3FieldHeight;customHeight?:number;customWidth?:number;label:V3TextConfig;value:V3TextConfig;labelValueGap?:number;backgroundOpacity:number;backgroundColor?:string;borderColor?:string;radius:number;padding:number;paddingTop?:number;paddingRight?:number;paddingBottom?:number;paddingLeft?:number;effect?:V3FieldEffect;effectStrength?:number};")
-          patch('src/v3/model.ts',
-            "role?:'summary'|'listTemplate'|'normal';",
-            "role?:'summary'|'listTemplate'|'normal'|'module';")
+          # Width rule: choosing a ratio switches back to ratio mode instead of retaining a stale pixel width.
+          patch_once(
+              'src/v3/GlobalCardDesigner.tsx',
+              "onPress={()=>setLocal({...local,span:v})}",
+              "onPress={()=>setLocal({...local,span:v,customWidth:undefined})}",
+          )
 
-          # Register every real top-level dashboard and portfolio module.
-          old="""  dashboard:{columns:6,cards:[hero,card('dashboard-core-2','資產與現金',homeCards[1]??[],0,3,3,2),card('dashboard-core-3','損益與股息',homeCards[2]??[],3,3,3,2)]},
-  ledger:{columns:6,cards:[card('ledger-summary','智慧記帳摘要',pageFields.ledger??[],0,0,6,2)]},
-  portfolio:{columns:6,cards:[{...card('portfolio-summary','庫存摘要',pageFields.portfolio??[],0,0,6,2),role:'summary'},{...card('portfolio-list','庫存清單模板',pageFields.portfolio??[],0,2,6,2),role:'listTemplate'}]},"""
-          new="""  dashboard:{columns:6,cards:[hero,card('dashboard-core-2','資產與現金',homeCards[1]??[],0,3,3,2),card('dashboard-core-3','損益與股息',homeCards[2]??[],3,3,3,2),{...card('dashboard-market','市場總覽｜熱門 ETF',[],0,5,6,2),role:'module'},{...card('dashboard-watchlist','ETF 搜尋 / 自選管理',[],0,7,6,2),role:'module'},{...card('dashboard-pnl-history','累積損益紀錄',[],0,9,6,2),role:'module'},{...card('dashboard-daily-pnl','每日損益紀錄',[],0,11,6,2),role:'module'},{...card('dashboard-wealth','資產成長｜投入 vs 資產',[],0,13,6,2),role:'module'},{...card('dashboard-allocation','資產配置',[],0,15,6,2),role:'module'}]},
-  ledger:{columns:6,cards:[card('ledger-summary','智慧記帳摘要',pageFields.ledger??[],0,0,6,2)]},
-  portfolio:{columns:6,cards:[{...card('portfolio-summary','庫存摘要',pageFields.portfolio??[],0,0,6,2),role:'summary'},{...card('portfolio-list','庫存清單模板',pageFields.portfolio??[],0,2,6,2),role:'listTemplate'},{...card('portfolio-contribution','損益貢獻排行',[],0,4,6,2),role:'module'},{...card('portfolio-recent','最近交易 / 股息',[],0,6,6,2),role:'module'},{...card('portfolio-allocation','ETF 市值配置',[],0,8,6,2),role:'module'}]},"""
-          patch('src/v3/model.ts',old,new)
+          # Width rule: FlowItem owns span/customWidth; the nested visual block fills that already-sized cell.
+          patch_once(
+              'src/v3/screens.tsx',
+              "colored={PROFIT_LOSS_FIELDS.has(k)}/></FlowItem>",
+              "colored={PROFIT_LOSS_FIELDS.has(k)} widthOverride=\"100%\"/></FlowItem>",
+          )
 
-          # 2) Storage migration: existing users must receive missing system/module registrations without wiping layout.
-          patch('src/v3/storage.ts',"const SCHEMA=13;","const SCHEMA=14;")
-          marker=""" const pageLayouts=JSON.parse(JSON.stringify(rawLayouts));
- for(const layout of Object.values(pageLayouts) as any[]){"""
-          replacement=""" const pageLayouts=JSON.parse(JSON.stringify(rawLayouts));
- const requiredLayouts=makeDefaultPageLayouts(home,pageCardFields);
- for(const pageKey of Object.keys(requiredLayouts) as Array<keyof typeof requiredLayouts>){
-  const target=(pageLayouts as any)[pageKey];const required=(requiredLayouts as any)[pageKey];
-  if(!target){(pageLayouts as any)[pageKey]=JSON.parse(JSON.stringify(required));continue;}
-  target.cards=Array.isArray(target.cards)?target.cards:[];
-  const ids=new Set(target.cards.map((c:any)=>c.id));
-  for(const requiredCard of required.cards??[])if(!ids.has(requiredCard.id))target.cards.push(JSON.parse(JSON.stringify(requiredCard)));
- }
- for(const layout of Object.values(pageLayouts) as any[]){"""
-          patch('src/v3/storage.ts',marker,replacement)
-
-          # 3) FlowLayout: allow explicit pixel width while clamping to real parent width.
-          patch('src/ui/FlowLayout.tsx',
-            "export function FlowItem({span=12,gap,minWidth=72,children,style}:{span?:V3CardSpan;gap?:number;minWidth?:number;children:React.ReactNode;style?:ViewStyle}){",
-            "export function FlowItem({span=12,gap,minWidth=72,customWidth,children,style}:{span?:V3CardSpan;gap?:number;minWidth?:number;customWidth?:number;children:React.ReactNode;style?:ViewStyle}){")
-          patch('src/ui/FlowLayout.tsx',
-            " const target=flowItemWidth(span,available,effectiveGap);\n return <View style={[{width:Math.min(available,Math.max(minWidth,target)),maxWidth:'100%',flexGrow:span===12?1:0},style]}>{children}</View>;",
-            " const target=customWidth&&customWidth>0?Math.min(available,customWidth):flowItemWidth(span,available,effectiveGap);\n return <View style={[{width:Math.min(available,Math.max(Math.min(minWidth,available),target)),maxWidth:'100%',flexGrow:span===12&&!customWidth?1:0},style]}>{children}</View>;")
-
-          # 4) Designer: custom width control, explicit component labels, and nested-save state retention.
-          patch('src/v3/GlobalCardDesigner.tsx',
-            "<Text style={styles.floatTitle}>資料方塊設定｜{label}</Text>",
-            "<Text style={styles.floatTitle}>【資料框】資料方塊設定｜{label}</Text>")
-          patch('src/v3/GlobalCardDesigner.tsx',
-            "</View><Text style={styles.label}>高度</Text><View style={styles.segmentRow}>{heights.map",
-            "</View><Text style={styles.label}>欄寬</Text><Text style={styles.miniMuted}>0 = 跟隨上方比例；也可像高度一樣微調實際資料框寬度。</Text><Step value={Number(local.customWidth)||0} min={0} max={420} step={4} onChange={v=>setLocal({...local,customWidth:v||undefined})}/><Text style={styles.label}>高度</Text><View style={styles.segmentRow}>{heights.map")
-          patch('src/v3/GlobalCardDesigner.tsx',
-            "<Text style={styles.title}>單卡設計器</Text><Text style={styles.sub}>點選任一資料方塊開啟浮動設定；支援整列 / 3/4 / 2/3 / 1/2 / 1/3 / 1/4 與獨立高度。</Text>",
-            "<Text style={styles.title}>【卡片框架】單卡設計器</Text><Text style={styles.sub}>目前層級：卡片框架 → 資料框。點選資料框後進下一層；支援比例、自訂欄寬與獨立高度。</Text>")
-          patch('src/v3/GlobalCardDesigner.tsx',
-            "style={[styles.innerBlock,{width:spanWidth(cfg.span),minHeight:fieldHeight(cfg)",
-            "style={[styles.innerBlock,{width:cfg.customWidth&&cfg.customWidth>0?Math.min(420,cfg.customWidth):spanWidth(cfg.span),minHeight:fieldHeight(cfg)")
-          patch('src/v3/GlobalCardDesigner.tsx',
-            "<Text style={styles.innerMeta}>{spanLabel(cfg.span)} · {hLabel(cfg.height)} · 名稱/數值分離</Text>",
-            "<Text style={styles.innerMeta}>資料框 · {cfg.customWidth&&cfg.customWidth>0?`${cfg.customWidth}px`:spanLabel(cfg.span)} · {hLabel(cfg.height)} · 名稱/數值分離</Text>")
-          patch('src/v3/GlobalCardDesigner.tsx',
-            "<Text style={styles.title}>全局卡片版面設計器</Text><Text style={styles.sub}>卡片本體使用格線；單卡內資料方塊改為 12 格比例 + 個別高度 + 浮動設定。</Text>",
-            "<Text style={styles.title}>【頁面框架】全局卡片版面設計器</Text><Text style={styles.sub}>目前層級：頁面框架 → 卡片框架 → 資料框；每層儲存只回上一層。單卡內支援比例、自訂欄寬與個別高度。</Text>")
-          patch('src/v3/GlobalCardDesigner.tsx',
-            "<Text style={styles.canvasMeta}>{card.kind==='system'?'系統卡':card.kind==='chart'?'圖表方塊':card.kind==='mixed'?'數據＋圖表':'自訂卡'} · {card.fields.length} 欄位</Text>",
-            "<Text style={styles.canvasMeta}>框架 · {card.kind==='system'?'系統卡':card.kind==='chart'?'圖表方塊':card.kind==='mixed'?'數據＋圖表':'自訂卡'} · {card.fields.length} 欄位</Text>")
-          # Prevent outer persisted-layout updates from resetting the currently open nested editor.
-          patch('src/v3/GlobalCardDesigner.tsx',
-            "}},[visible,layouts,entryTarget?.page,entryTarget?.cardId]);",
-            "}},[visible,entryTarget?.page,entryTarget?.cardId]);")
-          # Deepest data-frame save updates only the immediate CardDetailEditor draft; parent persistence happens at card save.
-          old="""onSave={c=>{if(!editingKey)return;const next={...configs,[editingKey]:c};setConfigs(next);const spans=Object.fromEntries(fields.map(k=>[k,(next[k]??defaultField()).span])) as Record<string,V3CardSpan>;onApply({fields:[...fields],fieldSpans:spans,fieldConfigs:next});}} onClose={()=>setEditingKey(null)}"""
-          new="""onSave={c=>{if(!editingKey)return;const next={...configs,[editingKey]:c};setConfigs(next);}} onClose={()=>setEditingKey(null)}"""
-          patch('src/v3/GlobalCardDesigner.tsx',old,new)
-
-          # 5) Runtime rendering: honor custom width and don't duplicate registry-only modules in PageCardDeck.
-          patch('src/v3/screens.tsx',
-            "width:widthOverride??spanWidth(cfg.span),...hs,",
-            "width:widthOverride??(cfg.customWidth&&cfg.customWidth>0?cfg.customWidth:spanWidth(cfg.span)),maxWidth:'100%',...hs,")
-          patch('src/v3/screens.tsx',
-            "<FlowItem key={k} span={template.fieldConfigs?.[k]?.span??template.fieldSpans?.[k]??6}>",
-            "<FlowItem key={k} span={template.fieldConfigs?.[k]?.span??template.fieldSpans?.[k]??6} customWidth={template.fieldConfigs?.[k]?.customWidth}>")
-          patch('src/v3/screens.tsx',
-            "filter(c=>!c.hidden&&c.role!=='listTemplate')",
-            "filter(c=>!c.hidden&&c.role!=='listTemplate'&&c.role!=='module')")
-
-          # Apply registered module-specific appearance and make runtime long-press target the same registered frame.
-          old="""function Card({children,style,editTarget}:{children:React.ReactNode;style?:any;editTarget?:FrameEditorTarget}){const p=theme();const editor=useContext(EditorCtx);const wrap=(body:React.ReactNode)=>editTarget&&p?.globalEditMode?<Pressable onLongPress={()=>editor?.openFrame(editTarget)} delayLongPress={360}>{body}</Pressable>:body;const base=[s.card,p&&{borderRadius:p.cardRadius,backgroundColor:`rgba(22,31,48,${Math.max(.35,Math.min(1,p.cardOpacity/100))})`},style];"""
-          new="""function Card({children,style,editTarget}:{children:React.ReactNode;style?:any;editTarget?:FrameEditorTarget}){const p=theme();const editor=useContext(EditorCtx);const registered=editTarget?p?.pageLayouts?.[editTarget.page]?.cards?.find(c=>c.id===editTarget.cardId):undefined;if(registered?.hidden)return null;const wrap=(body:React.ReactNode)=>editTarget&&p?.globalEditMode?<Pressable onLongPress={()=>editor?.openFrame(editTarget)} delayLongPress={360}>{body}</Pressable>:body;const registeredStyle=registered?{borderRadius:registered.style.radius,backgroundColor:`rgba(22,31,48,${Math.max(.2,Math.min(1,registered.style.backgroundOpacity/100))})`,padding:registered.style.padding}:undefined;const base=[s.card,p&&{borderRadius:p.cardRadius,backgroundColor:`rgba(22,31,48,${Math.max(.35,Math.min(1,p.cardOpacity/100))})`},registeredStyle,p?.globalEditMode&&editTarget?{borderWidth:1.5,borderColor:p.accentColor}:undefined,style];"""
-          patch('src/v3/screens.tsx',old,new)
-
-          # Dashboard standalone modules -> registry ids (3 core cards are already PageCardDeck cards).
-          patch('src/v3/screens.tsx','<Card><SectionTitle title="市場總覽｜熱門 ETF"','<Card editTarget={{page:\'dashboard\',cardId:\'dashboard-market\'}}><SectionTitle title="市場總覽｜熱門 ETF"')
-          patch('src/v3/screens.tsx','<Card><SectionTitle title="ETF 搜尋 / 自選管理"','<Card editTarget={{page:\'dashboard\',cardId:\'dashboard-watchlist\'}}><SectionTitle title="ETF 搜尋 / 自選管理"')
-          patch('src/v3/screens.tsx','<TouchableOpacity onPress={()=>setPnlOpen(true)}><Card><SectionTitle title="累積損益紀錄"','<TouchableOpacity onPress={()=>setPnlOpen(true)}><Card editTarget={{page:\'dashboard\',cardId:\'dashboard-pnl-history\'}}><SectionTitle title="累積損益紀錄"')
-          patch('src/v3/screens.tsx','<DailyPnLHistory snapshots={dailySnapshots} prefs={prefs} holdings={common.holdings}/>','<DailyPnLHistory snapshots={dailySnapshots} prefs={prefs} holdings={common.holdings} editTarget={{page:\'dashboard\',cardId:\'dashboard-daily-pnl\'}}/>')
-          patch('src/v3/screens.tsx','function DailyPnLHistory({snapshots,prefs,holdings}:{snapshots:DailySnapshot[];prefs:V3Preferences;holdings:Holding[]})','function DailyPnLHistory({snapshots,prefs,holdings,editTarget}:{snapshots:DailySnapshot[];prefs:V3Preferences;holdings:Holding[];editTarget?:FrameEditorTarget})')
-          patch('src/v3/screens.tsx','if(!snapshots.length)return <Card><SectionTitle title="每日損益紀錄"','if(!snapshots.length)return <Card editTarget={editTarget}><SectionTitle title="每日損益紀錄"')
-          patch('src/v3/screens.tsx','return <Card><SectionTitle title="每日損益紀錄" right={`${rows.length} 日`}/>','return <Card editTarget={editTarget}><SectionTitle title="每日損益紀錄" right={`${rows.length} 日`}/>')
-          patch('src/v3/screens.tsx','<Card><SectionTitle title="資產成長｜投入 vs 資產"','<Card editTarget={{page:\'dashboard\',cardId:\'dashboard-wealth\'}}><SectionTitle title="資產成長｜投入 vs 資產"')
-          patch('src/v3/screens.tsx','<Card><SectionTitle title="資產配置" right={`${holdings.length} 檔 ETF`}/>','<Card editTarget={{page:\'dashboard\',cardId:\'dashboard-allocation\'}}><SectionTitle title="資產配置" right={`${holdings.length} 檔 ETF`}/>')
-
-          # Portfolio modules -> complete registry.
-          patch('src/v3/screens.tsx','<Card><SectionTitle title="整體庫存總覽"','<Card editTarget={{page:\'portfolio\',cardId:\'portfolio-summary\'}}><SectionTitle title="整體庫存總覽"')
-          patch('src/v3/screens.tsx','</Card><Card><SectionTitle title="損益貢獻排行"','</Card><Card editTarget={{page:\'portfolio\',cardId:\'portfolio-contribution\'}}><SectionTitle title="損益貢獻排行"')
-          patch('src/v3/screens.tsx','</Card><Card><SectionTitle title="最近交易 / 股息"','</Card><Card editTarget={{page:\'portfolio\',cardId:\'portfolio-recent\'}}><SectionTitle title="最近交易 / 股息"')
-          patch('src/v3/screens.tsx','<Card><SectionTitle title="ETF 市值配置"','<Card editTarget={{page:\'portfolio\',cardId:\'portfolio-allocation\'}}><SectionTitle title="ETF 市值配置"')
-
-          # 6) Audit test for exactly the requested regression surface.
-          Path('scripts/V370_EDITOR_GOGO_AUDIT.cjs').write_text(r'''const fs=require('fs');
-          const model=fs.readFileSync('src/v3/model.ts','utf8');
-          const storage=fs.readFileSync('src/v3/storage.ts','utf8');
-          const designer=fs.readFileSync('src/v3/GlobalCardDesigner.tsx','utf8');
-          const screens=fs.readFileSync('src/v3/screens.tsx','utf8');
-          const flow=fs.readFileSync('src/ui/FlowLayout.tsx','utf8');
-          const must=(ok,msg)=>{if(!ok){console.error('FAIL:',msg);process.exit(1)}console.log('PASS:',msg)};
-          must(model.includes('customWidth?:number'),'field supports custom width');
-          must(model.includes("role?:'summary'|'listTemplate'|'normal'|'module'"),'module-only registry role exists');
-          const dashboardIds=['dashboard-core-1','dashboard-core-2','dashboard-core-3','dashboard-market','dashboard-watchlist','dashboard-pnl-history','dashboard-daily-pnl','dashboard-wealth','dashboard-allocation'];
-          dashboardIds.forEach(id=>must(model.includes(`'${id}'`),`dashboard registered ${id}`));
-          must(dashboardIds.length===9,'dashboard expected module count is 9');
-          ['portfolio-summary','portfolio-list','portfolio-contribution','portfolio-recent','portfolio-allocation'].forEach(id=>must(model.includes(`'${id}'`),`portfolio registered ${id}`));
-          must(storage.includes('const SCHEMA=14;'),'schema migration bumped');
-          must(storage.includes('requiredLayouts=makeDefaultPageLayouts'),'migration merges missing registered modules');
-          must(designer.includes('【資料框】資料方塊設定'),'data-frame editor level label');
-          must(designer.includes('【卡片框架】單卡設計器'),'card-frame editor level label');
-          must(designer.includes('【頁面框架】全局卡片版面設計器'),'page-frame editor level label');
-          must(designer.includes('customWidth:v||undefined'),'custom width UI is writable');
-          must(!designer.includes("onSave={c=>{if(!editingKey)return;const next={...configs,[editingKey]:c};setConfigs(next);const spans="),'deep data-frame save no longer persists/jumps outer layer');
-          must(flow.includes('customWidth?:number'),'FlowItem accepts custom width');
-          must(screens.includes("c.role!=='module'"),'registry-only modules do not duplicate runtime layout');
-          must(screens.includes("cardId:'dashboard-market'"),'dashboard market module linked to runtime frame');
-          must(screens.includes("cardId:'portfolio-contribution'"),'portfolio contribution module linked to runtime frame');
-          console.log('V3.7 editor/module GOGO audit complete.');
-          ''',encoding='utf-8')
+          # Portfolio summary: amount and percentage are independent cells, never concatenated.
+          patch_once(
+              'src/v3/screens.tsx',
+              "<Metric label=\"今日損益\" value={common.prefs.privacyMode?'••••':`${money(portfolioSummary.todayPnl)} · ${pct(portfolioSummary.todayPnlPct)}`}/><Metric label=\"總損益\" value={common.prefs.privacyMode?'••••':`${money(portfolioSummary.totalPnl)} · ${pct(portfolioSummary.totalRoi)}`}/>",
+              "<Metric label=\"今日損益\" value={common.prefs.privacyMode?'••••':money(portfolioSummary.todayPnl)}/><Metric label=\"今日損益率\" value={common.prefs.privacyMode?'••••':pct(portfolioSummary.todayPnlPct)}/><Metric label=\"總損益\" value={common.prefs.privacyMode?'••••':money(portfolioSummary.totalPnl)}/><Metric label=\"總報酬率\" value={common.prefs.privacyMode?'••••':pct(portfolioSummary.totalRoi)}/>",
+          )
           PY
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22.23.2'
-          cache: npm
+      - name: Targeted regression audit
+        run: node scripts/check-v37-editor-modules.cjs
 
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Targeted editor and module audit
-        run: node scripts/V370_EDITOR_GOGO_AUDIT.cjs
-
-      - name: Existing layout regression
-        run: node scripts/FLOW_LAYOUT_PARENT_WIDTH_TEST.cjs
-
-      - name: TypeScript
-        run: npm run typecheck
-
-      - name: Finance and regression checks
-        run: |
-          node scripts/FINANCE_ENGINE_V342_TEST.cjs
-          node scripts/FORMULA_ENGINE_V342_TEST.cjs
-          node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
-          node scripts/DIVIDEND_CUTOFF_TEST.cjs
-          node scripts/V360_DEVICE_ACCEPTANCE_AUDIT.cjs
-
-      - name: Verify diff
+      - name: Source diff integrity
         run: git diff --check
 
-      - name: Commit repaired source
+      - name: Persist targeted source fixes
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/v3/model.ts src/v3/storage.ts src/ui/FlowLayout.tsx src/v3/GlobalCardDesigner.tsx src/v3/screens.tsx scripts/V370_EDITOR_GOGO_AUDIT.cjs
-          if ! git diff --cached --quiet; then
-            git commit -m 'fix(v3.7): custom widths, nested editor navigation and full module registry'
+          git add src/v3/GlobalCardDesigner.tsx src/v3/screens.tsx
+          if git diff --cached --quiet; then
+            echo 'No source changes needed.'
+          else
+            git commit -m 'fix(v3.7): correct nested field widths and split PnL rates'
             git push origin HEAD:v3.7-upgrade-20260915
           fi
-
-      - name: Verify Expo authentication
-        shell: bash
-        run: |
-          test -n "$EXPO_TOKEN"
-          npx --yes eas-cli@latest whoami --non-interactive
-          npx --yes eas-cli@latest project:info
-
-      - name: Prepare runner-only Android build limits
-        shell: bash
-        run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('android/gradle.properties');t=p.read_text()
-          t=t.replace('org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m','org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m')
-          lines=[];found=False
-          for line in t.splitlines():
-            if line.startswith('reactNativeArchitectures='):lines.append('reactNativeArchitectures=arm64-v8a');found=True
-            else:lines.append(line)
-          if not found:lines.append('reactNativeArchitectures=arm64-v8a')
-          p.write_text('\n'.join(lines)+'\n')
-          PY
-
-      - name: Build EAS-signed APK locally on GitHub
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts
-          npx --yes eas-cli@latest build --platform android --profile preview --local --non-interactive --freeze-credentials --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.0-Editor-Module-GOGO-EAS.apk"
-
-      - name: Verify APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          OUT='artifacts/ETF-Finance-Manager-V3.7.0-Editor-Module-GOGO-EAS.apk'
-          test -s "$OUT"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
-          "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/SIGNING_CERT.txt
-          "$AAPT" dump badging "$OUT" | grep -E "^package:|^application-label:" | tee artifacts/APK_BADGING.txt
-          grep -F "name='com.etfpilot.twselive'" artifacts/APK_BADGING.txt
-          grep -F "versionName='3.7.0'" artifacts/APK_BADGING.txt
-          sha256sum "$OUT" | tee artifacts/SHA256.txt
-          stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
-          echo source_commit=$(git rev-parse HEAD) >> artifacts/BUILD_INFO.txt
-          unzip -l "$OUT" | grep -E 'assets/index.android.bundle|index.android.bundle'
-
-      - name: Upload final V3.7 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ETF-Finance-Manager-V3.7.0-Editor-Module-GOGO-EAS
-          path: artifacts/
-          if-no-files-found: error
-          retention-days: 14
