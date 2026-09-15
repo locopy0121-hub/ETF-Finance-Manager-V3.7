@@ -11,8 +11,6 @@ import { IntradayPnlPoint, LedgerEntry, SavingsPlan, V3State } from './src/v3/mo
 import { configureDisplayPreferences, dividendTotals, holdingMetrics, portfolioMetrics, sharesOnDate, money, pct } from './src/v3/engine';
 import { preciseTradeAmount } from './src/v3/financeFormat';
 import { estimateSellFee, estimateSellTaxBySettings } from './src/data/tradeSettings';
-import { estimateSellFee, estimateSellTaxBySettings } from './src/data/tradeSettings';
-import { estimateSellFee, estimateSellTaxBySettings } from './src/data/tradeSettings';
 import { syncProfitWidget } from './src/widgets/syncWidget';
 import { setWidgetBackgroundTaskEnabled } from './src/services/backgroundQuoteTask';
 import { setCloseBackgroundTaskEnabled } from './src/services/backgroundCloseTask';

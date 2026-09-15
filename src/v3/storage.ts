@@ -96,8 +96,6 @@ function mergeState(p:Partial<V3State>):V3State{
   }
  }
  const reconciledCash=Number((p as any).cashReconciliation?.actualBalance);
- const reconciledCash=Number((p as any).cashReconciliation?.actualBalance);
- const reconciledCash=Number((p as any).cashReconciliation?.actualBalance);
  return {
   schemaVersion:SCHEMA,
   holdings:Array.isArray(p.holdings)?p.holdings:[],
