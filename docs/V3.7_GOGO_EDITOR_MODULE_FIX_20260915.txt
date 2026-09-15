@@ -1,0 +1,8 @@
+V3.7 GOGO editor/module fix release trigger
+Date: 2026-09-15
+Scope:
+- data-frame custom width control
+- nested save returns one layer up
+- component hierarchy labels
+- complete page/module registry audit, including 9 dashboard modules and inventory modules
+- preserve existing editor capabilities
