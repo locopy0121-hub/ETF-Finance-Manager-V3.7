@@ -2,11 +2,14 @@ const fs=require('fs');
 const t=fs.readFileSync('src/v3/monitorTemplates.ts','utf8');
 const s=fs.readFileSync('src/v3/screens.tsx','utf8');
 const o=fs.readFileSync('src/services/floatingOverlay.ts','utf8');
+const native=fs.readFileSync('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt','utf8');
 let failed=0;const check=(ok,msg)=>{if(ok)console.log('PASS',msg);else{console.error('FAIL',msg);failed++}};
 const templateRows=[...t.matchAll(/\{id:'([^']+)',name:'([^']+)',fields:\[([^\]]*)\],columns:(\d)(?:,compact:true)?(?:,nativeMode:'([^']+)')?\}/g)];
 check(templateRows.length===12,'exactly 12 monitor templates are declared');
 check(templateRows.every(x=>x[3].trim().length>0),'every template has composition fields');
 check(templateRows.every(x=>x[5]==='table'||x[5]==='puzzle'||x[5]==='strip'),'every template declares nativeMode');
+const fieldCount=row=>(row[3].match(/'/g)||[]).length/2;
+check(templateRows.filter(x=>x[5]==='table').every(x=>fieldCount(x)<=4),'default table templates never silently drop fields at standard width');
 check(t.includes("export const templateDefaultFields=(id:MonitorDisplayMode)=>[...monitorTemplate(id).fields]"),'template default field helper exists');
 check(s.includes('function MonitorTemplateEditor'),'template editor component exists');
 check(s.includes('模板內容與組合項目'),'template editor exposes composition content');
@@ -17,5 +20,12 @@ check(s.includes('function MonitorFieldPicker')&&s.includes('onPress={()=>onEdit
 check(o.includes('mode:template.nativeMode'),'payload uses explicit template nativeMode');
 check(o.includes('templateFields:template.fields'),'payload carries template composition for native fallback');
 check(o.includes('profile?.fieldsCustomized===true'),'payload distinguishes template composition from custom field composition');
+const tableStart=native.indexOf('  private fun renderTableOverlay() {');
+const puzzleStart=native.indexOf('  private fun renderPuzzleOverlay() {',tableStart+1);
+const table=tableStart>=0&&puzzleStart>tableStart?native.slice(tableStart,puzzleStart):'';
+check(table.includes('"totalAssets" to "總資產"'),'native table renderer labels totalAssets');
+check(table.includes('"dividend" to "股息事件"'),'native table renderer labels dividend');
+check(table.includes('"totalAssets"->money(payload.optDouble("totalAssets",0.0))'),'native table renderer reads canonical totalAssets payload');
+check(table.includes('"dividend"->if(payload.optString("dividendSymbol").isNotBlank())'),'native table renderer reads dividend payload');
 if(failed){console.error(`MONITOR TEMPLATE CONTRACT: FAIL (${failed})`);process.exit(1)}
 console.log('MONITOR TEMPLATE CONTRACT: PASS');
