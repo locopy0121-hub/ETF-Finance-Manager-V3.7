@@ -2,7 +2,7 @@ name: V3.7 Release APK
 
 on:
   push:
-    branches: [v3.7.3-master-fix-20260916]
+    branches: [v3.7.3-release-20260916]
     paths: ['.gogo-v373-build-trigger']
   workflow_dispatch:
 
@@ -21,10 +21,10 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
-      - name: Checkout V3.7.3 source
+      - name: Checkout V3.7.3 release source
         uses: actions/checkout@v5
         with:
-          ref: v3.7.3-master-fix-20260916
+          ref: v3.7.3-release-20260916
           fetch-depth: 4
 
       - name: Setup Node.js
