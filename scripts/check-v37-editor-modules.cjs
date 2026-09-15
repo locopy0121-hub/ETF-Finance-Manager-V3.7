@@ -12,7 +12,7 @@ expect(model.includes('customWidth?:number'),'data frame supports custom width')
 expect(model.includes("role?:'summary'|'listTemplate'|'normal'|'module'"),'page cards support registered runtime modules');
 for(const id of ['dashboard-core-1','dashboard-core-2','dashboard-core-3','dashboard-market','dashboard-watchlist','dashboard-pnl-history','dashboard-daily-pnl','dashboard-wealth','dashboard-allocation']) expect(model.includes(`'${id}'`),`dashboard registry contains ${id}`);
 for(const id of ['portfolio-summary','portfolio-list','portfolio-contribution','portfolio-recent','portfolio-allocation']) expect(model.includes(`'${id}'`),`portfolio registry contains ${id}`);
-expect(storage.includes('const SCHEMA=14;'),'storage schema migrated to 14');
+expect(storage.includes('const SCHEMA=15;'),'storage schema migrated to 15');
 expect(storage.includes('requiredLayouts=makeDefaultPageLayouts'),'stored layouts merge newly required modules');
 expect(designer.includes('【資料框】'),'deepest editor identifies data-frame level');
 expect(designer.includes('【卡片框架】'),'card editor identifies card-frame level');
