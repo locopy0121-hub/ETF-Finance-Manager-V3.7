@@ -17,15 +17,15 @@ react {
     enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
     // Use Expo CLI to bundle the app, this ensures the Metro config
     // works correctly with Expo projects.
-    cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
+    cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
     bundleCommand = "export:embed"
 
     /* Folders */
      //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
-    //   The folder where the reactNativeDir is. Default is ../../node_modules/react-native
+    //   The folder where the reactNativeDir is. Default is '../../node_modules/react-native'
     // reactNativeDir = new File("../../node_modules/react-native")
-    //   The folder where codegen lives. Default is ../../node_modules/@react-native/codegen
+    //   The folder where the codegenDir is. Default is '../../node_modules/@react-native/codegen'
     // codegenDir = new File("../../node_modules/@react-native/codegen")
 
     /* Variants */
@@ -66,8 +66,8 @@ android {
         applicationId 'com.etfpilot.twselive'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 43
-        versionName "3.7.5"
+        versionCode 44
+        versionName "3.7.6"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -109,10 +109,8 @@ android {
     for (i in 0..<options.size()) options[i] = options[i].trim();
     options -= ""
     if (options.length > 0) {
-        println "android.packagingOptions.$prop += $options ($options.length)"
-        options.each {
-            android.packagingOptions[prop] += it
-        }
+        println "android.packagingOptions[prop] += $options ($options.length)"
+        android.packagingOptions[prop] += options
     }
 }
 
@@ -121,7 +119,7 @@ dependencies {
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
-    def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
+    def isWebpAnimatedEnabled = (findProperty('expo.webp.animated.enabled') ?: "") == "true";
 
     if (isGifEnabled) {
         implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()}")
