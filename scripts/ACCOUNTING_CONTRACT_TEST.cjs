@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..');
 const engine = fs.readFileSync(path.join(root, 'src', 'v3', 'engine.ts'), 'utf8');
+const engineBase = fs.readFileSync(path.join(root, 'src', 'v3', 'engineBase.ts'), 'utf8');
+const accountingSource = `${engineBase}\n${engine}`;
 
 const requiredSourceRules = [
   ['每筆成交金額 floor', 'Math.floor(Number(e.price)*shares)'],
@@ -14,7 +16,7 @@ const requiredSourceRules = [
   ['單檔預設即時損益採含費口徑', 'const pnl=cashPnl'],
 ];
 for (const [label, snippet] of requiredSourceRules) {
-  if (!engine.includes(snippet)) throw new Error(`ACCOUNTING SOURCE RULE MISSING: ${label}`);
+  if (!accountingSource.includes(snippet)) throw new Error(`ACCOUNTING SOURCE RULE MISSING: ${label}`);
 }
 
 function approx(actual, expected, eps=1e-9, label='value') {
