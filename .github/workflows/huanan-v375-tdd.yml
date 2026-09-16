@@ -1,8 +1,10 @@
-name: Huanan Accounting V3.7.5 TDD
+name: Broker Profile Accounting V3.7.5 TDD
 
 on:
   push:
-    branches: [v3.7.5-huanan-accounting-20260916]
+    branches:
+      - v3.7.5-huanan-accounting-20260916
+      - v3.7.5-broker-profiles-20260916
   workflow_dispatch:
 
 jobs:
@@ -12,8 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: v3.7.5-huanan-accounting-20260916
           fetch-depth: 1
+      - name: Broker profile contract
+        run: node scripts/BROKER_PROFILE_V375_TEST.cjs
       - name: Huanan broker accounting regression
         run: node scripts/HUANAN_ACCOUNTING_V375_TEST.cjs
       - uses: actions/setup-node@v6
@@ -25,6 +28,7 @@ jobs:
         run: npm run typecheck
       - name: Existing finance regressions
         run: |
+          node scripts/BROKER_PROFILE_V375_TEST.cjs
           node scripts/HUANAN_ACCOUNTING_V375_TEST.cjs
           node scripts/FINANCE_ENGINE_V342_TEST.cjs
           node scripts/FORMULA_ENGINE_V342_TEST.cjs
