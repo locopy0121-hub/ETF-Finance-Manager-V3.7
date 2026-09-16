@@ -10,6 +10,7 @@ permissions:
 
 env:
   CI: 'true'
+  NODE_ENV: production
 
 jobs:
   verify-and-build:
