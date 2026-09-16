@@ -16,6 +16,8 @@ jobs:
           fetch-depth: 1
       - name: Apply breaking refactor transform
         run: node scripts/APPLY_BREAKING_HUANAN_REFACTOR.cjs
+      - name: Patch stage2 matcher
+        run: node scripts/FIX_STAGE2_SCRIPT.cjs
       - name: Apply breaking refactor stage 2
         run: node scripts/APPLY_BREAKING_HUANAN_STAGE2.cjs
       - name: Breaking Huanan core contract
