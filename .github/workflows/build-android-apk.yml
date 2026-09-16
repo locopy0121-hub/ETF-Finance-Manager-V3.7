@@ -76,7 +76,7 @@ jobs:
           node scripts/UNIVERSAL_EDITOR_ROUTE_CONTRACT.cjs
           node scripts/MONITOR_TEMPLATE_CONTRACT_TEST.cjs
           node scripts/COLOR_PALETTE_CONTRACT_TEST.cjs
-          node scripts/V370_UPGRADE_AUDIT.cjs
+          node scripts/V374_UPGRADE_AUDIT.cjs
 
       - name: Editor and module registry audit
         run: node scripts/check-v37-editor-modules.cjs
