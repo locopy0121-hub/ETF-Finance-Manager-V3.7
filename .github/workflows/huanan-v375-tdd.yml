@@ -5,9 +5,6 @@ on:
     branches: [v3.7.5-huanan-accounting-20260916]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -17,8 +14,6 @@ jobs:
         with:
           ref: v3.7.5-huanan-accounting-20260916
           fetch-depth: 1
-      - name: Apply V3.7.5 Huanan implementation
-        run: python3 scripts/APPLY_HUANAN_V375.py
       - name: Huanan broker accounting regression
         run: node scripts/HUANAN_ACCOUNTING_V375_TEST.cjs
       - uses: actions/setup-node@v6
@@ -38,11 +33,3 @@ jobs:
           node scripts/ACCOUNTING_CONTRACT_TEST.cjs
       - name: Diff integrity
         run: git diff --check
-      - name: Commit verified V3.7.5 source
-        shell: bash
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add App.tsx app.json src/data/tradeSettings.ts src/v3/engine.ts src/v3/model.ts src/v3/screens.tsx src/v3/storage.ts src/v3/version.ts
-          git commit -m 'feat(v3.7.5): Huanan broker formulas and cost write-off [skip ci]'
-          git push origin HEAD:v3.7.5-huanan-accounting-20260916
