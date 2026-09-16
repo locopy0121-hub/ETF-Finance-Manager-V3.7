@@ -18,11 +18,17 @@ assert.match(types,/HEALTH_PREMIUM_THRESHOLD:\s*20_000/,'health premium threshol
 assert.match(types,/HEALTH_PREMIUM_RATE:\s*0\.0211/,'health premium rate must be 0.0211');
 
 assert.ok(!types.includes('customFeeDiscount'),'transaction-level fee discount override must not exist');
-assert.ok(!calc.includes('Legacy'),'legacy compatibility must not exist');
-assert.ok(!calc.includes('DEFAULT_DISCOUNT'),'old configurable discount must not exist');
-assert.ok(!calc.includes('calculateHuaNanFee'),'old exported fee helper must not exist');
-assert.ok(!calc.includes('calculateSellProceeds'),'old sell-proceeds helper must not exist');
-assert.ok(!calc.includes('formatPrecision'),'old generic precision helper must not exist');
+for(const forbidden of [
+  'DEFAULT_DISCOUNT',
+  'calculateHuaNanFee',
+  'calculateSellProceeds',
+  'formatPrecision',
+  'defaultBrokerProfile',
+  'FeeSettings',
+  'BrokerProfile',
+]){
+  assert.ok(!calc.includes(forbidden),`forbidden legacy calculation symbol remains: ${forbidden}`);
+}
 assert.match(calc,/const sortTransactions\s*=/,'transactions must be deterministically sorted');
 assert.match(calc,/averageCostBeforeSell/,'SELL must release moving-average cost');
 assert.ok(!/totalInvestmentCost\s*-=?\s*calculateSellProceeds/.test(calc),'sell proceeds must never reduce holding cost');
