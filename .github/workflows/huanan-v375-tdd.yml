@@ -22,6 +22,8 @@ jobs:
         run: node scripts/APPLY_BREAKING_HUANAN_STAGE2.cjs
       - name: Apply breaking refactor stage 3
         run: node scripts/APPLY_BREAKING_HUANAN_STAGE3.cjs
+      - name: Apply breaking refactor stage 4
+        run: node scripts/APPLY_BREAKING_HUANAN_STAGE4.cjs
       - name: Breaking Huanan core contract
         run: node scripts/BREAKING_HUANAN_CORE_TEST.cjs
       - name: Residual old-finance scan
