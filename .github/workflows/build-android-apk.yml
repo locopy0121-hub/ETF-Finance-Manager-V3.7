@@ -13,6 +13,7 @@ env:
   EXPECTED_PACKAGE: 'com.etfpilot.twselive'
   EXPECTED_VERSION_NAME: '3.7.5'
   EXPECTED_VERSION_CODE: '43'
+  EXPECTED_APP_LABEL: 'ETF財務管家 V3.7.5 NATIVE'
   EXPECTED_SIGNING_CERT_SHA256: 'efee34e265df25cb2faa0c20473bccd7e28c34a8a359a9263f4b8006a4f96f06'
 
 jobs:
@@ -73,6 +74,8 @@ jobs:
           grep -F "versionCode ${EXPECTED_VERSION_CODE}" android/app/build.gradle
           grep -F "versionName \"${EXPECTED_VERSION_NAME}\"" android/app/build.gradle
           grep -F "applicationId '${EXPECTED_PACKAGE}'" android/app/build.gradle
+          grep -F "<string name=\"app_name\">${EXPECTED_APP_LABEL}</string>" android/app/src/main/res/values/strings.xml
+          grep -F "<string name=\"expo_runtime_version\">${EXPECTED_VERSION_NAME}</string>" android/app/src/main/res/values/strings.xml
 
       - name: Apply broker-style open-position PnL formula
         run: python3 scripts/GOGO_V372_BROKER_PNL_FIX.py
@@ -179,7 +182,8 @@ jobs:
           grep -F "name='${EXPECTED_PACKAGE}'" artifacts/APK_BADGING.txt
           grep -F "versionName='${EXPECTED_VERSION_NAME}'" artifacts/APK_BADGING.txt
           grep -F "versionCode='${EXPECTED_VERSION_CODE}'" artifacts/APK_BADGING.txt
-          ACTUAL_CERT_SHA256="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' artifacts/SIGNING_CERT.txt | tr '[:upper:]' '[:lower:]' | head -1)"
+          grep -F "application-label:'${EXPECTED_APP_LABEL}'" artifacts/APK_BADGING.txt
+          ACTUAL_CERT_SHA256="$(grep -m1 'certificate SHA-256 digest:' artifacts/SIGNING_CERT.txt | sed -E 's/^.*certificate SHA-256 digest:[[:space:]]*//' | tr '[:upper:]' '[:lower:]')"
           test -n "$ACTUAL_CERT_SHA256"
           test "$ACTUAL_CERT_SHA256" = "$EXPECTED_SIGNING_CERT_SHA256"
           printf 'expected_signing_cert_sha256=%s\nactual_signing_cert_sha256=%s\n' "$EXPECTED_SIGNING_CERT_SHA256" "$ACTUAL_CERT_SHA256" | tee artifacts/SIGNING_GUARD.txt
@@ -190,6 +194,7 @@ jobs:
             echo "package=${EXPECTED_PACKAGE}"
             echo "versionName=${EXPECTED_VERSION_NAME}"
             echo "versionCode=${EXPECTED_VERSION_CODE}"
+            echo "applicationLabel=${EXPECTED_APP_LABEL}"
             echo 'scope=broker-style open-position PnL preserved; version-chain repair only'
             echo 'accounting_contracts=passed_before_build'
             echo 'build_executor=GitHub Actions local EAS build'
