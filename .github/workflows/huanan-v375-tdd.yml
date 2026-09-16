@@ -6,6 +6,9 @@ on:
       - v3.7.6-breaking-huanan-core-20260916
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -14,26 +17,40 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 1
-      - name: Apply breaking refactor transform
-        run: node scripts/APPLY_BREAKING_HUANAN_REFACTOR.cjs
-      - name: Patch stage2 matcher
-        run: node scripts/FIX_STAGE2_SCRIPT.cjs
-      - name: Apply breaking refactor stage 2
-        run: node scripts/APPLY_BREAKING_HUANAN_STAGE2.cjs
-      - name: Apply breaking refactor stage 3
-        run: node scripts/APPLY_BREAKING_HUANAN_STAGE3.cjs
-      - name: Apply breaking refactor stage 4
-        run: node scripts/APPLY_BREAKING_HUANAN_STAGE4.cjs
-      - name: Breaking Huanan core contract
+      - name: Apply final breaking refactor when legacy baseline exists
+        run: |
+          if [ -f src/data/tradeSettings.ts ] || [ -f src/v3/engineBase.ts ]; then
+            node scripts/APPLY_BREAKING_HUANAN_REFACTOR.cjs
+            node scripts/FIX_STAGE2_SCRIPT.cjs
+            node scripts/APPLY_BREAKING_HUANAN_STAGE2.cjs
+            node scripts/APPLY_BREAKING_HUANAN_STAGE3.cjs
+            node scripts/APPLY_BREAKING_HUANAN_STAGE4.cjs
+            node scripts/FINAL_ZERO_LEGACY_TEST.cjs --expect-fail
+            node scripts/APPLY_BREAKING_HUANAN_STAGE5.cjs
+          else
+            echo "Canonical zero-legacy source already committed; transform skipped."
+          fi
+      - name: 00878 Huanan core contract
         run: node scripts/BREAKING_HUANAN_CORE_TEST.cjs
-      - name: Residual old-finance scan
-        run: node scripts/SCAN_OLD_FINANCE.cjs
+      - name: Final zero-legacy gate
+        run: node scripts/FINAL_ZERO_LEGACY_TEST.cjs
       - uses: actions/setup-node@v6
         with:
           node-version: '22.23.2'
           cache: npm
       - run: npm ci
-      - name: TypeScript
+      - name: TypeScript strict check
         run: npm run typecheck
       - name: Diff integrity
         run: git diff --check
+      - name: Commit verified canonical source
+        run: |
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "refactor(finance): finalize zero-legacy Huanan core [skip ci]"
+            git push origin HEAD:v3.7.6-breaking-huanan-core-20260916
+          else
+            echo "No source changes to commit."
+          fi
