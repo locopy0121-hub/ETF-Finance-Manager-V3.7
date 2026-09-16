@@ -23,9 +23,9 @@ react {
     /* Folders */
      //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
-    //   The folder where the reactNativeDir is. Default is '../../node_modules/react-native'
+    //   The folder where the reactNativeDir is. Default is ../../node_modules/react-native
     // reactNativeDir = new File("../../node_modules/react-native")
-    //   The folder where the codegenDir is. Default is '../../node_modules/@react-native/codegen'
+    //   The folder where the codegenDir is. Default is ../../node_modules/@react-native/codegen
     // codegenDir = new File("../../node_modules/@react-native/codegen")
 
     /* Variants */
@@ -109,8 +109,10 @@ android {
     for (i in 0..<options.size()) options[i] = options[i].trim();
     options -= ""
     if (options.length > 0) {
-        println "android.packagingOptions[prop] += $options ($options.length)"
-        android.packagingOptions[prop] += options
+        println "android.packagingOptions.$prop += $options ($options.length)"
+        options.each {
+            android.packagingOptions[prop] += it
+        }
     }
 }
 
