@@ -54,3 +54,5 @@
 - [ ] Persist the verified source patch to `v3.7-upgrade-20260915` without changing version metadata.
 - [ ] Build signed ARM64 V3.7.2 APK through the existing GitHub Actions/EAS pipeline.
 - [ ] Verify package, versionName 3.7.2, versionCode 40, signature, bundle, SHA256, and artifact upload.
+
+Status: GREEN pipeline dispatched after confirmed RED failure.
