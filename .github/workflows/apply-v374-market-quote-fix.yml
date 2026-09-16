@@ -30,6 +30,7 @@ jobs:
         run: |
           python3 scripts/GOGO_V374_MARKET_QUOTE_FIX.py
           python3 scripts/GOGO_V374_MARKET_QUOTE_COMPAT_FIX.py
+          python3 scripts/GOGO_V374_MARKET_QUOTE_TS_FIX.py
       - name: Install dependencies
         run: npm ci
       - name: Market quote snapshot and editor contract
