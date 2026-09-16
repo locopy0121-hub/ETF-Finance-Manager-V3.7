@@ -54,6 +54,9 @@ jobs:
           npx --yes eas-cli@latest whoami --non-interactive
           npx --yes eas-cli@latest project:info
 
+      - name: RED - V3.7.5 downgrade guard
+        run: node scripts/V375_VERSION_CHAIN_GUARD.cjs
+
       - name: Verify V3.7.2 version chain
         shell: bash
         run: |
