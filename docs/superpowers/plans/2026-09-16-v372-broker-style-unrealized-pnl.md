@@ -16,7 +16,7 @@
 - Do not change historical Ledger fee/tax values.
 - Do not change gross `marketValue`; add/use net liquidation only for broker-style unrealized PnL.
 - Three confirmed sample fixtures: 0050 (106.90 × 32, cost 3340), 元大高股息 (55.55 × 40, cost 2150), 元大台灣高息低波 (64.40 × 31, cost 1913).
-- Keep all consumers on the shared `holdingMetrics` / `portfolioMetrics` engine.
+- Keep all consumers on the shared `holdingMetrics` / `portfolioMetrics` engine; any Widget local fallback must use the same exit-charge helper.
 
 ---
 
@@ -27,20 +27,23 @@
 
 - [x] Add source-contract assertions requiring broker fee configuration, estimated exit charges, net liquidation value, and PnL based on net liquidation.
 - [x] Add the three confirmed sample fixtures.
-- [ ] Run GitHub Actions and verify failure is caused by the missing new source contract.
+- [x] Run GitHub Actions and verify failure is caused by the missing new source contract (`全局券商費率注入`).
 
 ### Task 2: Shared accounting engine
 
 **Files:**
 - Modify: `src/v3/engine.ts`
 - Modify: `App.tsx`
+- Modify: `src/widgets/ProfitWidget.tsx`
 - Modify: `src/widgets/widgetTaskHandler.tsx`
+- Modify: `src/services/backgroundQuoteTask.tsx`
 - Modify: `src/services/backgroundCloseTask.ts`
 
 - [ ] Add `configureAccountingFeeSettings` and `estimatedExitCharges`.
 - [ ] In `holdingMetrics`, calculate `cashPnl` and default `pnl` from net liquidation value minus current cash basis.
 - [ ] In `portfolioMetrics`, sum estimated exit fees/taxes/net liquidation and calculate `cashUnrealizedPnl` from net liquidation minus current cash basis.
-- [ ] Configure active `feeSettings` in App, widget background runtime, and close-snapshot background runtime.
+- [ ] Configure active `feeSettings` in App, Widget task runtime, periodic Widget background runtime, and close-snapshot runtime.
+- [ ] Make Widget single-ETF fallback use `estimatedExitCharges` instead of gross market value.
 
 ### Task 3: GREEN verification and APK
 
@@ -48,5 +51,6 @@
 - Verify existing regression scripts and Android workflow.
 
 - [ ] Run accounting contracts, finance regression, TypeScript, and source diff integrity.
+- [ ] Persist the verified source patch to `v3.7-upgrade-20260915` without changing version metadata.
 - [ ] Build signed ARM64 V3.7.2 APK through the existing GitHub Actions/EAS pipeline.
 - [ ] Verify package, versionName 3.7.2, versionCode 40, signature, bundle, SHA256, and artifact upload.

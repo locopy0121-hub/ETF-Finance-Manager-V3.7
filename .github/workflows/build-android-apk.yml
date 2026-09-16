@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   CI: 'true'
@@ -65,6 +65,9 @@ jobs:
           grep -F 'versionCode 40' android/app/build.gradle
           grep -F 'versionName "3.7.2"' android/app/build.gradle
 
+      - name: Apply broker-style open-position PnL formula
+        run: python3 scripts/GOGO_V372_BROKER_PNL_FIX.py
+
       - name: V3.7 acceptance audit
         run: node scripts/V370_UPGRADE_AUDIT.cjs
 
@@ -93,6 +96,24 @@ jobs:
 
       - name: Source diff integrity
         run: git diff --check
+
+      - name: Persist verified broker-style PnL source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            src/v3/engine.ts \
+            App.tsx \
+            src/widgets/ProfitWidget.tsx \
+            src/widgets/widgetTaskHandler.tsx \
+            src/services/backgroundQuoteTask.tsx \
+            src/services/backgroundCloseTask.ts
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(v3.7.2): broker-style open-position PnL [skip ci]'
+            git push origin HEAD:v3.7-upgrade-20260915
+          fi
 
       - name: Prepare runner-only Android build limits
         shell: bash
@@ -132,13 +153,13 @@ jobs:
             --local \
             --non-interactive \
             --freeze-credentials \
-            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.2-GOGO-Finance-Ledger-EAS-Signed-ARM64.apk"
+            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.2-GOGO-Broker-PnL-EAS-Signed-ARM64.apk"
 
       - name: Verify signed V3.7.2 APK and package metadata
         shell: bash
         run: |
           set -euo pipefail
-          OUT='artifacts/ETF-Finance-Manager-V3.7.2-GOGO-Finance-Ledger-EAS-Signed-ARM64.apk'
+          OUT='artifacts/ETF-Finance-Manager-V3.7.2-GOGO-Broker-PnL-EAS-Signed-ARM64.apk'
           test -s "$OUT"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
@@ -156,7 +177,7 @@ jobs:
             echo 'package=com.etfpilot.twselive'
             echo 'versionName=3.7.2'
             echo 'versionCode=40'
-            echo 'scope=V3.7.2 unified finance cash ledger sell fee/tax and migration + V3.7.1 editor/monitor foundation'
+            echo 'scope=broker-style open-position PnL: gross market value minus estimated sell fee/tax minus current cash basis'
             echo 'accounting_contracts=passed_before_build'
             echo 'build_executor=GitHub Actions local EAS build'
             echo 'credentials_source=EAS remote managed credentials'
@@ -168,7 +189,7 @@ jobs:
       - name: Upload V3.7.2 signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: ETF-Finance-Manager-V3.7.2-GOGO-Finance-Ledger-EAS-Signed-ARM64
+          name: ETF-Finance-Manager-V3.7.2-GOGO-Broker-PnL-EAS-Signed-ARM64
           path: artifacts/
           if-no-files-found: error
           retention-days: 14

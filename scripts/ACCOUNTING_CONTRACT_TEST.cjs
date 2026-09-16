@@ -1,7 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..');
-const engine = fs.readFileSync(path.join(root, 'src', 'v3', 'engine.ts'), 'utf8');
+const read=(...parts)=>fs.readFileSync(path.join(root,...parts),'utf8');
+const engine = read('src','v3','engine.ts');
+const app = read('App.tsx');
+const widget = read('src','widgets','ProfitWidget.tsx');
+const widgetTask = read('src','widgets','widgetTaskHandler.tsx');
+const backgroundQuote = read('src','services','backgroundQuoteTask.tsx');
+const backgroundClose = read('src','services','backgroundCloseTask.ts');
 
 const requiredSourceRules = [
   ['每筆成交金額 floor', 'Math.floor(Number(e.price)*shares)'],
@@ -20,6 +26,14 @@ const requiredSourceRules = [
 for (const [label, snippet] of requiredSourceRules) {
   if (!engine.includes(snippet)) throw new Error(`ACCOUNTING SOURCE RULE MISSING: ${label}`);
 }
+const consumerRules=[
+ ['App 注入當前券商費率',app,'configureAccountingFeeSettings(state.feeSettings)'],
+ ['Widget 單檔模式採預估淨變現價值',widget,'estimatedExitCharges(h.shares*h.price).netLiquidationValue'],
+ ['Widget task 注入當前券商費率',widgetTask,'configureAccountingFeeSettings(state?.feeSettings)'],
+ ['Widget 背景更新注入當前券商費率',backgroundQuote,'configureAccountingFeeSettings((state as any).feeSettings)'],
+ ['盤後快照注入當前券商費率',backgroundClose,'configureAccountingFeeSettings(state.feeSettings)'],
+];
+for(const [label,source,snippet] of consumerRules){if(!source.includes(snippet))throw new Error(`ACCOUNTING CONSUMER RULE MISSING: ${label}`);}
 
 function approx(actual, expected, eps=1e-9, label='value') {
   if (Math.abs(actual-expected) > eps) throw new Error(`${label}: expected ${expected}, got ${actual}`);
