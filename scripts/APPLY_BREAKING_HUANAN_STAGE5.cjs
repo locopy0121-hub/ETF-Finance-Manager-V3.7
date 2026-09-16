@@ -1,4 +1,5 @@
 const fs=require('fs');
+const path=require('path');
 const read=f=>fs.readFileSync(f,'utf8');
 const write=(f,s)=>fs.writeFileSync(f,s);
 const rep=(f,re,to)=>{let s=read(f);write(f,s.replace(re,to));};
@@ -35,5 +36,9 @@ rep('src/v3/screensBase.tsx',/money\(preciseTradeAmount\(Number\(r\.tradePrice\)
 
 // Physical deletion. No compatibility shells and no empty re-exports.
 for(const f of ['src/data/tradeSettings.ts','src/v3/engineBase.ts']){if(fs.existsSync(f))fs.unlinkSync(f);}
+
+// Normalize transformed TypeScript source so git diff --check is a hard clean gate.
+function walk(dir,out=[]){for(const name of fs.readdirSync(dir)){const p=path.join(dir,name);const st=fs.statSync(p);if(st.isDirectory())walk(p,out);else if(/\.(ts|tsx)$/.test(p))out.push(p);}return out;}
+for(const f of ['App.tsx',...walk('src')]){const s=read(f);const clean=s.replace(/[ \t]+$/gm,'');if(clean!==s)write(f,clean);}
 
 console.log('APPLY_BREAKING_HUANAN_STAGE5 complete');
