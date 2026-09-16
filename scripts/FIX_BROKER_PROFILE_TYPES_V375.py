@@ -40,9 +40,10 @@ seg=once(
     "broker:string;brokerProfileId?:string;account:string})=>patch(s=>{const selectedBroker=resolveBrokerProfile(x.brokerProfileId,s.brokerProfiles,x.broker);const brokerProfileId=selectedBroker.id;const broker=selectedBroker.name;",
     'addBuy compatible signature and canonical resolution',
 )
-seg=seg.replace('x.brokerProfileId','brokerProfileId')
-seg=seg.replace('x.broker||h.broker','broker||h.broker')
-seg=seg.replace('broker:x.broker,','broker,')
+# Only replace persistence/display uses. Never rewrite the resolver input above.
+seg=seg.replace('brokerProfileId:x.brokerProfileId||h.brokerProfileId','brokerProfileId')
+seg=seg.replace('brokerProfileId:x.brokerProfileId,','brokerProfileId,')
+seg=seg.replace('broker:x.broker||h.broker','broker:broker||h.broker')
 seg=seg.replace('broker:x.broker,','broker,')
 s=s[:start]+seg+s[end:]
 write(p,s)
