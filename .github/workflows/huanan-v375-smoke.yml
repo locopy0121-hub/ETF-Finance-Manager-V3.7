@@ -1,0 +1,10 @@
+name: Huanan V3.7.5 Runner Smoke
+on:
+  push:
+    branches: [v3.7.5-huanan-accounting-20260916]
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo runner-ok
