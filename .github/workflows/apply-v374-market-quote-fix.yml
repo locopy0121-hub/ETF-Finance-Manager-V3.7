@@ -1,0 +1,68 @@
+name: Apply V3.7.4 Market Quote Fix
+
+on:
+  push:
+    branches: [v3.7.4-release-20260916]
+    paths: ['.gogo-v374-market-apply-trigger']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CI: 'true'
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v3.7.4-release-20260916
+          fetch-depth: 20
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Apply targeted market quote fix
+        run: |
+          python3 scripts/GOGO_V374_MARKET_QUOTE_FIX.py
+          python3 scripts/GOGO_V374_MARKET_QUOTE_COMPAT_FIX.py
+          python3 scripts/GOGO_V374_MARKET_QUOTE_TS_FIX.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Market quote snapshot and editor contract
+        run: node scripts/MARKET_QUOTE_EDITOR_V374_CONTRACT.cjs
+      - name: Existing monitor/editor contracts
+        run: |
+          node scripts/MONITOR_TEMPLATE_CONTRACT_TEST.cjs
+          node scripts/COLOR_PALETTE_CONTRACT_TEST.cjs
+          node scripts/UNIVERSAL_EDITOR_ROUTE_CONTRACT.cjs
+          node scripts/V374_MASTER_ACCEPTANCE.cjs
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Finance regression guard
+        run: |
+          node scripts/ACCOUNTING_CONTRACT_TEST.cjs
+          node scripts/ACCOUNTING_GOLDEN_00878.cjs
+          node scripts/CASH_LEDGER_CONTRACT_TEST.cjs
+          node scripts/FINANCE_ENGINE_V342_TEST.cjs
+          node scripts/FORMULA_ENGINE_V342_TEST.cjs
+          node scripts/DIVIDEND_CUTOFF_TEST.cjs
+      - name: Source diff integrity
+        run: git diff --check
+      - name: Commit verified market quote fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/v3/monitoring.ts src/v3/MonitorFieldEditor.tsx src/services/twse.ts src/services/floatingOverlay.ts modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt
+          if git diff --cached --quiet; then
+            echo 'No market quote changes to commit.'
+          else
+            git commit -m 'fix(v3.7.4): atomic live quotes and market colors'
+            git push origin HEAD:v3.7.4-release-20260916
+          fi

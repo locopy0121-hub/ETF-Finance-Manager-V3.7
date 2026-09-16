@@ -1,7 +1,10 @@
 const fs=require('fs');
-const p='src/v3/screens.tsx';
-const s=fs.readFileSync(p,'utf8');
+const bridgePath='src/v3/screens.tsx';
+const implementationPath='src/v3/screensBase.tsx';
+const bridge=fs.readFileSync(bridgePath,'utf8');
+const s=fs.readFileSync(implementationPath,'utf8');
 const checks=[
+ ['screens bridge re-exports shared implementation', /export \* from ['"]\.\/screensBase['"]/.test(bridge)],
  ['portfolioListTemplate helper exists', /const portfolioListTemplate=/],
  ['chartTypeLabel helper exists', /const chartTypeLabel=/],
  ['no 5-arg holdingMetrics sort call', !/holdingMetrics\([^)]*,[^)]*,[^)]*,[^)]*,[^)]*\)/.test(s)],

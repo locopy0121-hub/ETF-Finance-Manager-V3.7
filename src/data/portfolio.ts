@@ -1,3 +1,5 @@
+import type { DividendFrequency, TradeMode } from '../types/etf';
+
 export type PurchaseRecord = {
   id: string;
   date: string;
@@ -6,6 +8,7 @@ export type PurchaseRecord = {
   purchaseCost: number;
   fee: number;
   totalCost: number;
+  tradeMode: TradeMode;
 };
 
 export type Holding = {
@@ -18,8 +21,8 @@ export type Holding = {
   // Explicit pure trade average price before buy fee; V3.2 treats this as the canonical price cost basis.
   tradeAvgPrice?: number;
   buyFee?: number;
-  feeRate?: number;
-  feeDiscount?: number;
+  liquidationTradeMode: TradeMode;
+  dividendFrequency: DividendFrequency;
   fallbackPrice: number;
   targetWeight: number;
   annualDividendPerShare: number;
@@ -40,6 +43,8 @@ export const initialHoldings: Holding[] = [
     avgCost: 120.0,
     tradeAvgPrice: 120.0,
     buyFee: 0,
+    liquidationTradeMode: 'ROUND_LOT',
+    dividendFrequency: 1,
     fallbackPrice: 142.5,
     targetWeight: 0.40,
     annualDividendPerShare: 4.2,
@@ -53,6 +58,8 @@ export const initialHoldings: Holding[] = [
     avgCost: 18.0,
     tradeAvgPrice: 18.0,
     buyFee: 0,
+    liquidationTradeMode: 'ROUND_LOT',
+    dividendFrequency: 1,
     fallbackPrice: 19.6,
     targetWeight: 0.35,
     annualDividendPerShare: 1.85,
@@ -66,6 +73,8 @@ export const initialHoldings: Holding[] = [
     avgCost: 17.0,
     tradeAvgPrice: 17.0,
     buyFee: 0,
+    liquidationTradeMode: 'ROUND_LOT',
+    dividendFrequency: 1,
     fallbackPrice: 16.3,
     targetWeight: 0.25,
     annualDividendPerShare: 1.55,

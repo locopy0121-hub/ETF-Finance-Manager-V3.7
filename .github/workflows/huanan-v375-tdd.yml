@@ -1,0 +1,56 @@
+name: Breaking Huanan Core V3.7.6
+
+on:
+  push:
+    branches:
+      - v3.7.6-breaking-huanan-core-20260916
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Apply final breaking refactor when legacy baseline exists
+        run: |
+          if [ -f src/data/tradeSettings.ts ] || [ -f src/v3/engineBase.ts ]; then
+            node scripts/APPLY_BREAKING_HUANAN_REFACTOR.cjs
+            node scripts/FIX_STAGE2_SCRIPT.cjs
+            node scripts/APPLY_BREAKING_HUANAN_STAGE2.cjs
+            node scripts/APPLY_BREAKING_HUANAN_STAGE3.cjs
+            node scripts/APPLY_BREAKING_HUANAN_STAGE4.cjs
+            node scripts/FINAL_ZERO_LEGACY_TEST.cjs --expect-fail
+            node scripts/APPLY_BREAKING_HUANAN_STAGE5.cjs
+          else
+            echo "Canonical zero-legacy source already committed; transform skipped."
+          fi
+      - name: 00878 Huanan core contract
+        run: node scripts/BREAKING_HUANAN_CORE_TEST.cjs
+      - name: Final zero-legacy gate
+        run: node scripts/FINAL_ZERO_LEGACY_TEST.cjs
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - run: npm ci
+      - name: TypeScript strict check
+        run: npm run typecheck
+      - name: Diff integrity
+        run: git diff --check
+      - name: Commit verified canonical source
+        run: |
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "refactor(finance): finalize zero-legacy Huanan core [skip ci]"
+            git push origin HEAD:v3.7.6-breaking-huanan-core-20260916
+          else
+            echo "No source changes to commit."
+          fi

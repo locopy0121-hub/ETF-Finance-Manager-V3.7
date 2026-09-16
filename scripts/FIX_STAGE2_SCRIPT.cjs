@@ -1,0 +1,10 @@
+const fs=require('fs');
+const file='scripts/APPLY_BREAKING_HUANAN_STAGE2.cjs';
+let s=fs.readFileSync(file,'utf8');
+const start=s.indexOf("rx('App.tsx',/ const addCash=");
+const end=s.indexOf("\n\n// Holding edit ledger writes",start);
+if(start<0||end<0)throw new Error('stage2 addCash patch target not found');
+const replacement=`rx('App.tsx',/ const addCash=[\\s\\S]*?\\n const updateLedgerEntry=/,\` const addCash=(x:{amount:number;date:string;account:string;note?:string})=>patch(s=>({...s,cashBalance:s.cashBalance+x.amount,ledger:[...s.ledger,{id:id(),kind:x.amount>=0?'cashIn':'cashOut',date:x.date,amount:Math.abs(x.amount),broker:'華南永昌證券',account:x.account||undefined,note:x.note}]}));\\n const updateLedgerEntry=\`, 'addCash');`;
+s=s.slice(0,start)+replacement+s.slice(end);
+fs.writeFileSync(file,s);
+console.log('FIX_STAGE2_SCRIPT: patched addCash matcher');

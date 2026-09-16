@@ -1,0 +1,31 @@
+name: V3.7 Integrated GOGO Validation
+
+on:
+  push:
+    branches: [v3.7-upgrade-20260915]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+
+jobs:
+  validate-source:
+    name: Validate integrated V3.7.2 source
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout V3.7 source
+        uses: actions/checkout@v5
+
+      - name: Verify integrated source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/check-v37-editor-modules.cjs
+          grep -F '"version": "3.7.2"' app.json
+          grep -F '"versionCode": 40' app.json
+          grep -F "APP_SEMVER='3.7.2'" src/v3/version.ts
+          git diff --check

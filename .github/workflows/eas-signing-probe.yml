@@ -1,0 +1,28 @@
+name: EAS Signing Probe
+
+on:
+  push:
+    branches: [v3.7-upgrade-20260915]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+      - name: Check EAS authentication availability
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured in this repository"
+            exit 2
+          fi
+          npx --yes eas-cli@latest whoami --non-interactive
+      - name: Verify linked EAS project
+        run: npx --yes eas-cli@latest project:info

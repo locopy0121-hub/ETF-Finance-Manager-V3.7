@@ -1,0 +1,22 @@
+name: GOGO Cash Ledger Contract
+
+on:
+  push:
+    branches: [v3.7-upgrade-20260915]
+    paths:
+      - 'scripts/CASH_LEDGER_CONTRACT_TEST.cjs'
+      - 'App.tsx'
+      - 'src/v3/screens.tsx'
+      - 'src/v3/storage.ts'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Cash and ledger accounting contract
+        run: node scripts/CASH_LEDGER_CONTRACT_TEST.cjs

@@ -1,5 +1,5 @@
 <resources>
-  <string name="app_name">ETF財務管家 V3.6.0 NATIVE</string>
-  <string name="expo_runtime_version">3.6.0</string>
+  <string name="app_name">ETF財務管家 V3.7.6 NATIVE</string>
+  <string name="expo_runtime_version">3.7.6</string>
   <string name="widget_etfprofit_description" translatable="false">總損益固定顯示，可縮放、自訂資料與透明度；⚙ 可直達設定</string>
 </resources>

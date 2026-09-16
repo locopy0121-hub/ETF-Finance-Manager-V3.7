@@ -3,6 +3,8 @@ export type TwseQuote = {
   name?: string;
   price: number;
   previousClose?: number;
+  limitUp?: number;
+  limitDown?: number;
   open?: number;
   high?: number;
   low?: number;
@@ -85,6 +87,8 @@ export async function fetchTwseQuotes(symbols: string[]): Promise<Record<string,
       name: raw?.n,
       price,
       previousClose: toNumber(raw?.y),
+      limitUp: toNumber(raw?.u),
+      limitDown: toNumber(raw?.w),
       open: toNumber(raw?.o),
       high: toNumber(raw?.h),
       low: toNumber(raw?.l),

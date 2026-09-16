@@ -1,0 +1,20 @@
+const fs=require('fs');
+const designer=fs.readFileSync('src/v3/GlobalCardDesigner.tsx','utf8');
+const screens=fs.readFileSync('src/v3/screens.tsx','utf8');
+const editor=fs.readFileSync('src/ui/UniversalEditor.tsx','utf8');
+let failed=0;
+const check=(ok,msg)=>{if(ok)console.log('PASS',msg);else{console.error('FAIL',msg);failed++;}};
+check(designer.includes("import { UniversalEditor } from '../ui/UniversalEditor';"),'card designer uses the canonical UniversalEditor component');
+check(designer.includes("type FieldEditTarget='frame'|'label'|'value'"),'field editor has explicit frame/label/value targets');
+check(designer.includes("openUniversalTarget(key,'frame')"),'tapping a data frame routes to UniversalEditor frame target');
+check(designer.includes("openUniversalTarget(key,'label')"),'label has its own UniversalEditor target');
+check(designer.includes("openUniversalTarget(key,'value')"),'value has its own UniversalEditor target');
+check(designer.includes('<UniversalEditor visible={!!universalEdit}'),'GlobalCardDesigner renders UniversalEditor instead of the legacy field settings modal');
+check(!designer.includes('<FieldConfigModal visible={!!editingKey}'),'legacy FieldConfigModal is not the active data-field editing route');
+check(designer.includes('editorNodes')&&designer.includes('onEditorNodesChange'),'field editor persists through the shared editorNodes store');
+check(screens.includes('editorNodes={prefs.editorNodes??{}}')&&screens.includes('onEditorNodesChange={onEditorNodesChange}'),'V3ThemeProvider passes the canonical editor node store into GlobalCardDesigner');
+check(screens.includes('fieldUniversalNodeId(card.id,k,\'frame\')')&&screens.includes('fieldUniversalNodeId(card.id,k,\'label\')')&&screens.includes('fieldUniversalNodeId(card.id,k,\'value\')'),'runtime renderer resolves frame, label, and value from the same universal node IDs');
+check(screens.includes('effectsStyle(frameNode.effects')&&screens.includes('effectsStyle(labelNode.effects')&&screens.includes('effectsStyle(valueNode.effects'),'runtime renderer applies Universal Effects Stack to field frame, label, and value');
+check(editor.includes("advanced.capabilities.dataBinding===false")&&editor.includes('金融資料綁定由欄位 ID 保護'),'UniversalEditor capability guard prevents finance data binding edits for protected field nodes');
+if(failed){console.error(`UNIVERSAL EDITOR ROUTE CONTRACT: FAIL (${failed})`);process.exit(1)}
+console.log('UNIVERSAL EDITOR ROUTE CONTRACT: PASS');

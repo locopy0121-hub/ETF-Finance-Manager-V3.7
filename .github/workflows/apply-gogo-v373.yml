@@ -1,0 +1,63 @@
+name: Apply GOGO V3.7.3
+
+on:
+  push:
+    branches: [v3.7.3-release-20260916]
+    paths: ['.gogo-v373-apply-trigger']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CI: 'true'
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v3.7.3-release-20260916
+          fetch-depth: 20
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Restore missing native monitor helpers
+        run: python3 scripts/FIX_V373_NATIVE_HELPERS.py
+      - name: Install dependencies
+        run: npm ci
+      - name: V3.7.3 focused contracts
+        run: |
+          node scripts/V373_MASTER_ACCEPTANCE.cjs
+          node scripts/MONITOR_TEMPLATE_CONTRACT_TEST.cjs
+          node scripts/COLOR_PALETTE_CONTRACT_TEST.cjs
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Accounting golden and finance regressions
+        run: |
+          node scripts/ACCOUNTING_CONTRACT_TEST.cjs
+          node scripts/ACCOUNTING_GOLDEN_00878.cjs
+          node scripts/CASH_LEDGER_CONTRACT_TEST.cjs
+          node scripts/FINANCE_ENGINE_V342_TEST.cjs
+          node scripts/FORMULA_ENGINE_V342_TEST.cjs
+          node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
+          node scripts/DIVIDEND_CUTOFF_TEST.cjs
+      - name: Source diff integrity
+        run: git diff --check
+      - name: Commit verified V3.7.3 native helper recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add modules/floating-investment-bot scripts
+          if git diff --cached --quiet; then
+            echo 'No native helper changes to commit.'
+          else
+            git commit -m 'fix(v3.7.3): restore native monitor text helpers'
+            git push origin HEAD:v3.7.3-release-20260916
+          fi

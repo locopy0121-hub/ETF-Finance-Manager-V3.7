@@ -283,6 +283,7 @@ class FloatingInvestmentBotService : Service() {
     val p=params?:return;val minW=dp(max(120,payload.optInt("minWidth",120)));val minH=dp(max(48,payload.optInt("minHeight",48)));val expanded=p.width>minW*2
     if(expanded){p.width=minW;p.height=minH}else{p.width=min(resources.displayMetrics.widthPixels-dp(16),dp(payload.optInt("width",390)));p.height=min((resources.displayMetrics.heightPixels*.72).toInt(),dp(payload.optInt("height",240)))}
     try{wm.updateViewLayout(root,p)}catch(_:Throwable){}
+    getSharedPreferences(PREF,MODE_PRIVATE).edit().putInt(PREF_W,(p.width/resources.displayMetrics.density).toInt()).putInt(PREF_H,(p.height/resources.displayMetrics.density).toInt()).apply()
   }
 
   private fun launchApp() {
@@ -303,6 +304,7 @@ class FloatingInvestmentBotService : Service() {
       "dividend" -> 220 to 104
       "switcher" -> 228 to 116
       "transparent" -> 180 to 54
+      "strip" -> 238 to 58
       else -> 94 to 66
     }
     return (base.first * scale).toInt() to (base.second * scale).toInt()
@@ -350,14 +352,30 @@ class FloatingInvestmentBotService : Service() {
   private fun activeEffect(id:String,vararg kinds:String):JSONObject? { val a=uiEffects(id);for(i in 0 until a.length()){val e=a.optJSONObject(i)?:continue;if(e.optBoolean("enabled",true)&&kinds.contains(e.optString("kind")))return e};return null }
   private fun uiColor(id:String,slot:String,theme:Int,pnl:Double):Int { val n=uiNode(id);val text=n.optJSONObject("text")?:JSONObject();val mode=if(slot=="text")text.optString("colorMode","theme")else n.optString(slot+"ColorMode","theme");val fixed=if(slot=="text")text.optString("color","")else n.optString(slot+"Color","");val positive=parseColor(payload.optString("positive","#E54A45"),Color.RED);val negative=parseColor(payload.optString("negative","#12A875"),Color.GREEN);val neutral=parseColor(payload.optString("neutral","#94A3B8"),Color.GRAY);return when(mode){"fixed"->parseColor(fixed,theme);"profitLoss"->if(pnl>0)positive else if(pnl<0)negative else neutral;"auto"->if(fixed.isNotBlank())parseColor(fixed,theme) else theme;else->theme} }
 
-  private fun styledFieldText(value:String,key:String,size:Float=10f,bold:Boolean=false,fallbackColor:Int=Color.WHITE,pnlValue:Double?=null,maxLines:Int=1):TextView {
+  private fun priceMarketState(key:String,pos:JSONObject):String? {
+    if(key!="price")return null
+    val price=pos.optDouble("price",Double.NaN)
+    if(!price.isFinite())return null
+    val limitUp=pos.optDouble("limitUp",Double.NaN)
+    val limitDown=pos.optDouble("limitDown",Double.NaN)
+    if(limitUp.isFinite()&&limitUp>0&&abs(price-limitUp)<0.0001)return "limitUp"
+    if(limitDown.isFinite()&&limitDown>0&&abs(price-limitDown)<0.0001)return "limitDown"
+    return null
+  }
+
+  private fun styledFieldText(value:String,key:String,size:Float=10f,bold:Boolean=false,fallbackColor:Int=Color.WHITE,pnlValue:Double?=null,maxLines:Int=1,marketState:String?=null):TextView {
     val style=fieldStyle(key)
     val globalScale=payload.optDouble("fontScale",1.0).toFloat().coerceIn(.7f,1.8f)
     val localScale=(style.optDouble("fontScale",100.0)/100.0).toFloat().coerceIn(.6f,2.2f)
+    val useMarketColor=style.optBoolean("profitLossColor",key=="price")
     var color=parseColor(style.optString("textColor",""),fallbackColor)
-    if(style.optBoolean("profitLossColor",false) && pnlValue!=null){
-      color=when{pnlValue>0->parseColor(style.optString("positiveColor",payload.optString("positive","#E54A45")),fallbackColor);pnlValue<0->parseColor(style.optString("negativeColor",payload.optString("negative","#12A875")),fallbackColor);else->parseColor(style.optString("neutralColor",payload.optString("neutral","#94A3B8")),fallbackColor)}
+    if(useMarketColor&&pnlValue!=null){
+      val rawNeutral=style.optString("neutralColor","")
+      val neutralDefault=if(key=="price"&&(rawNeutral.isBlank()||rawNeutral.equals("#8E9BAE",true)))"#F4D35E" else if(rawNeutral.isNotBlank())rawNeutral else payload.optString("neutral","#94A3B8")
+      color=when{pnlValue>0->parseColor(style.optString("positiveColor",payload.optString("positive","#E54A45")),fallbackColor);pnlValue<0->parseColor(style.optString("negativeColor",payload.optString("negative","#12A875")),fallbackColor);else->parseColor(neutralDefault,fallbackColor)}
     }
+    if(key=="price"&&useMarketColor&&marketState=="limitUp")color=parseColor(style.optString("limitUpTextColor","#FFFFFF"),Color.WHITE)
+    if(key=="price"&&useMarketColor&&marketState=="limitDown")color=parseColor(style.optString("limitDownTextColor","#FFFFFF"),Color.WHITE)
     val align=style.optString("align","center")
     val vertical=style.optString("verticalAlign","center")
     val hGravity=when(align){"left"->Gravity.START;"right"->Gravity.END;else->Gravity.CENTER_HORIZONTAL}
@@ -368,9 +386,10 @@ class FloatingInvestmentBotService : Service() {
     return TextView(this).apply{
       text=value;textSize=size*globalScale*localScale;setTextColor(color);gravity=hGravity or vGravity;setPadding(pad,pad/2,pad,pad/2);this.maxLines=maxLines
       if(style.optString("fontWeight",if(bold)"bold" else "normal")=="bold"||bold)setTypeface(typeface,android.graphics.Typeface.BOLD)
-      val bgOpacity=style.optInt("backgroundOpacity",0).coerceIn(0,100)
-      val bgRaw=style.optString("backgroundColor","#00000000")
-      if(bgOpacity>0||effect=="outline") background=GradientDrawable().apply{cornerRadius=dp(style.optInt("radius",4).coerceIn(0,30)).toFloat();setColor(withAlpha(parseColor(bgRaw,Color.TRANSPARENT),(255*bgOpacity/100.0).toInt()));if(effect=="outline")setStroke(dp(max(1,strength/35)),withAlpha(color,220))}
+      val marketBg=when{key=="price"&&useMarketColor&&marketState=="limitUp"->style.optString("limitUpBackgroundColor","#E54A45");key=="price"&&useMarketColor&&marketState=="limitDown"->style.optString("limitDownBackgroundColor","#12A875");else->null}
+      val bgOpacity=if(marketBg!=null)100 else style.optInt("backgroundOpacity",0).coerceIn(0,100)
+      val bgRaw=marketBg?:style.optString("backgroundColor","#00000000")
+      if(bgOpacity>0||effect=="outline")background=GradientDrawable().apply{cornerRadius=dp(style.optInt("radius",4).coerceIn(0,30)).toFloat();setColor(withAlpha(parseColor(bgRaw,Color.TRANSPARENT),(255*bgOpacity/100.0).toInt()));if(effect=="outline")setStroke(dp(max(1,strength/35)),withAlpha(color,220))}
       when(effect){"shadow"->setShadowLayer(max(1f,strength/10f),dp(1).toFloat(),dp(1).toFloat(),Color.BLACK);"glow"->setShadowLayer(max(1f,strength/7f),0f,0f,color)}
     }
   }
@@ -383,117 +402,161 @@ class FloatingInvestmentBotService : Service() {
     val rawFields=payload.optJSONArray("fields") ?: JSONArray().put("symbol").put("price").put("instantPnl")
     val fields=mutableListOf<String>();for(i in 0 until rawFields.length()){val k=rawFields.optString(i);if(fieldStyle(k).optBoolean("visible",true))fields.add(k)}
     val rows=payload.optJSONArray("positions") ?: JSONArray(); val maxRows=payload.optInt("rows",6).coerceIn(1,30)
-    val labels=mapOf("symbol" to "代號","name" to "名稱","price" to "即時行情","change" to "漲跌","changePct" to "漲跌幅","shares" to "持有股數","marketValue" to "即時市值","pureCost" to "純成本","instantPnl" to "庫存即時損益","instantRoi" to "庫存報酬率","todayPnl" to "今日損益","todayPnlPct" to "今日損益率","previousClose" to "昨收","open" to "開盤","high" to "最高","low" to "最低","volume" to "成交量","nav" to "NAV","premium" to "折溢價","updatedAt" to "更新").mapValues{(k,v)->uiName("overlay:field:$k",v)}
-    val widthDp=((params?.width ?: dp(390))/resources.displayMetrics.density).toInt();val ph=params?.height?:dp(240);val heightDp=if(ph>0)(ph/resources.displayMetrics.density).toInt() else payload.optInt("height",240);val fluid=payload.optString("resizeMode","fluid")=="fluid";val adaptiveCols=if(fluid)max(2,min(8,widthDp/92))else min(8,max(1,fields.size));val columnCount=min(fields.size,adaptiveCols)
-    val titleRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL};for(i in 0 until columnCount){val k=fields[i];titleRow.addView(styledFieldText(labels[k]?:k,k,8f,true,neutral,null),LinearLayout.LayoutParams(0,dp(27),1f))};host.addView(titleRow)
-    fun pnlFor(key:String,pos:JSONObject):Double?=when(key){"instantPnl","instantRoi"->pos.optDouble("instantPnl",0.0);"todayPnl","todayPnlPct"->pos.optDouble("todayPnl",0.0);"change","changePct","premium"->if(key=="premium")pos.optDouble("premium",0.0) else pos.optDouble("change",0.0);else->null}
+    val labels=mapOf("symbol" to "代號","name" to "名稱","price" to "即時行情","change" to "漲跌","changePct" to "漲跌幅","shares" to "持有股數","marketValue" to "即時市值","pureCost" to "純成本","instantPnl" to "庫存即時損益","instantRoi" to "庫存報酬率","todayPnl" to "今日損益","todayPnlPct" to "今日損益率","previousClose" to "昨收","open" to "開盤","high" to "最高","low" to "最低","volume" to "成交量","nav" to "NAV","premium" to "折溢價","updatedAt" to "更新","totalAssets" to "總資產","dividend" to "股息事件").mapValues{(k,v)->uiName("overlay:field:$k",v)}
+    fun pnlFor(key:String,pos:JSONObject):Double?=when(key){"instantPnl","instantRoi"->pos.optDouble("instantPnl",0.0);"todayPnl","todayPnlPct"->pos.optDouble("todayPnl",0.0);"price","change","changePct","premium"->if(key=="premium")pos.optDouble("premium",0.0) else pos.optDouble("change",0.0);else->null}
     fun fallbackColor(key:String,pos:JSONObject):Int{val v=pnlFor(key,pos);return if(v==null)textColor else if(v>0)positive else if(v<0)negative else neutral}
-    fun valueFor(key:String,pos:JSONObject):String=when(key){"symbol"->pos.optString("symbol","--");"name"->pos.optString("name","--");"price"->pos.optDouble("price",0.0).fmt2();"change"->signed2(pos.optDouble("change",0.0));"changePct"->signed2(pos.optDouble("changePct",0.0))+"%";"shares"->money(pos.optDouble("shares",0.0));"marketValue"->money(pos.optDouble("marketValue",0.0));"pureCost"->money(pos.optDouble("pureCost",0.0));"instantPnl"->signedMoney(pos.optDouble("instantPnl",0.0));"instantRoi"->signed2(pos.optDouble("instantRoi",0.0))+"%";"todayPnl"->signedMoney(pos.optDouble("todayPnl",0.0));"todayPnlPct"->signed2(pos.optDouble("todayPnlPct",0.0))+"%";"previousClose"->pos.optDouble("previousClose",0.0).fmt2();"open"->pos.optDouble("open",0.0).fmt2();"high"->pos.optDouble("high",0.0).fmt2();"low"->pos.optDouble("low",0.0).fmt2();"volume"->money(pos.optDouble("volume",0.0));"nav"->pos.optDouble("nav",0.0).fmt2();"premium"->signed2(pos.optDouble("premium",0.0))+"%";"updatedAt"->payload.optString("updatedAt","--:--:--");else->"—"}
-    val density=payload.optString("density","auto");val rowHeight=if(density=="compact")dp(24) else dp(30);val rowHost=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};val n=min(maxRows,rows.length());for(r in 0 until n){val pos=rows.optJSONObject(r)?:continue;val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL};for(c in 0 until columnCount){val k=fields[c];row.addView(styledFieldText(valueFor(k,pos),k,9f,k=="symbol",fallbackColor(k,pos),pnlFor(k,pos)),LinearLayout.LayoutParams(0,rowHeight,1f))};rowHost.addView(row)};val scroll=ScrollView(this).apply{isFillViewport=false;addView(rowHost)};val maxContent=dp(max(48,min(heightDp-112,(resources.displayMetrics.heightPixels/resources.displayMetrics.density*payload.optDouble("maxHeightRatio",.72)).toInt()-112)));host.addView(scroll,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,maxContent))
+    fun dividendText():String=if(payload.optString("dividendSymbol").isNotBlank()) "${payload.optString("dividendSymbol")} ${payload.optString("dividendDate","--")} ${money(payload.optDouble("dividendAmount",0.0))}" else "目前無待發放配息"
+    fun valueFor(key:String,pos:JSONObject):String=when(key){"symbol"->pos.optString("symbol","--");"name"->pos.optString("name","--");"price"->pos.optDouble("price",0.0).fmt2();"change"->signed2(pos.optDouble("change",0.0));"changePct"->signed2(pos.optDouble("changePct",0.0))+"%";"shares"->money(pos.optDouble("shares",0.0));"marketValue"->money(pos.optDouble("marketValue",0.0));"pureCost"->money(pos.optDouble("pureCost",0.0));"instantPnl"->signedMoney(pos.optDouble("instantPnl",0.0));"instantRoi"->signed2(pos.optDouble("instantRoi",0.0))+"%";"todayPnl"->signedMoney(pos.optDouble("todayPnl",0.0));"todayPnlPct"->signed2(pos.optDouble("todayPnlPct",0.0))+"%";"previousClose"->pos.optDouble("previousClose",0.0).fmt2();"open"->pos.optDouble("open",0.0).fmt2();"high"->pos.optDouble("high",0.0).fmt2();"low"->pos.optDouble("low",0.0).fmt2();"volume"->money(pos.optDouble("volume",0.0));"nav"->pos.optDouble("nav",0.0).fmt2();"premium"->signed2(pos.optDouble("premium",0.0))+"%";"updatedAt"->payload.optString("updatedAt","--:--:--");"totalAssets"->money(payload.optDouble("totalAssets",0.0));"dividend"->dividendText();else->"—"}
+    val widthDp=((params?.width ?: dp(390))/resources.displayMetrics.density).toInt();val ph=params?.height?:dp(240);val heightDp=if(ph>0)(ph/resources.displayMetrics.density).toInt() else payload.optInt("height",240);val fluid=payload.optString("resizeMode","fluid")=="fluid";val adaptiveCols=if(fluid)max(2,min(8,widthDp/92))else min(8,max(1,fields.size));val columnCount=min(fields.size,adaptiveCols)
+    val groups=if(fields.isEmpty()) emptyList() else fields.chunked(max(1,columnCount));val density=payload.optString("density","auto");val rowHeight=if(density=="compact")dp(24) else dp(30);val availableContent=dp(max(48,min(heightDp-112,(resources.displayMetrics.heightPixels/resources.displayMetrics.density*payload.optDouble("maxHeightRatio",.72)).toInt()-112)));val chunkHeight=if(groups.isEmpty())availableContent else max(dp(48),availableContent/max(1,groups.size))
+    for(group in groups){val titleRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL};for(k in group)titleRow.addView(styledFieldText(labels[k]?:k,k,8f,true,neutral,null),LinearLayout.LayoutParams(0,dp(27),1f));host.addView(titleRow);val rowHost=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};val n=min(maxRows,rows.length());for(r in 0 until n){val pos=rows.optJSONObject(r)?:continue;val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL};for(k in group)row.addView(styledFieldText(valueFor(k,pos),k,9f,k=="symbol",fallbackColor(k,pos),pnlFor(k,pos),1,priceMarketState(k,pos)),LinearLayout.LayoutParams(0,rowHeight,1f));rowHost.addView(row)};val scroll=ScrollView(this).apply{isFillViewport=false;addView(rowHost)};host.addView(scroll,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,chunkHeight))}
     val sum=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;setPadding(0,dp(4),0,0)};sum.addView(plain("${uiName("overlay:summary:cost","總成本")} ${money(payload.optDouble("totalCost",0.0))}",8f,true),LinearLayout.LayoutParams(0,dp(26),1f));sum.addView(plain("${uiName("overlay:summary:value","總市值")} ${money(payload.optDouble("marketValue",0.0))}",8f,true),LinearLayout.LayoutParams(0,dp(26),1f));val pnl=payload.optDouble("instantPnl",0.0);sum.addView(plain("${uiName("overlay:summary:pnl","損益")} ${signedMoney(pnl)}",8f,true,uiColor("overlay:summary:pnl","text",if(pnl>0)positive else if(pnl<0)negative else neutral,pnl)),LinearLayout.LayoutParams(0,dp(26),1f));host.addView(sum)
     val locked=payload.optBoolean("locked",false);val footer=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL};footer.addView(plain(if(locked)"🔒 桌面版面已鎖定　更新 ${payload.optString("updatedAt","--:--:--")}" else "🔓 可拖移/縮放　TWSE ${payload.optString("updatedAt","--:--:--")}",8f,false,neutral),LinearLayout.LayoutParams(0,dp(28),1f));if(!locked){val grip=plain("↘",16f,true,accent);footer.addView(grip,LinearLayout.LayoutParams(dp(36),dp(30)));installResizeTouch(grip)};host.addView(footer)
   }
 
   private fun renderPuzzleOverlay() {
-    val host=root?:return;host.removeAllViews();host.setPadding(dp(7),dp(6),dp(7),dp(6));val positive=parseColor(payload.optString("positive","#E54A45"),Color.rgb(229,74,69));val negative=parseColor(payload.optString("negative","#12A875"),Color.rgb(18,168,117));val neutral=parseColor(payload.optString("neutral","#94A3B8"),Color.LTGRAY);val accent=parseColor(payload.optString("accent","#3AC7FF"),Color.CYAN)
+    val host=root?:return;host.removeAllViews();host.setPadding(dp(7),dp(6),dp(7),dp(6))
+    val positive=parseColor(payload.optString("positive","#E54A45"),Color.rgb(229,74,69));val negative=parseColor(payload.optString("negative","#12A875"),Color.rgb(18,168,117));val neutral=parseColor(payload.optString("neutral","#94A3B8"),Color.LTGRAY);val accent=parseColor(payload.optString("accent","#3AC7FF"),Color.CYAN);val textColor=parseColor(payload.optString("textColor","#FFFFFF"),Color.WHITE)
     fun plain(v:String,sz:Float=10f,bold:Boolean=false,c:Int=Color.WHITE)=TextView(this).apply{text=v;textSize=sz*payload.optDouble("fontScale",1.0).toFloat();setTextColor(c);setPadding(dp(5),dp(3),dp(5),dp(3));if(bold)setTypeface(typeface,android.graphics.Typeface.BOLD);maxLines=2}
     val header=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL};header.addView(plain(payload.optString("title","即時監控器"),12f,true,accent),LinearLayout.LayoutParams(0,dp(30),1f));if(payload.optBoolean("showBreathingLight",true))header.addView(plain("● ${payload.optString("statusTitle","市場狀態")}",8f,false,neutral),LinearLayout.LayoutParams(dp(92),dp(30)));val minimize=plain("—",13f,true,neutral).apply{setOnClickListener{toggleFavoriteSize()}};header.addView(minimize,LinearLayout.LayoutParams(dp(30),dp(30)));val close=plain("✕",12f,true,neutral).apply{setOnClickListener{root?.visibility=View.GONE}};header.addView(close,LinearLayout.LayoutParams(dp(30),dp(30)));host.addView(header)
-    val widthDp=((params?.width?:dp(390))/resources.displayMetrics.density).toInt();val ph=params?.height?:dp(240);val heightDp=if(ph>0)(ph/resources.displayMetrics.density).toInt()else payload.optInt("height",240);val columns=if(widthDp>=330)2 else 1;val grid=GridLayout(this).apply{columnCount=columns;rowCount=GridLayout.UNDEFINED;useDefaultMargins=true}
-    fun card(title:String,value:String,sub:String,key:String,color:Int,pnlValue:Double?){val st=fieldStyle(key);if(!st.optBoolean("visible",true))return;val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;val pad=dp(st.optInt("padding",8));setPadding(pad,pad/2,pad,pad/2);background=GradientDrawable().apply{cornerRadius=dp(st.optInt("radius",10)).toFloat();val op=st.optInt("backgroundOpacity",16).coerceIn(0,100);setColor(withAlpha(parseColor(st.optString("backgroundColor","#FFFFFF"),Color.WHITE),(255*op/100.0).toInt()));setStroke(dp(if(st.optString("effect","none")=="outline")2 else 1),Color.argb(55,255,255,255))}};box.addView(styledFieldText(title,key,8f,true,neutral,null,2));box.addView(styledFieldText(value,key,15f,true,color,pnlValue,2));if(heightDp>150)box.addView(styledFieldText(sub,key,8f,false,neutral,pnlValue,2));val lp=GridLayout.LayoutParams().apply{width=0;height=android.view.ViewGroup.LayoutParams.WRAP_CONTENT;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(dp(2),dp(2),dp(2),dp(2))};grid.addView(box,lp)}
-    val total=payload.optDouble("instantPnl",0.0);card("庫存即時損益",signedMoney(total),"今日 ${signedMoney(payload.optDouble("todayPnl",0.0))}","instantPnl",if(total>0)positive else if(total<0)negative else neutral,total)
-    val rows=payload.optJSONArray("positions")?:JSONArray();val maxCards=min(rows.length(),payload.optInt("rows",6).coerceIn(1,12));for(i in 0 until maxCards){val q=rows.optJSONObject(i)?:continue;val ch=q.optDouble("changePct",0.0);val pnl=q.optDouble("instantPnl",0.0);val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(8),dp(6),dp(8),dp(6));background=GradientDrawable().apply{cornerRadius=dp(10).toFloat();setColor(Color.argb(42,255,255,255));setStroke(dp(1),Color.argb(45,255,255,255))}};box.addView(styledFieldText(q.optString("symbol","ETF"),"symbol",9f,true,neutral,null));box.addView(styledFieldText(q.optDouble("price",0.0).fmt2(),"price",15f,true,Color.WHITE,ch));val subRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL};subRow.addView(styledFieldText("${signed2(ch)}%","changePct",8f,false,neutral,ch,1),LinearLayout.LayoutParams(0,dp(24),1f));subRow.addView(styledFieldText("損益 ${signedMoney(pnl)}","instantPnl",8f,false,neutral,pnl,1),LinearLayout.LayoutParams(0,dp(24),1.2f));box.addView(subRow);val lp=GridLayout.LayoutParams().apply{width=0;height=android.view.ViewGroup.LayoutParams.WRAP_CONTENT;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(dp(2),dp(2),dp(2),dp(2))};grid.addView(box,lp)}
+    val rawFields=payload.optJSONArray("fields") ?: payload.optJSONArray("templateFields") ?: JSONArray().put("symbol").put("price").put("instantPnl")
+    val fields=mutableListOf<String>();for(i in 0 until rawFields.length()){val k=rawFields.optString(i);if(fieldStyle(k).optBoolean("visible",true))fields.add(k)}
+    val labels=mapOf("symbol" to "代號","name" to "名稱","price" to "即時行情","change" to "漲跌","changePct" to "漲跌幅","shares" to "持有股數","marketValue" to "市值","pureCost" to "純成本","instantPnl" to "庫存損益","instantRoi" to "庫存報酬率","todayPnl" to "今日損益","todayPnlPct" to "今日損益率","previousClose" to "昨收","open" to "開盤","high" to "最高","low" to "最低","volume" to "成交量","nav" to "NAV","premium" to "折溢價","updatedAt" to "更新時間","totalAssets" to "總資產","dividend" to "股息事件").mapValues{(k,v)->uiName("overlay:field:$k",v)}
+    val summaryKeys=setOf("totalAssets","marketValue","instantPnl","todayPnl","updatedAt","dividend")
+    fun summaryValue(key:String):String=when(key){"totalAssets"->money(payload.optDouble("totalAssets",0.0));"marketValue"->money(payload.optDouble("marketValue",0.0));"instantPnl"->signedMoney(payload.optDouble("instantPnl",0.0));"todayPnl"->signedMoney(payload.optDouble("todayPnl",0.0));"updatedAt"->payload.optString("updatedAt","--:--:--");"dividend"->if(payload.optString("dividendSymbol").isNotBlank())"${payload.optString("dividendSymbol")} ${payload.optString("dividendDate","--")} ${money(payload.optDouble("dividendAmount",0.0))}" else "目前無待發放配息";else->"—"}
+    fun summaryPnl(key:String):Double?=when(key){"instantPnl"->payload.optDouble("instantPnl",0.0);"todayPnl"->payload.optDouble("todayPnl",0.0);else->null}
+    fun pnlFor(key:String,pos:JSONObject):Double?=when(key){"instantPnl","instantRoi"->pos.optDouble("instantPnl",0.0);"todayPnl","todayPnlPct"->pos.optDouble("todayPnl",0.0);"price","change","changePct"->pos.optDouble("change",0.0);"premium"->pos.optDouble("premium",0.0);else->null}
+    fun valueFor(key:String,pos:JSONObject):String=when(key){"symbol"->pos.optString("symbol","--");"name"->pos.optString("name","--");"price"->pos.optDouble("price",0.0).fmt2();"change"->signed2(pos.optDouble("change",0.0));"changePct"->signed2(pos.optDouble("changePct",0.0))+"%";"shares"->money(pos.optDouble("shares",0.0));"marketValue"->money(pos.optDouble("marketValue",0.0));"pureCost"->money(pos.optDouble("pureCost",0.0));"instantPnl"->signedMoney(pos.optDouble("instantPnl",0.0));"instantRoi"->signed2(pos.optDouble("instantRoi",0.0))+"%";"todayPnl"->signedMoney(pos.optDouble("todayPnl",0.0));"todayPnlPct"->signed2(pos.optDouble("todayPnlPct",0.0))+"%";"previousClose"->pos.optDouble("previousClose",0.0).fmt2();"open"->pos.optDouble("open",0.0).fmt2();"high"->pos.optDouble("high",0.0).fmt2();"low"->pos.optDouble("low",0.0).fmt2();"volume"->money(pos.optDouble("volume",0.0));"nav"->pos.optDouble("nav",0.0).fmt2();"premium"->signed2(pos.optDouble("premium",0.0))+"%";"updatedAt"->payload.optString("updatedAt","--:--:--");else->"—"}
+    val widthDp=((params?.width?:dp(390))/resources.displayMetrics.density).toInt();val columns=if(widthDp>=470)3 else if(widthDp>=300)2 else 1;val grid=GridLayout(this).apply{columnCount=columns;rowCount=GridLayout.UNDEFINED;useDefaultMargins=true}
+    fun addBox(key:String,title:String,value:String,pnlValue:Double?){val st=fieldStyle(key);val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;val pad=dp(st.optInt("padding",8));setPadding(pad,pad/2,pad,pad/2);background=GradientDrawable().apply{cornerRadius=dp(st.optInt("radius",10)).toFloat();val op=st.optInt("backgroundOpacity",16).coerceIn(0,100);setColor(withAlpha(parseColor(st.optString("backgroundColor","#FFFFFF"),Color.WHITE),(255*op/100.0).toInt()));setStroke(dp(if(st.optString("effect","none")=="outline")2 else 1),Color.argb(55,255,255,255))}};box.addView(styledFieldText(title,key,8f,true,neutral,null,2));val fallback=if(pnlValue==null)textColor else if(pnlValue>0)positive else if(pnlValue<0)negative else neutral;box.addView(styledFieldText(value,key,14f,true,fallback,pnlValue,2));val lp=GridLayout.LayoutParams().apply{width=0;height=android.view.ViewGroup.LayoutParams.WRAP_CONTENT;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(dp(2),dp(2),dp(2),dp(2))};grid.addView(box,lp)}
+    for(key in fields.filter{summaryKeys.contains(it)})addBox(key,labels[key]?:key,summaryValue(key),summaryPnl(key))
+    val positionFields=fields.filter{!summaryKeys.contains(it)}
+    val rows=payload.optJSONArray("positions")?:JSONArray();val maxCards=min(rows.length(),payload.optInt("rows",6).coerceIn(1,12))
+    for(i in 0 until maxCards){val pos=rows.optJSONObject(i)?:continue;if(positionFields.isEmpty())break;val key=positionFields.first();val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(8),dp(5),dp(8),dp(5));background=GradientDrawable().apply{cornerRadius=dp(fieldStyle(key).optInt("radius",10)).toFloat();setColor(Color.argb(38,255,255,255));setStroke(dp(1),Color.argb(45,255,255,255))}};for(field in positionFields){val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL};row.addView(plain(labels[field]?:field,8f,false,neutral),LinearLayout.LayoutParams(0,dp(24),1f));val pv=pnlFor(field,pos);val fallback=if(pv==null)textColor else if(pv>0)positive else if(pv<0)negative else neutral;row.addView(styledFieldText(valueFor(field,pos),field,9f,true,fallback,pv,1,priceMarketState(field,pos)),LinearLayout.LayoutParams(0,dp(24),1.15f));box.addView(row)};val lp=GridLayout.LayoutParams().apply{width=0;height=android.view.ViewGroup.LayoutParams.WRAP_CONTENT;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);setMargins(dp(2),dp(2),dp(2),dp(2))};grid.addView(box,lp)}
     host.addView(grid,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT));val locked=payload.optBoolean("locked",false);val footer=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL};footer.addView(plain(if(locked)"🔒 桌面版面已鎖定" else "🔓 編輯中｜可拖移 · 右下角縮放",8f,false,neutral),LinearLayout.LayoutParams(0,dp(28),1f));if(!locked){val grip=plain("↘",16f,true,accent);footer.addView(grip,LinearLayout.LayoutParams(dp(36),dp(30)));installResizeTouch(grip)};host.addView(footer)
   }
 
   private fun signed2(v:Double):String=(if(v>0)"+" else if(v<0)"-" else "")+String.format(Locale.US,"%.2f",abs(v))
 
   private fun selectedMetricLines(): MutableList<String> {
-    val fields = payload.optJSONArray("fields") ?: JSONArray().put("instantPnl").put("todayPnl").put("updatedAt")
-    val lines = mutableListOf<String>()
-    for (i in 0 until fields.length()) {
-      when (fields.optString(i)) {
-        "instantPnl" -> lines.add("即時 ${signedMoney(payload.optDouble("instantPnl", 0.0))}")
-        "todayPnl" -> lines.add("今日 ${signedMoney(payload.optDouble("todayPnl", 0.0))}")
-        "totalAssets" -> lines.add("總資產 ${money(payload.optDouble("totalAssets", 0.0))}")
-        "marketValue" -> lines.add("持股市值 ${money(payload.optDouble("marketValue", 0.0))}")
-        "dividend" -> lines.add(if (payload.optString("dividendSymbol").isNotBlank()) "${payload.optString("dividendSymbol")} 配息 ${payload.optString("dividendDate", "--")}" else "目前無待發放配息")
-        "updatedAt" -> lines.add("更新 ${payload.optString("updatedAt", "--:--")}")
+    val fields=payload.optJSONArray("fields")?:JSONArray().put("instantPnl").put("todayPnl").put("updatedAt")
+    val positions=payload.optJSONArray("positions")?:JSONArray()
+    val focus=if(positions.length()>0)positions.optJSONObject(rotateIndex%positions.length()) else null
+    val lines=mutableListOf<String>()
+    fun posMoney(key:String)=money(focus?.optDouble(key,0.0)?:0.0)
+    fun posPrice(key:String)=(focus?.optDouble(key,0.0)?:0.0).fmt2()
+    for(i in 0 until fields.length()){
+      when(val key=fields.optString(i)){
+        "symbol"->lines.add("代號 ${focus?.optString("symbol","--")?:"--"}")
+        "name"->lines.add("名稱 ${focus?.optString("name","--")?:"--"}")
+        "price"->lines.add("行情 ${posPrice("price")}")
+        "nav"->lines.add("NAV ${posPrice("nav")}")
+        "premium"->lines.add("折溢價 ${signed2(focus?.optDouble("premium",0.0)?:0.0)}%")
+        "change"->lines.add("漲跌 ${signed2(focus?.optDouble("change",0.0)?:0.0)}")
+        "changePct"->lines.add("漲跌幅 ${signed2(focus?.optDouble("changePct",0.0)?:0.0)}%")
+        "shares"->lines.add("持有 ${posMoney("shares")}")
+        "marketValue"->lines.add("市值 ${if(focus!=null)posMoney("marketValue") else money(payload.optDouble("marketValue",0.0))}")
+        "pureCost"->lines.add("純成本 ${posMoney("pureCost")}")
+        "instantPnl"->lines.add("即時 ${if(focus!=null)signedMoney(focus.optDouble("instantPnl",0.0)) else signedMoney(payload.optDouble("instantPnl",0.0))}")
+        "instantRoi"->lines.add("庫存報酬 ${signed2(focus?.optDouble("instantRoi",0.0)?:0.0)}%")
+        "todayPnl"->lines.add("今日 ${if(focus!=null)signedMoney(focus.optDouble("todayPnl",0.0)) else signedMoney(payload.optDouble("todayPnl",0.0))}")
+        "todayPnlPct"->lines.add("今日報酬 ${signed2(focus?.optDouble("todayPnlPct",0.0)?:0.0)}%")
+        "previousClose"->lines.add("昨收 ${posPrice("previousClose")}")
+        "open"->lines.add("開盤 ${posPrice("open")}")
+        "high"->lines.add("最高 ${posPrice("high")}")
+        "low"->lines.add("最低 ${posPrice("low")}")
+        "volume"->lines.add("成交量 ${posMoney("volume")}")
+        "updatedAt"->lines.add("更新 ${payload.optString("updatedAt","--:--:--")}")
+        "totalAssets"->lines.add("總資產 ${money(payload.optDouble("totalAssets",0.0))}")
+        "dividend"->{
+          val symbol=payload.optString("dividendSymbol","")
+          lines.add(if(symbol.isNotBlank())"股息 $symbol ${payload.optString("dividendDate","--")} ${money(payload.optDouble("dividendAmount",0.0))}" else "目前無待發放配息")
+        }
       }
     }
-    if (lines.isEmpty()) lines.add("即時 ${signedMoney(payload.optDouble("instantPnl", 0.0))}")
+    if(lines.isEmpty())lines.add("即時 ${signedMoney(payload.optDouble("instantPnl",0.0))}")
     return lines
   }
 
-  private fun renderText(): String {
-    val mode = payload.optString("mode", "bubble")
-    val pnl = payload.optDouble("instantPnl", 0.0)
-    val today = payload.optDouble("todayPnl", 0.0)
-    val state = payload.optString("marketState", "--")
-    val updated = payload.optString("updatedAt", "--:--")
-    val positions = payload.optJSONArray("positions") ?: JSONArray()
-    val focus = if (positions.length() > 0) positions.optJSONObject(rotateIndex % positions.length()) else null
-    val lamp = if (payload.optBoolean("healthy", true)) "●" else "◉"
-    val selected = selectedMetricLines()
-    val picked = selected[rotateIndex % selected.size]
-    return when (mode) {
-      "ticker" -> "$lamp  $picked"
-      "mini" -> "投資快覽   $lamp\n${selected.take(4).joinToString("\n")}" 
-      "chat" -> "✦ AI 投資助手\n點一下開啟 AI 對話\n$picked"
-      "focus" -> if (focus != null) "${focus.optString("symbol")} ${focus.optString("name")}\n行情 ${focus.optDouble("price").fmt2()}\n即時 ${signedMoney(focus.optDouble("instantPnl"))}\n今日 ${signedMoney(focus.optDouble("todayPnl"))}\n$lamp $updated" else "尚無持倉"
-      "market" -> "市場狀態   $lamp\n$state\n${selected.take(2).joinToString("\n")}" 
-      "multi" -> buildString { append("持倉即時損益  $lamp"); val n=min(4,positions.length()); for(i in 0 until n){val q=positions.optJSONObject(i)?:continue;append("\n${q.optString("symbol")}  ${signedMoney(q.optDouble("instantPnl"))}")}; if(selected.any{it.startsWith("更新")})append("\n更新 $updated") }
-      "dividend" -> "下一筆配息\n${payload.optString("dividendSymbol", "--")}  ${payload.optString("dividendDate", "--")}\n預估 ${money(payload.optDouble("dividendAmount", 0.0))}\n$lamp $updated"
-      "switcher" -> "即時監控器模式切換\n點一下輪換樣式\n$picked\n$lamp $updated"
-      "transparent" -> "$lamp  $picked"
-      else -> "✦ ${picked.substringBefore(' ')}\n${picked.substringAfter(' ', picked)}\n$lamp"
+  private fun renderText():String {
+    val mode=payload.optString("mode","bubble")
+    val pnl=payload.optDouble("instantPnl",0.0)
+    val today=payload.optDouble("todayPnl",0.0)
+    val state=payload.optString("marketState","--")
+    val updated=payload.optString("updatedAt","--:--:--")
+    val positions=payload.optJSONArray("positions")?:JSONArray()
+    val focus=if(positions.length()>0)positions.optJSONObject(rotateIndex%positions.length()) else null
+    val lamp=if(payload.optBoolean("healthy",true))"●" else "◉"
+    val selected=selectedMetricLines()
+    val picked=selected[rotateIndex%selected.size]
+    return when(mode){
+      "ticker","strip","transparent"->"$lamp  $picked"
+      "mini"->"投資快覽   $lamp\n${selected.take(4).joinToString("\n")}"
+      "chat"->"✦ AI 投資助手\n點一下開啟 AI 對話\n$picked"
+      "focus"->if(focus!=null)"${focus.optString("symbol")} ${focus.optString("name")}\n行情 ${focus.optDouble("price").fmt2()}\n即時 ${signedMoney(focus.optDouble("instantPnl"))}\n今日 ${signedMoney(focus.optDouble("todayPnl"))}\n$lamp $updated" else "尚無持倉"
+      "market"->"市場狀態   $lamp\n$state\n${selected.take(2).joinToString("\n")}"
+      "multi"->"ETF 即時監控   $lamp\n${selected.take(5).joinToString("\n")}"
+      "dividend"->{val symbol=payload.optString("dividendSymbol","");if(symbol.isNotBlank())"股息提醒\n$symbol ${payload.optString("dividendDate","--")}\n${money(payload.optDouble("dividendAmount",0.0))}\n$lamp $updated" else "股息提醒\n目前無待發放配息\n$lamp $updated"}
+      "switcher"->"即時監控器   $lamp\n$picked\n即時 ${signedMoney(pnl)} · 今日 ${signedMoney(today)}"
+      else->selected.take(5).joinToString("\n")
     }
   }
+
   private fun refreshQuotesInBackground() {
-    val positions = payload.optJSONArray("positions") ?: return
-    if (positions.length() == 0) return
-    io.execute {
-      try {
-        val symbols = (0 until positions.length()).mapNotNull { positions.optJSONObject(it)?.optString("symbol") }.filter { it.isNotBlank() }
-        if (symbols.isEmpty()) return@execute
-        val channels = symbols.joinToString("|") { "tse_${it}.tw" }
-        val url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${URLEncoder.encode(channels, "UTF-8")}&json=1&delay=0&_=${System.currentTimeMillis()}"
-        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-          requestMethod = "GET"; connectTimeout = 8000; readTimeout = 8000
-          setRequestProperty("Accept", "application/json,text/plain,*/*")
+    val basePayload=payload
+    val cashBalance = payload.optDouble("cashBalance", 0.0)
+    val positions=basePayload.optJSONArray("positions")?:return
+    if(positions.length()==0)return
+    io.execute{
+      try{
+        val symbols=(0 until positions.length()).mapNotNull{positions.optJSONObject(it)?.optString("symbol")}.filter{it.isNotBlank()}
+        if(symbols.isEmpty())return@execute
+        val channels=symbols.joinToString("|"){"tse_${it}.tw"}
+        val url="https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${URLEncoder.encode(channels,"UTF-8")}&json=1&delay=0&_=${System.currentTimeMillis()}"
+        val conn=(URL(url).openConnection() as HttpURLConnection).apply{requestMethod="GET";connectTimeout=8000;readTimeout=8000;setRequestProperty("Accept","application/json,text/plain,*/*")}
+        val body=conn.inputStream.bufferedReader().use{it.readText()};conn.disconnect()
+        val arr=JSONObject(body).optJSONArray("msgArray")?:throw IllegalStateException("TWSE no quote array")
+        val map=HashMap<String,JSONObject>();for(i in 0 until arr.length()){val q=arr.optJSONObject(i)?:continue;val symbol=q.optString("c");if(symbol.isNotBlank())map[symbol]=q}
+        if(map.isEmpty())throw IllegalStateException("TWSE no valid quote")
+
+        val nextPositions = JSONArray(positions.toString())
+        var instant=basePayload.optDouble("instantPnl",0.0)
+        var todayTotal=basePayload.optDouble("todayPnl",0.0)
+        var totalAssets=basePayload.optDouble("marketValue",0.0)
+        for(i in 0 until nextPositions.length()){
+          val pos=nextPositions.optJSONObject(i)?:continue
+          val q=map[pos.optString("symbol")]
+          val oldPrice=pos.optDouble("price",0.0)
+          val oldPrevious=pos.optDouble("previousClose",oldPrice)
+          val previous=(q?.let{num(it.optString("y"))}?:oldPrevious).takeIf{it>0}?:oldPrice
+          val price=(q?.let{num(it.optString("z"))}?:q?.let{num(it.optString("y"))}?:oldPrice.takeIf{it>0}?:previous)
+          val shares=pos.optDouble("shares",0.0)
+          val pureCost=pos.optDouble("pureCost",0.0)
+          val oldMarket=pos.optDouble("marketValue",oldPrice*shares)
+          val oldPnl=pos.optDouble("instantPnl",oldMarket-pureCost)
+          val oldToday=pos.optDouble("todayPnl",(oldPrice-oldPrevious)*shares)
+          val nextMarket=price*shares
+          val nextPnl=nextMarket-pureCost
+          val nextToday=(price-previous)*shares
+          pos.put("price",price);pos.put("previousClose",previous);pos.put("marketValue",nextMarket);pos.put("instantPnl",nextPnl);pos.put("instantRoi",if(pureCost>0)nextPnl/pureCost*100.0 else 0.0);pos.put("todayPnl",nextToday);pos.put("todayPnlPct",if(previous*shares>0)nextToday/(previous*shares)*100.0 else 0.0);pos.put("change",price-previous);pos.put("changePct",if(previous>0)(price/previous-1.0)*100.0 else 0.0)
+          pos.put("open",q?.let{num(it.optString("o"))}?:pos.optDouble("open",0.0));pos.put("high",q?.let{num(it.optString("h"))}?:pos.optDouble("high",0.0));pos.put("low",q?.let{num(it.optString("l"))}?:pos.optDouble("low",0.0));pos.put("volume",q?.let{num(it.optString("v"))}?:pos.optDouble("volume",0.0));pos.put("limitUp",q?.let{num(it.optString("u"))}?:pos.optDouble("limitUp",0.0));pos.put("limitDown",q?.let{num(it.optString("w"))}?:pos.optDouble("limitDown",0.0))
+          instant+=nextPnl-oldPnl;todayTotal+=nextToday-oldToday;totalAssets+=nextMarket-oldMarket
         }
-        val body = conn.inputStream.bufferedReader().use { it.readText() }
-        conn.disconnect()
-        val arr = JSONObject(body).optJSONArray("msgArray") ?: return@execute
-        val map = HashMap<String, JSONObject>()
-        for (i in 0 until arr.length()) {
-          val q = arr.optJSONObject(i) ?: continue
-          map[q.optString("c")] = q
+        val cashBalance=basePayload.optDouble("cashBalance",0.0)
+        val nextUpdatedAt=SimpleDateFormat("HH:mm:ss",Locale.TAIWAN).format(Date())
+        handler.post{
+          if(payload===basePayload){
+            payload.put("positions", nextPositions)
+            payload.put("instantPnl", instant)
+            payload.put("todayPnl", todayTotal)
+            payload.put("marketValue", totalAssets)
+            payload.put("totalAssets", totalAssets + cashBalance)
+            payload.put("updatedAt", nextUpdatedAt)
+            payload.put("healthy", true)
+            getSharedPreferences(PREF,MODE_PRIVATE).edit().putString(PREF_PAYLOAD,payload.toString()).apply();updateOverlayText()
+          }
         }
-        var instant = 0.0; var todayTotal = 0.0; var totalAssets = 0.0
-        for (i in 0 until positions.length()) {
-          val pos = positions.optJSONObject(i) ?: continue
-          val q = map[pos.optString("symbol")] ?: continue
-          val previous = num(q.optString("y")) ?: pos.optDouble("previousClose", pos.optDouble("price", 0.0))
-          val price = num(q.optString("z")) ?: previous
-          val shares = pos.optDouble("shares", 0.0)
-          val pureCost = pos.optDouble("pureCost", 0.0)
-          val p = price * shares - pureCost
-          val td = (price - previous) * shares
-          pos.put("price", price); pos.put("previousClose", previous); pos.put("marketValue", price*shares); pos.put("instantPnl", p); pos.put("instantRoi", if(pureCost>0) p/pureCost*100.0 else 0.0); pos.put("todayPnl", td); pos.put("todayPnlPct", if(previous*shares>0) td/(previous*shares)*100.0 else 0.0); pos.put("change",price-previous); pos.put("changePct",if(previous>0)(price/previous-1.0)*100.0 else 0.0); pos.put("open",num(q.optString("o"))?:pos.optDouble("open",0.0)); pos.put("high",num(q.optString("h"))?:pos.optDouble("high",0.0)); pos.put("low",num(q.optString("l"))?:pos.optDouble("low",0.0)); pos.put("volume",num(q.optString("v"))?:pos.optDouble("volume",0.0))
-          instant += p; todayTotal += td; totalAssets += price * shares
-        }
-        payload.put("instantPnl", instant)
-        payload.put("todayPnl", todayTotal)
-        payload.put("totalAssets", totalAssets)
-        payload.put("marketValue", totalAssets)
-        payload.put("updatedAt", SimpleDateFormat("HH:mm:ss", Locale.TAIWAN).format(Date()))
-        payload.put("healthy", true)
-        getSharedPreferences(PREF, MODE_PRIVATE).edit().putString(PREF_PAYLOAD, payload.toString()).apply()
-        handler.post { updateOverlayText() }
-      } catch (_: Throwable) {
-        payload.put("healthy", false)
-        handler.post { updateOverlayText() }
-      }
+      }catch(_:Throwable){handler.post{if(payload===basePayload){basePayload.put("healthy",false);updateOverlayText()}}}
     }
   }
 

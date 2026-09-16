@@ -1,0 +1,29 @@
+name: V3.7.4 Market Quote Contract
+
+on:
+  push:
+    branches: [v3.7.4-release-20260916]
+    paths:
+      - 'scripts/MARKET_QUOTE_EDITOR_V374_CONTRACT.cjs'
+      - '.gogo-v374-market-contract-trigger'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+
+jobs:
+  market-quote-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v3.7.4-release-20260916
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+      - name: Market quote snapshot and editor contract
+        run: node scripts/MARKET_QUOTE_EDITOR_V374_CONTRACT.cjs

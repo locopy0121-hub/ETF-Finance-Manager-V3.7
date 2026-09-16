@@ -1,0 +1,44 @@
+const fs=require('fs');
+const path=require('path');
+const read=f=>fs.readFileSync(f,'utf8');
+const write=(f,s)=>fs.writeFileSync(f,s);
+const rep=(f,re,to)=>{let s=read(f);write(f,s.replace(re,to));};
+const must=(f,re,to,label)=>{let s=read(f);if(!re.test(s))throw new Error(`${f}: missing ${label}`);write(f,s.replace(re,to));};
+
+// Expose a canonical portfolio-summary adapter that delegates directly to calculatePortfolioSummary().
+must('src/v3/engine.ts',/export function calculatePortfolioView\(holdings:Holding\[],quotes:Record<string,QuoteLike>,cashBalance:number,ledger:LedgerEntry\[],dividends:DividendEvent\[]\)\{\n const items=holdings\.map\(h=>toETFItem\(h,quotes,ledger,dividends\)\);\n const canonical=calculatePortfolioSummary\(items\);/,`export function calculatePortfolioCoreSummary(holdings:Holding[],quotes:Record<string,QuoteLike>,ledger:LedgerEntry[],dividends:DividendEvent[],selectedSymbols:string[]=[]){\n const selected=selectedSymbols.length?holdings.filter(h=>selectedSymbols.includes(h.symbol)):holdings;\n return calculatePortfolioSummary(selected.map(h=>toETFItem(h,quotes,ledger,dividends)));\n}\n\nexport function calculatePortfolioView(holdings:Holding[],quotes:Record<string,QuoteLike>,cashBalance:number,ledger:LedgerEntry[],dividends:DividendEvent[]){\n const canonical=calculatePortfolioCoreSummary(holdings,quotes,ledger,dividends);`,'portfolio core adapter');
+
+// Add canonicalSummary only to portfolio view, never to CostBreakdown.
+must('src/v3/engine.ts',/ const comprehensivePnl=canonical\.totalUnrealizedProfit\+realizedCashPnl\+cumulativeDividends;\n return \{\n  historicalTradeCost,/,` const comprehensivePnl=canonical.totalUnrealizedProfit+realizedCashPnl+cumulativeDividends;\n return {\n  canonicalSummary:canonical,\n  historicalTradeCost,`,'portfolio canonicalSummary return');
+
+// calculatePortfolioView no longer owns an `items` array; compute previous value by symbol/row index directly.
+rep('src/v3/engine.ts',/const previousValue=rows\.reduce\(\(s,m\)=>s\+\(Number\(m\.previousClose\?\?m\.price\)\*Math\.max\(0,Number\(holdings\.find\(h=>h\.symbol===items\[rows\.indexOf\(m\)\]\?\.etfCode\)\?\.shares\?\?0\)\)\),0\);/,`const previousValue=rows.reduce((s,m,index)=>s+(Number(m.previousClose??m.price)*Math.max(0,Number(holdings[index]?.shares??0))),0);`);
+
+// App -> Widget payload carries the exact canonical summary.
+rep('App.tsx',/configureDisplayPreferences, calculateDividendIncome, calculateHoldingView, calculatePortfolioView, sharesOnDate, money, pct/,`configureDisplayPreferences, calculateDividendIncome, calculateHoldingView, calculatePortfolioView, calculatePortfolioCoreSummary, sharesOnDate, money, pct`);
+rep('App.tsx',/const ws=state\.appSettings\.widget;const trendMetric=/g,`const ws=state.appSettings.widget;const widgetSummary=calculatePortfolioCoreSummary(state.holdings,quotes.quotes as any,state.ledger,state.dividends,ws.selectedSymbols??[]);const trendMetric=`);
+rep('App.tsx',/const extras=\{cumulativeDividend:metrics\.cumulativeDividends,/g,`const extras={portfolioSummary:widgetSummary,cumulativeDividend:metrics.cumulativeDividends,`);
+
+// Background writer forwards the canonical summary already produced by the canonical view.
+rep('src/services/backgroundQuoteTask.tsx',/const extras=metrics\?\{\.\.\.\(previousPayload\?\.extras\?\?\{\}\),/g,`const extras=metrics?{...(previousPayload?.extras??{}),portfolioSummary:metrics.canonicalSummary,`);
+
+// Widget task handler may run with App closed; data adapter recomputes through canonical core only.
+rep('src/widgets/widgetTaskHandler.tsx',/import \{ calculatePortfolioView \} from '\.\.\/v3\/engine';/,`import { calculatePortfolioView, calculatePortfolioCoreSummary } from '../v3/engine';`);
+rep('src/widgets/widgetTaskHandler.tsx',/cashBalance,\n      totalPnl:m\.totalPnl/g,`cashBalance,\n      portfolioSummary:calculatePortfolioCoreSummary(holdingsSource,quotes as any,ledger,dividends,ws.selectedSymbols??[]),\n      totalPnl:m.totalPnl`);
+rep('src/widgets/widgetTaskHandler.tsx',/holdingCount:rawHoldings\.length,cashBalance,totalPnl:m\.totalPnl/g,`holdingCount:rawHoldings.length,cashBalance,portfolioSummary:calculatePortfolioCoreSummary(rawHoldings,fresh as any,ledger,dividends,ws.selectedSymbols??[]),totalPnl:m.totalPnl`);
+
+// State migration sanitizes removed finance override properties without preserving a compatibility API.
+rep('src/v3/storage.ts',/const normalizedHoldings=\(Array\.isArray\(p\.holdings\)\?p\.holdings:\[\]\)\.map\(\(raw:any\)=>\{const \{feeRate,feeDiscount,brokerProfileId,\.\.\.rest\}=raw;return \{\.\.\.rest,liquidationTradeMode:/,`const stripRemovedFinanceOverrides=(raw:any)=>{const rest={...raw};for(const key of Object.keys(rest))if(/^(feeRate|feeDiscount)$|broker.*profile/i.test(key))delete rest[key];return rest;};\n const normalizedHoldings=(Array.isArray(p.holdings)?p.holdings:[]).map((raw:any)=>{const rest=stripRemovedFinanceOverrides(raw);return {...rest,liquidationTradeMode:`);
+rep('src/v3/storage.ts',/const rawLedger=\(Array\.isArray\(p\.ledger\)&&p\.ledger\.length\?p\.ledger:seedLedgerFromHoldings\(normalizedHoldings\)\)\.map\(\(raw:any\)=>\{const \{brokerProfileId,\.\.\.rest\}=raw;/,`const rawLedger=(Array.isArray(p.ledger)&&p.ledger.length?p.ledger:seedLedgerFromHoldings(normalizedHoldings)).map((raw:any)=>{const rest=stripRemovedFinanceOverrides(raw);`);
+
+// Holding editor preview cannot reference a removed manual fee field; it previews canonical settlement cost.
+rep('src/v3/screensBase.tsx',/money\(preciseTradeAmount\(Number\(r\.tradePrice\)\|\|0,Number\(r\.shares\)\|\|0\)\+\(Number\(r\.fee\)\|\|0\)\)/g,`money(calculatePurchaseCost({id:r.id,etfCode:holding.symbol,type:'BUY',tradeMode:r.tradeMode,shares:Number(r.shares)||0,price:Number(r.tradePrice)||0,date:r.date}).settlementAmount)`);
+
+// Physical deletion. No compatibility shells and no empty re-exports.
+for(const f of ['src/data/tradeSettings.ts','src/v3/engineBase.ts']){if(fs.existsSync(f))fs.unlinkSync(f);}
+
+// Normalize transformed TypeScript source so git diff --check is a hard clean gate.
+function walk(dir,out=[]){for(const name of fs.readdirSync(dir)){const p=path.join(dir,name);const st=fs.statSync(p);if(st.isDirectory())walk(p,out);else if(/\.(ts|tsx)$/.test(p))out.push(p);}return out;}
+for(const f of ['App.tsx',...walk('src')]){const s=read(f);const clean=s.replace(/[ \t]+$/gm,'');if(clean!==s)write(f,clean);}
+
+console.log('APPLY_BREAKING_HUANAN_STAGE5 complete');
