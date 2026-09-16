@@ -1,131 +1,338 @@
-export type BrokerProfileId = 'custom' | 'huanan-yongchang';
+export type BrokerProfileId = string;
 export type FeeDiscountMode = 'instant' | 'monthlyRebate';
 export type OrderChannel = 'electronic' | 'manual' | 'sip';
 export type TradeLotType = 'board' | 'odd' | 'sip';
+export type RoundingMode = 'floor' | 'round' | 'ceil';
+export type DisplayRoundingMode = 'raw' | 'truncate' | 'round';
+export type CostPoolMethod = 'movingWeightedAverage';
+export type UnrealizedPLMode = 'NET' | 'GROSS';
+export type MarketValueMode = 'netLiquidation' | 'gross';
+export type TruncateRule = 'NONE' | 'TRUNCATE_2_DECIMALS' | 'ROUND_2_DECIMALS';
 
+/**
+ * Canonical broker configuration consumed by the single public finance engine.
+ * Broker differences belong here; formulas stay shared.
+ */
+export type BrokerProfile = {
+  id: BrokerProfileId;
+  name: string;
+
+  commissionRate: number;
+  commissionDiscount: number;
+  minimumCommission: number;
+  discountMode: FeeDiscountMode;
+  orderChannel: OrderChannel;
+  lotType: TradeLotType;
+
+  etfSellTaxRate: number;
+  stockSellTaxRate: number;
+
+  tradeAmountRounding: RoundingMode;
+  commissionRounding: RoundingMode;
+  taxRounding: RoundingMode;
+
+  costPoolMethod: CostPoolMethod;
+
+  avgCostDisplayMode: DisplayRoundingMode;
+  avgCostDigits: number;
+  roiDisplayMode: DisplayRoundingMode;
+  roiDigits: number;
+
+  unrealizedPLMode: UnrealizedPLMode;
+  marketValueMode: MarketValueMode;
+  includeEstimatedSellFee: boolean;
+  includeEstimatedSellTax: boolean;
+  truncateRule: TruncateRule;
+};
+
+/** Legacy compatibility shape used by existing V3 settings/forms. */
 export type FeeSettings = {
   brokerProfileId?: BrokerProfileId;
   brokerName: string;
-  feeRate: number;      // e.g. 0.001425 = 0.1425%
-  discount: number;     // economic discount target, e.g. 0.6 = 6 折
-  minimumFee: number;   // broker/order-channel specific minimum fee; never treat as a statutory constant
+  feeRate: number;
+  discount: number;
+  minimumFee: number;
   discountMode?: FeeDiscountMode;
   orderChannel?: OrderChannel;
   lotType?: TradeLotType;
   etfSellTaxRate?: number;
+  stockSellTaxRate?: number;
+  unrealizedPLMode?: UnrealizedPLMode;
+  marketValueMode?: MarketValueMode;
+  includeEstimatedSellFee?: boolean;
+  includeEstimatedSellTax?: boolean;
 };
 
-export type CommissionQuote = {
-  grossFee: number;
-  chargedFee: number;
-  expectedRebate: number;
-  netFee: number;
-  mode: FeeDiscountMode;
-};
+export const DEFAULT_BROKER_PROFILE_ID = 'default';
+export const HUANAN_YONGCHANG_PROFILE_ID = 'huanan-yongchang';
 
-export const defaultFeeSettings: FeeSettings = {
-  brokerProfileId: 'custom',
-  brokerName: '自訂券商',
-  feeRate: 0.001425,
-  discount: 1,
-  minimumFee: 1,
+/** Existing App finance behavior is the default/fallback profile. */
+export const defaultBrokerProfile: BrokerProfile = {
+  id: DEFAULT_BROKER_PROFILE_ID,
+  name: 'App 預設',
+  commissionRate: 0.001425,
+  commissionDiscount: 1,
+  minimumCommission: 1,
   discountMode: 'instant',
   orderChannel: 'electronic',
   lotType: 'board',
   etfSellTaxRate: 0.001,
+  stockSellTaxRate: 0.003,
+  tradeAmountRounding: 'floor',
+  commissionRounding: 'floor',
+  taxRounding: 'floor',
+  costPoolMethod: 'movingWeightedAverage',
+  avgCostDisplayMode: 'raw',
+  avgCostDigits: 2,
+  roiDisplayMode: 'raw',
+  roiDigits: 2,
+  unrealizedPLMode: 'GROSS',
+  marketValueMode: 'gross',
+  includeEstimatedSellFee: false,
+  includeEstimatedSellTax: false,
+  truncateRule: 'NONE',
 };
 
-export function estimateCommissionQuote(tradeAmount:number,settings:FeeSettings):CommissionQuote{
-  if(!Number.isFinite(tradeAmount)||tradeAmount<=0)return {grossFee:0,chargedFee:0,expectedRebate:0,netFee:0,mode:settings.discountMode??'instant'};
-  const rate=Math.max(0,Number(settings.feeRate)||0);
-  const discount=Math.max(0,Number(settings.discount)||0);
-  const minimum=Math.max(0,Math.floor(Number(settings.minimumFee)||0));
-  const grossFee=Math.max(minimum,Math.floor(tradeAmount*rate));
-  const discounted=Math.max(minimum,Math.floor(tradeAmount*rate*discount));
-  const mode=settings.discountMode??'instant';
-  if(mode==='monthlyRebate'){
-    const chargedFee=grossFee;
-    const expectedRebate=Math.max(0,chargedFee-discounted);
-    return {grossFee,chargedFee,expectedRebate,netFee:chargedFee-expectedRebate,mode};
-  }
-  return {grossFee,chargedFee:discounted,expectedRebate:0,netFee:discounted,mode};
-}
+/** Approved Huanan Yongchang values. Formulas remain the same public formulas. */
+export const huananYongchangBrokerProfile: BrokerProfile = {
+  ...defaultBrokerProfile,
+  id: HUANAN_YONGCHANG_PROFILE_ID,
+  name: '華南永昌證券',
+  commissionRate: 0.001425,
+  commissionDiscount: 0.65,
+  minimumCommission: 20,
+  etfSellTaxRate: 0.001,
+  stockSellTaxRate: 0.003,
+  tradeAmountRounding: 'floor',
+  commissionRounding: 'floor',
+  taxRounding: 'floor',
+  costPoolMethod: 'movingWeightedAverage',
+  avgCostDisplayMode: 'truncate',
+  avgCostDigits: 2,
+  roiDisplayMode: 'truncate',
+  roiDigits: 2,
+  unrealizedPLMode: 'NET',
+  marketValueMode: 'netLiquidation',
+  includeEstimatedSellFee: true,
+  includeEstimatedSellTax: true,
+  truncateRule: 'TRUNCATE_2_DECIMALS',
+};
 
-/**
- * Returns the fee expected to be charged at transaction/settlement time.
- * Historical broker corrections are never injected here; they are separate ledger adjustments.
- */
-export function estimateBuyFee(tradeAmount:number,settings:FeeSettings){
-  return estimateCommissionQuote(tradeAmount,settings).chargedFee;
-}
+export const builtInBrokerProfiles: BrokerProfile[] = [
+  defaultBrokerProfile,
+  huananYongchangBrokerProfile,
+].map(profile => ({ ...profile }));
 
-export function estimateSellFee(tradeAmount:number,settings:FeeSettings){return estimateCommissionQuote(tradeAmount,settings).chargedFee;}
-export function estimateEtfSellTax(tradeAmount:number,taxRate=0.001){if(!Number.isFinite(tradeAmount)||tradeAmount<=0)return 0;return Math.floor(tradeAmount*Math.max(0,Number(taxRate)||0));}
-export function estimateSellTaxBySettings(tradeAmount:number,settings:FeeSettings){return estimateEtfSellTax(tradeAmount,settings.etfSellTaxRate??0.001);}
+const finiteOr = (value: unknown, fallback: number) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
 
-/**
- * Huanan Yongchang profile derived from the supplied broker transaction/holding screenshots.
- * Every transaction is handled independently: floor(price*shares) first, then fee calculation.
- * Historical one-off broker corrections are recorded by the cash/cost write-off flow, not here.
- */
-export function makeHuananFeeSettings(args:{discount?:number;minimumFee?:number;discountMode?:FeeDiscountMode;orderChannel?:OrderChannel;lotType?:TradeLotType}={}):FeeSettings{
+export function normalizeBrokerProfile(
+  input: Partial<BrokerProfile> | undefined | null,
+  fallback: BrokerProfile = defaultBrokerProfile,
+): BrokerProfile {
+  const value = input ?? {};
   return {
-    brokerProfileId:'huanan-yongchang',
-    brokerName:'華南永昌證券',
-    feeRate:0.001425,
-    discount:args.discount??1,
-    minimumFee:args.minimumFee??1,
-    discountMode:args.discountMode??'instant',
-    orderChannel:args.orderChannel??'electronic',
-    lotType:args.lotType??'board',
-    etfSellTaxRate:0.001,
+    ...fallback,
+    ...value,
+    id: String(value.id ?? fallback.id),
+    name: String(value.name ?? fallback.name),
+    commissionRate: finiteOr(value.commissionRate, fallback.commissionRate),
+    commissionDiscount: finiteOr(value.commissionDiscount, fallback.commissionDiscount),
+    minimumCommission: Math.max(0, finiteOr(value.minimumCommission, fallback.minimumCommission)),
+    etfSellTaxRate: Math.max(0, finiteOr(value.etfSellTaxRate, fallback.etfSellTaxRate)),
+    stockSellTaxRate: Math.max(0, finiteOr(value.stockSellTaxRate, fallback.stockSellTaxRate)),
+    avgCostDigits: Math.max(0, Math.floor(finiteOr(value.avgCostDigits, fallback.avgCostDigits))),
+    roiDigits: Math.max(0, Math.floor(finiteOr(value.roiDigits, fallback.roiDigits))),
   };
 }
 
-export const huananYongchangFeeSettings:FeeSettings=makeHuananFeeSettings();
+/** New brokers always start from the complete App default profile. */
+export function createBrokerProfileFromDefault(args: { id: string; name: string; overrides?: Partial<BrokerProfile> }): BrokerProfile {
+  return normalizeBrokerProfile({
+    ...defaultBrokerProfile,
+    ...(args.overrides ?? {}),
+    id: args.id,
+    name: args.name,
+  });
+}
 
-export function isHuananBroker(value?:string){
-  return String(value??'').replace(/\s+/g,'').includes('華南永昌');
+export function normalizeBrokerProfiles(raw: unknown): BrokerProfile[] {
+  const source = Array.isArray(raw) ? raw : [];
+  const byId = new Map<string, BrokerProfile>();
+  byId.set(defaultBrokerProfile.id, { ...defaultBrokerProfile });
+  byId.set(huananYongchangBrokerProfile.id, { ...huananYongchangBrokerProfile });
+  for (const candidate of source) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const obj = candidate as Partial<BrokerProfile>;
+    const id = String(obj.id ?? '').trim();
+    if (!id) continue;
+    const fallback = id === HUANAN_YONGCHANG_PROFILE_ID ? huananYongchangBrokerProfile : defaultBrokerProfile;
+    byId.set(id, normalizeBrokerProfile(obj, fallback));
+  }
+  // Built-ins are authoritative for their finance contract.
+  byId.set(defaultBrokerProfile.id, { ...defaultBrokerProfile });
+  byId.set(huananYongchangBrokerProfile.id, { ...huananYongchangBrokerProfile });
+  return Array.from(byId.values());
+}
+
+export function isHuananBroker(value?: string | null): boolean {
+  const normalized = String(value ?? '').replace(/\s+/g, '').toLowerCase();
+  return normalized === HUANAN_YONGCHANG_PROFILE_ID || normalized.includes('華南永昌');
 }
 
 /**
- * Resolve a fee strategy for one holding. An explicitly named holding broker wins over
- * the global default so selecting Huanan as the default never changes another broker's
- * existing holdings. Holdings without a broker inherit the current global profile.
+ * Resolve by stable id first. A legacy broker display name is only a migration fallback.
+ * Unknown/deleted ids safely fall back to App Default.
  */
-export function resolveBrokerFeeSettings(broker:string|undefined,settings:FeeSettings=defaultFeeSettings):FeeSettings{
-  const brokerName=String(broker??'').trim();
-  const hasBroker=brokerName.length>0;
-  const globalHuanan=settings.brokerProfileId==='huanan-yongchang'||isHuananBroker(settings.brokerName);
-  if(isHuananBroker(brokerName)){
-    return globalHuanan?{...settings,brokerProfileId:'huanan-yongchang',brokerName:'華南永昌證券'}:huananYongchangFeeSettings;
+export function resolveBrokerProfile(
+  brokerProfileId?: string | null,
+  profiles: BrokerProfile[] = builtInBrokerProfiles,
+  legacyBrokerName?: string | null,
+): BrokerProfile {
+  const normalized = normalizeBrokerProfiles(profiles);
+  const id = String(brokerProfileId ?? '').trim();
+  if (id) {
+    const found = normalized.find(profile => profile.id === id);
+    return found ? { ...found } : { ...defaultBrokerProfile };
   }
-  if(!hasBroker&&globalHuanan){
-    return {...settings,brokerProfileId:'huanan-yongchang',brokerName:'華南永昌證券'};
-  }
-  if(hasBroker&&globalHuanan){
-    return {...defaultFeeSettings,brokerName};
-  }
-  return settings;
+  if (isHuananBroker(legacyBrokerName)) return { ...huananYongchangBrokerProfile };
+  return { ...defaultBrokerProfile };
 }
 
-export function truncateTowardZero(value:number,digits=2){
-  if(!Number.isFinite(value))return 0;
-  const f=10**Math.max(0,Math.trunc(digits));
-  return Math.trunc(value*f)/f;
+export function applyRounding(value: number, mode: RoundingMode): number {
+  if (!Number.isFinite(value)) return 0;
+  if (mode === 'ceil') return Math.ceil(value);
+  if (mode === 'round') return Math.round(value);
+  return Math.floor(value);
 }
 
-export type BrokerBookValueEstimate={
-  grossAmount:number;
-  sellFee:number;
-  sellTax:number;
-  bookValue:number;
+export function truncateTowardZero(value: number, digits = 2): number {
+  if (!Number.isFinite(value)) return 0;
+  const factor = 10 ** Math.max(0, digits);
+  return Math.trunc(value * factor) / factor;
+}
+
+export function roundForDisplay(value: number, mode: DisplayRoundingMode, digits: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (mode === 'raw') return value;
+  if (mode === 'truncate') return truncateTowardZero(value, digits);
+  const factor = 10 ** Math.max(0, digits);
+  return Math.round(value * factor) / factor;
+}
+
+const profileLike = (settings: FeeSettings | BrokerProfile = defaultBrokerProfile) => {
+  const canonical = 'commissionRate' in settings;
+  return {
+    commissionRate: finiteOr(canonical ? settings.commissionRate : settings.feeRate, defaultBrokerProfile.commissionRate),
+    commissionDiscount: finiteOr(canonical ? settings.commissionDiscount : settings.discount, defaultBrokerProfile.commissionDiscount),
+    minimumCommission: Math.max(0, finiteOr(canonical ? settings.minimumCommission : settings.minimumFee, defaultBrokerProfile.minimumCommission)),
+    commissionRounding: canonical ? settings.commissionRounding : defaultBrokerProfile.commissionRounding,
+    etfSellTaxRate: Math.max(0, finiteOr(settings.etfSellTaxRate, defaultBrokerProfile.etfSellTaxRate)),
+    stockSellTaxRate: Math.max(0, finiteOr(settings.stockSellTaxRate, defaultBrokerProfile.stockSellTaxRate)),
+    taxRounding: canonical ? settings.taxRounding : defaultBrokerProfile.taxRounding,
+    discountMode: settings.discountMode ?? defaultBrokerProfile.discountMode,
+  };
 };
 
-export function estimateBrokerBookValue(tradeAmount:number,settings:FeeSettings):BrokerBookValueEstimate{
-  const grossAmount=Math.floor(Math.max(0,Number(tradeAmount)||0));
-  if(grossAmount<=0)return {grossAmount:0,sellFee:0,sellTax:0,bookValue:0};
-  const sellFee=estimateSellFee(grossAmount,settings);
-  const sellTax=estimateSellTaxBySettings(grossAmount,settings);
-  return {grossAmount,sellFee,sellTax,bookValue:grossAmount-sellFee-sellTax};
+export type CommissionQuote = {
+  tradeAmount: number;
+  grossFee: number;
+  chargedFee: number;
+  rebate: number;
+};
+
+export function estimateCommissionQuote(tradeAmount: number, settings: FeeSettings | BrokerProfile = defaultBrokerProfile): CommissionQuote {
+  const p = profileLike(settings);
+  const amount = Math.max(0, Number(tradeAmount) || 0);
+  const grossFee = Math.max(p.minimumCommission, applyRounding(amount * p.commissionRate, p.commissionRounding));
+  const discounted = Math.max(p.minimumCommission, applyRounding(amount * p.commissionRate * p.commissionDiscount, p.commissionRounding));
+  if (p.discountMode === 'monthlyRebate') {
+    return { tradeAmount: amount, grossFee, chargedFee: grossFee, rebate: Math.max(0, grossFee - discounted) };
+  }
+  return { tradeAmount: amount, grossFee, chargedFee: discounted, rebate: 0 };
+}
+
+export function estimateBuyFee(tradeAmount: number, settings: FeeSettings | BrokerProfile = defaultBrokerProfile): number {
+  return estimateCommissionQuote(tradeAmount, settings).chargedFee;
+}
+
+export function estimateSellFee(tradeAmount: number, settings: FeeSettings | BrokerProfile = defaultBrokerProfile): number {
+  return estimateCommissionQuote(tradeAmount, settings).chargedFee;
+}
+
+export function estimateEtfSellTax(tradeAmount: number, taxRate = defaultBrokerProfile.etfSellTaxRate): number {
+  return applyRounding(Math.max(0, Number(tradeAmount) || 0) * Math.max(0, Number(taxRate) || 0), defaultBrokerProfile.taxRounding);
+}
+
+export function estimateSellTaxByProfile(
+  tradeAmount: number,
+  profile: BrokerProfile = defaultBrokerProfile,
+  instrumentType: 'etf' | 'stock' = 'etf',
+): number {
+  const rate = instrumentType === 'stock' ? profile.stockSellTaxRate : profile.etfSellTaxRate;
+  return applyRounding(Math.max(0, Number(tradeAmount) || 0) * rate, profile.taxRounding);
+}
+
+export function estimateSellTaxBySettings(tradeAmount: number, settings: FeeSettings | BrokerProfile = defaultBrokerProfile): number {
+  const p = profileLike(settings);
+  return applyRounding(Math.max(0, Number(tradeAmount) || 0) * p.etfSellTaxRate, p.taxRounding);
+}
+
+export function estimateBrokerBookValue(
+  tradeAmount: number,
+  settings: FeeSettings | BrokerProfile = defaultBrokerProfile,
+  instrumentType: 'etf' | 'stock' = 'etf',
+) {
+  const canonical = 'commissionRate' in settings ? settings : null;
+  const grossAmount = canonical
+    ? applyRounding(Math.max(0, Number(tradeAmount) || 0), canonical.tradeAmountRounding)
+    : Math.floor(Math.max(0, Number(tradeAmount) || 0));
+  const sellFee = estimateSellFee(grossAmount, settings);
+  const sellTax = canonical
+    ? estimateSellTaxByProfile(grossAmount, canonical, instrumentType)
+    : estimateSellTaxBySettings(grossAmount, settings);
+  return { grossAmount, sellFee, sellTax, bookValue: grossAmount - sellFee - sellTax };
+}
+
+export function profileToFeeSettings(profile: BrokerProfile): FeeSettings {
+  return {
+    brokerProfileId: profile.id,
+    brokerName: profile.name,
+    feeRate: profile.commissionRate,
+    discount: profile.commissionDiscount,
+    minimumFee: profile.minimumCommission,
+    discountMode: profile.discountMode,
+    orderChannel: profile.orderChannel,
+    lotType: profile.lotType,
+    etfSellTaxRate: profile.etfSellTaxRate,
+    stockSellTaxRate: profile.stockSellTaxRate,
+    unrealizedPLMode: profile.unrealizedPLMode,
+    marketValueMode: profile.marketValueMode,
+    includeEstimatedSellFee: profile.includeEstimatedSellFee,
+    includeEstimatedSellTax: profile.includeEstimatedSellTax,
+  };
+}
+
+export const defaultFeeSettings: FeeSettings = profileToFeeSettings(defaultBrokerProfile);
+
+export function makeHuananFeeSettings(args: Partial<FeeSettings> = {}): FeeSettings {
+  return {
+    ...profileToFeeSettings(huananYongchangBrokerProfile),
+    ...args,
+    brokerProfileId: HUANAN_YONGCHANG_PROFILE_ID,
+    brokerName: args.brokerName ?? huananYongchangBrokerProfile.name,
+  };
+}
+
+export const huananYongchangFeeSettings: FeeSettings = makeHuananFeeSettings();
+
+/** Legacy resolver retained for existing forms while state migrates to BrokerProfile[]. */
+export function resolveBrokerFeeSettings(broker?: string | null, settings: FeeSettings = defaultFeeSettings): FeeSettings {
+  const hasBroker = Boolean(String(broker ?? '').trim());
+  if (hasBroker && isHuananBroker(broker)) return makeHuananFeeSettings();
+  if (hasBroker) return { ...settings, brokerProfileId: settings.brokerProfileId ?? DEFAULT_BROKER_PROFILE_ID, brokerName: String(broker) };
+  if (settings.brokerProfileId === HUANAN_YONGCHANG_PROFILE_ID || isHuananBroker(settings.brokerName)) return makeHuananFeeSettings(settings);
+  return { ...defaultFeeSettings, ...settings, brokerProfileId: settings.brokerProfileId ?? DEFAULT_BROKER_PROFILE_ID };
 }
