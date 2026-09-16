@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { defaultAppSettings, loadAppState } from '../storage/appStorage';
-import { defaultFeeSettings, normalizeBrokerProfiles } from '../data/tradeSettings';
+import type { DividendFrequency, ETFItem, TradeMode, Transaction } from '../types/etf';
+import { calculateETFSummary, calculatePurchaseCost } from '../utils/etfCalculators';
 import { initialHoldings } from '../data/portfolio';
 import { mergeUnifiedMonitorPreferences } from './monitoring';
 import { defaultPageCardFields, defaultPageCardSpans, defaultV3Preferences, makeDefaultPageLayouts, seedLedgerFromHoldings, V3State } from './model';
@@ -8,13 +9,18 @@ import { defaultRegisteredNodes } from '../ui/universalRegistry';
 
 export const V3_STATE_KEY='@etf-finance-manager/v3-state';
 const KEY=V3_STATE_KEY;
-const SCHEMA=17;
+const SCHEMA=18;
 
 const LEGACY_FIELD_KEYS:Record<string,string>={
  totalInvestedCost:'historicalCashOutflow',
 };
 const normalizeFieldKey=(key:string)=>LEGACY_FIELD_KEYS[key]??key;
 const normalizeFieldList=(raw:any, fallback:string[]=[])=>Array.isArray(raw)?Array.from(new Set(raw.map((x:any)=>normalizeFieldKey(String(x))))):fallback;
+
+const validMode=(value:unknown):value is TradeMode=>value==='ROUND_LOT'||value==='ODD_LOT';
+const inferMode=(shares:unknown):TradeMode=>{const n=Math.max(0,Number(shares)||0);return n>=1000&&n%1000===0?'ROUND_LOT':'ODD_LOT';};
+const validFrequency=(value:unknown):value is DividendFrequency=>value===1||value===2||value===4||value===6||value===12;
+function canonicalSellCharges(symbol:string,shares:number,price:number,mode:TradeMode){const tx:Transaction={id:'migration-probe',etfCode:symbol,type:'BUY',tradeMode:mode,shares,price,date:'2000-01-01'};const item:ETFItem={etfCode:symbol,name:symbol,currentPrice:price,liquidationTradeMode:mode,dividendFrequency:1,transactions:[tx],dividendRecords:[]};const s=calculateETFSummary(item);return {amount:s.currentMarketValue,fee:s.estimatedSellCommission,tax:s.estimatedSellTax};}
 
 function mergeState(p:Partial<V3State>):V3State{
  const sourceSchema=Number((p as any).schemaVersion??0);
@@ -98,17 +104,18 @@ function mergeState(p:Partial<V3State>):V3State{
  const migratedEditorNodes=(pp.editorNodes&&typeof pp.editorNodes==='object')?{...pp.editorNodes}:{};
  if(sourceSchema<16){for(const id of Object.keys(migratedEditorNodes))if(id.startsWith('metric:daily-history:')||id.startsWith('metric:dividend-event:'))delete migratedEditorNodes[id];}
  const reconciledCash=Number((p as any).cashReconciliation?.actualBalance);
+ const stripRemovedFinanceOverrides=(raw:any)=>{const rest={...raw};for(const key of Object.keys(rest))if(/^(feeRate|feeDiscount)$|broker.*profile/i.test(key))delete rest[key];return rest;};
+ const normalizedHoldings=(Array.isArray(p.holdings)?p.holdings:[]).map((raw:any)=>{const rest=stripRemovedFinanceOverrides(raw);return {...rest,liquidationTradeMode:validMode(raw.liquidationTradeMode)?raw.liquidationTradeMode:inferMode(raw.shares),dividendFrequency:validFrequency(raw.dividendFrequency)?raw.dividendFrequency:1};});
+ const rawLedger=(Array.isArray(p.ledger)&&p.ledger.length?p.ledger:seedLedgerFromHoldings(normalizedHoldings)).map((raw:any)=>{const rest=stripRemovedFinanceOverrides(raw);if(raw.kind!=='buy'&&raw.kind!=='sell')return rest;const shares=Math.max(0,Number(raw.shares)||0),price=Math.max(0,Number(raw.price)||0),tradeMode=validMode(raw.tradeMode)?raw.tradeMode:inferMode(shares);if(raw.kind==='buy'){const buy=calculatePurchaseCost({id:String(raw.id),etfCode:String(raw.symbol??''),type:'BUY',tradeMode,shares,price,date:String(raw.date??'')});return {...rest,tradeMode,amount:buy.tradeAmount,fee:buy.commission,tax:0};}const sell=canonicalSellCharges(String(raw.symbol??''),shares,price,tradeMode);return {...rest,tradeMode,amount:sell.amount,fee:sell.fee,tax:sell.tax};});
  return {
   schemaVersion:SCHEMA,
-  holdings:Array.isArray(p.holdings)?p.holdings:[],
+  holdings:normalizedHoldings,
   dividends:Array.isArray(p.dividends)?p.dividends:[],
-  ledger:Array.isArray(p.ledger)?p.ledger:[],
+  ledger:rawLedger,
   cashBalance:Number.isFinite(reconciledCash)?reconciledCash:Number(p.cashBalance??0),
   cashReconciliation:(p as any).cashReconciliation&&typeof (p as any).cashReconciliation==='object'?(p as any).cashReconciliation:{},
   preferences:{...defaultV3Preferences,...pp,market,ai,visibility,money,calendar,lifestyleProgress,ticker,dailyPnl,chartInteraction,themeId:pp.themeId??defaultV3Preferences.themeId,navDisplayMode:pp.navDisplayMode??defaultV3Preferences.navDisplayMode,iconDisplay:{...defaultV3Preferences.iconDisplay,...(pp.iconDisplay??{})},customThemes:Array.isArray(pp.customThemes)?pp.customThemes.slice(0,5):[],pageCardFields,pageCardSpans,homeCardFields:home,homeCardSpans:Array.isArray(pp.homeCardSpans)?pp.homeCardSpans:[{},{},{}],pageLayouts,selectedEtfFields:normalizeFieldList(pp.selectedEtfFields,defaultV3Preferences.selectedEtfFields),selectedEtfFieldSpans:(pp.selectedEtfFieldSpans&&typeof pp.selectedEtfFieldSpans==='object')?pp.selectedEtfFieldSpans:{},selectedEtfSymbols:Array.isArray(pp.selectedEtfSymbols)?pp.selectedEtfSymbols:[],watchlistSymbols:normalizeFieldList(pp.watchlistSymbols,[]),globalEditMode:Boolean(pp.globalEditMode??false),editorPresets:Array.isArray(pp.editorPresets)?pp.editorPresets.slice(-30):[],editorNodes:{...defaultRegisteredNodes(),...migratedEditorNodes},holdingFocusSort:pp.holdingFocusSort??defaultV3Preferences.holdingFocusSort,holdingFocusMax:Number(pp.holdingFocusMax??defaultV3Preferences.holdingFocusMax),holdingFocusOnDashboard:pp.holdingFocusOnDashboard??defaultV3Preferences.holdingFocusOnDashboard,holdingFocusOnPortfolio:pp.holdingFocusOnPortfolio??defaultV3Preferences.holdingFocusOnPortfolio,pageTitles:(pp.pageTitles&&typeof pp.pageTitles==='object')?pp.pageTitles:{},customMetrics:Array.isArray(pp.customMetrics)?pp.customMetrics:[],monitoring:mergeUnifiedMonitorPreferences(pp.monitoring)},
   appSettings:{...defaultAppSettings,...(p.appSettings??{}),widget:{...defaultAppSettings.widget,...(p.appSettings?.widget??{})},ota:{...defaultAppSettings.ota,...(p.appSettings?.ota??{})},goals:{...defaultAppSettings.goals,...(p.appSettings?.goals??{})},closeNotification:{...defaultAppSettings.closeNotification,...(p.appSettings?.closeNotification??{})},layout:{...defaultAppSettings.layout,...(p.appSettings?.layout??{})}},
-  feeSettings:{...defaultFeeSettings,...(p.feeSettings??{})},
-  brokerProfiles:normalizeBrokerProfiles((p as any).brokerProfiles),
   dailySnapshots:Array.isArray(p.dailySnapshots)?p.dailySnapshots:[],
   intradayPnlPoints:Array.isArray((p as any).intradayPnlPoints)?(p as any).intradayPnlPoints:[],
   savingsPlans:Array.isArray((p as any).savingsPlans)?(p as any).savingsPlans:[],
@@ -131,7 +138,6 @@ export async function loadV3State():Promise<V3State>{
   cashReconciliation:{},
   preferences:{...defaultV3Preferences,fontScale:old?.settings?.layout?.fontScale??100,cardRadius:old?.settings?.layout?.cardRadius??16,cardOpacity:old?.settings?.layout?.cardOpacity??82,market:{...defaultV3Preferences.market,refreshSeconds:old?.settings?.widget?.refreshSeconds??5}},
   appSettings:old?.settings??defaultAppSettings,
-  feeSettings:old?.feeSettings??defaultFeeSettings,
   dailySnapshots:old?.dailySnapshots??[],
   intradayPnlPoints:[],
   savingsPlans:[],

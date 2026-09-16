@@ -8,7 +8,7 @@ import { APP_STATE_KEY } from '../storage/appStorage';
 import { V3_STATE_KEY } from '../v3/storage';
 import { fetchTwseQuotes } from './twse';
 import { ProfitWidget } from '../widgets/ProfitWidget';
-import { portfolioMetrics } from '../v3/engine';
+import { calculatePortfolioView } from '../v3/engine';
 import { widgetAppearance } from '../v3/themes';
 
 const QUOTE_KEY='@etf-finance-manager/widget-quotes';
@@ -77,10 +77,10 @@ try{
 
    const widgetHoldings=holdings.map((h:any)=>({...h,price:snapshot[h.symbol]?.price??h.fallbackPrice??h.avgCost,previousClose:snapshot[h.symbol]?.previousClose??snapshot[h.symbol]?.price??h.fallbackPrice??h.avgCost}));
    const month=`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
-   const metrics=state.isV3?portfolioMetrics(holdings,fresh as any,state.cashBalance,state.ledger,state.dividends):null;
+   const metrics=state.isV3?calculatePortfolioView(holdings,fresh as any,state.cashBalance,state.ledger,state.dividends):null;
    const monthDividend=state.isV3?state.dividends.filter((e:any)=>(e.payDate||'').startsWith(month)).reduce((a:number,e:any)=>a+Number(e.actualAmount??0),0):0;
    const monthContribution=state.isV3?state.ledger.filter((e:any)=>e.kind==='buy'&&String(e.date||'').startsWith(month)).reduce((a:number,e:any)=>a+Number(e.amount??0)+Number(e.fee??0),0):0;
-   const extras=metrics?{...(previousPayload?.extras??{}),cumulativeDividend:metrics.cumulativeDividends,monthDividend,monthContribution,holdingCount:holdings.length,cashBalance:state.cashBalance,totalPnl:metrics.totalPnl,totalRoi:metrics.totalRoi,totalAssets:metrics.totalAssets,historicalTradeCost:metrics.historicalTradeCost,historicalBuyFees:metrics.historicalBuyFees,historicalCashOutflow:metrics.historicalCashOutflow,currentTradeCost:metrics.currentTradeCost,currentCashBasis:metrics.currentCashBasis,pricePnl:metrics.pricePnl,cashUnrealizedPnl:metrics.cashUnrealizedPnl,realizedPnl:metrics.realizedCashPnl,...buildTrend(state,ws,previousPayload?.extras??{},metrics),...(state.preferences?widgetAppearance(state.preferences):{})}:(previousPayload?.extras??{});
+   const extras=metrics?{...(previousPayload?.extras??{}),portfolioSummary:metrics.canonicalSummary,cumulativeDividend:metrics.cumulativeDividends,monthDividend,monthContribution,holdingCount:holdings.length,cashBalance:state.cashBalance,totalPnl:metrics.totalPnl,totalRoi:metrics.totalRoi,totalAssets:metrics.totalAssets,historicalTradeCost:metrics.historicalTradeCost,historicalBuyFees:metrics.historicalBuyFees,historicalCashOutflow:metrics.historicalCashOutflow,currentTradeCost:metrics.currentTradeCost,currentCashBasis:metrics.currentCashBasis,pricePnl:metrics.pricePnl,cashUnrealizedPnl:metrics.cashUnrealizedPnl,realizedPnl:metrics.realizedCashPnl,...buildTrend(state,ws,previousPayload?.extras??{},metrics),...(state.preferences?widgetAppearance(state.preferences):{})}:(previousPayload?.extras??{});
    const payload={holdings:widgetHoldings,opacity:Number(ws.opacity??85),isActive:mode.status==='live',updatedAt:now,displayFields:ws.displayFields,selectedSymbols:ws.selectedSymbols,fontScale:Number(ws.fontScale??100),align:ws.align??'left',extras,showStatusLight:ws.showStatusLight!==false,showTrendChart:ws.showTrendChart!==false,trendChartType:ws.trendChartType??previousPayload?.trendChartType??'area',status:mode.status};
    await AsyncStorage.setItem(PAYLOAD_KEY,JSON.stringify(payload));
    try{const raw=await AsyncStorage.getItem(META_KEY);const prev=raw?JSON.parse(raw):{};await AsyncStorage.setItem(META_KEY,JSON.stringify({...prev,version:Number(prev.version??0)+1,appWrittenAt:now,widgetRenderedAt:now,source:'Background TWSE Snapshot',status:mode.status}))}catch{}

@@ -2,7 +2,7 @@ import { Holding, PurchaseRecord } from '../data/portfolio';
 import { DividendEvent } from '../screens/DividendCalendarScreen';
 import { defaultUnifiedMonitorPreferences, type UnifiedMonitorPreferences } from './monitoring';
 import { AppSettings, DailySnapshot } from '../storage/appStorage';
-import { BrokerProfile, FeeSettings } from '../data/tradeSettings';
+import type { TradeMode } from '../types/etf';
 import type { UniversalEditorNode } from '../ui/editorSchema';
 
 export type LedgerKind = 'buy' | 'sell' | 'dividend' | 'cashIn' | 'cashOut';
@@ -22,12 +22,12 @@ export type LedgerEntry = {
   date: string;
   shares?: number;
   price?: number;
+  tradeMode?: TradeMode;
   amount: number; // 成交金額或現金流原始金額，不混入手續費
   fee?: number;
   tax?: number;
   strategy?: StrategyKind;
   broker?: string;
-  brokerProfileId?: string;
   account?: string;
   dividendEventId?: string;
   note?: string;
@@ -218,8 +218,6 @@ export type V3State = {
   cashReconciliation: CashReconciliation;
   preferences: V3Preferences;
   appSettings: AppSettings;
-  feeSettings: FeeSettings;
-  brokerProfiles: BrokerProfile[];
   dailySnapshots: DailySnapshot[];
   intradayPnlPoints:IntradayPnlPoint[];
   savingsPlans:SavingsPlan[];
@@ -325,7 +323,7 @@ export function seedLedgerFromHoldings(holdings: Holding[]): LedgerEntry[] {
         kind: 'buy', symbol: h.symbol, name: h.name,
         date: r.date, shares: r.shares, price: r.tradePrice,
         amount: r.purchaseCost, fee: r.fee, strategy: 'long', note: '由既有購入紀錄轉入',
-        broker:h.broker,account:h.account,
+        tradeMode:h.liquidationTradeMode,broker:h.broker,account:h.account,
       });
     } else {
       const avg=Number(h.tradeAvgPrice??h.avgCost??0);
@@ -334,7 +332,7 @@ export function seedLedgerFromHoldings(holdings: Holding[]): LedgerEntry[] {
         kind: 'buy', symbol: h.symbol, name: h.name,
         date: '既有庫存', shares: h.shares, price: avg,
         amount: h.shares * avg, fee: h.buyFee ?? 0,
-        strategy: 'long', note: '由舊版既有庫存轉入', broker:h.broker,account:h.account,
+        tradeMode:h.liquidationTradeMode,strategy: 'long', note: '由既有庫存轉入', broker:h.broker,account:h.account,
       });
     }
   }

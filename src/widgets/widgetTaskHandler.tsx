@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
 import { ProfitWidget, WidgetHolding } from './ProfitWidget';
 import { fetchTwseQuotes } from '../services/twse';
-import { portfolioMetrics } from '../v3/engine';
+import { calculatePortfolioView, calculatePortfolioCoreSummary } from '../v3/engine';
 import { widgetAppearance } from '../v3/themes';
 
 const STATE_KEY='@etf-finance-manager/app-state';
@@ -77,7 +77,7 @@ async function buildData(){
   const cashBalance=isV3?Number(state?.cashBalance??0):0;
   let extras:any=payload?.extras??{};
   if(isV3&&holdings.length){
-    const m=portfolioMetrics(holdingsSource,quotes as any,cashBalance,ledger,dividends);
+    const m=calculatePortfolioView(holdingsSource,quotes as any,cashBalance,ledger,dividends);
     const month=`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
     extras={
       ...extras,
@@ -86,6 +86,7 @@ async function buildData(){
       monthContribution:ledger.filter((e:any)=>e.kind==='buy'&&String(e.date||'').startsWith(month)).reduce((a:number,e:any)=>a+Number(e.amount??0)+Number(e.fee??0),0),
       holdingCount:holdings.length,
       cashBalance,
+      portfolioSummary:calculatePortfolioCoreSummary(holdingsSource,quotes as any,ledger,dividends,ws.selectedSymbols??[]),
       totalPnl:m.totalPnl,totalRoi:m.totalRoi,totalAssets:m.totalAssets,
       historicalTradeCost:m.historicalTradeCost,historicalBuyFees:m.historicalBuyFees,historicalCashOutflow:m.historicalCashOutflow,
       currentTradeCost:m.currentTradeCost,currentCashBasis:m.currentCashBasis,pricePnl:m.pricePnl,cashUnrealizedPnl:m.cashUnrealizedPnl,realizedPnl:m.realizedCashPnl
@@ -163,12 +164,12 @@ async function refreshFromTwse(props:WidgetTaskHandlerProps){
     const cashBalance=isV3?Number(state?.cashBalance??0):0;
     let extras=existing.extras??{};
     if(isV3){
-      const m=portfolioMetrics(rawHoldings,fresh as any,cashBalance,ledger,dividends);
+      const m=calculatePortfolioView(rawHoldings,fresh as any,cashBalance,ledger,dividends);
       const month=`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
       extras={...extras,cumulativeDividend:m.cumulativeDividends,
         monthDividend:dividends.filter((e:any)=>(e.payDate||'').startsWith(month)).reduce((a:number,e:any)=>a+Number(e.actualAmount??0),0),
         monthContribution:ledger.filter((e:any)=>e.kind==='buy'&&String(e.date||'').startsWith(month)).reduce((a:number,e:any)=>a+Number(e.amount??0)+Number(e.fee??0),0),
-        holdingCount:rawHoldings.length,cashBalance,totalPnl:m.totalPnl,totalRoi:m.totalRoi,totalAssets:m.totalAssets,
+        holdingCount:rawHoldings.length,cashBalance,portfolioSummary:calculatePortfolioCoreSummary(rawHoldings,fresh as any,ledger,dividends,ws.selectedSymbols??[]),totalPnl:m.totalPnl,totalRoi:m.totalRoi,totalAssets:m.totalAssets,
         historicalTradeCost:m.historicalTradeCost,historicalBuyFees:m.historicalBuyFees,historicalCashOutflow:m.historicalCashOutflow,
         currentTradeCost:m.currentTradeCost,currentCashBasis:m.currentCashBasis,pricePnl:m.pricePnl,cashUnrealizedPnl:m.cashUnrealizedPnl,realizedPnl:m.realizedCashPnl};
       extras={...extras,...appendCurrentTrend(state,ws,extras,m)};

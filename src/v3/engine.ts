@@ -55,7 +55,7 @@ function canonicalTransactions(symbol:string,ledger:LedgerEntry[]):Transaction[]
   .map(e=>({
    id:e.id,
    etfCode:symbol,
-   type:e.kind==='buy'?'BUY':'SELL',
+   type:e.kind==='buy'?('BUY' as const):('SELL' as const),
    tradeMode:requiredTradeMode((e as LedgerEntry&{tradeMode?:TradeMode}).tradeMode,`交易 ${e.id}`),
    shares:Math.max(0,Number(e.shares??0)),
    price:Math.max(0,Number(e.price??0)),
@@ -210,9 +210,13 @@ export function calculateHoldingView(h:Holding,quotes:Record<string,QuoteLike>,l
  };
 }
 
+export function calculatePortfolioCoreSummary(holdings:Holding[],quotes:Record<string,QuoteLike>,ledger:LedgerEntry[],dividends:DividendEvent[],selectedSymbols:string[]=[]){
+ const selected=selectedSymbols.length?holdings.filter(h=>selectedSymbols.includes(h.symbol)):holdings;
+ return calculatePortfolioSummary(selected.map(h=>toETFItem(h,quotes,ledger,dividends)));
+}
+
 export function calculatePortfolioView(holdings:Holding[],quotes:Record<string,QuoteLike>,cashBalance:number,ledger:LedgerEntry[],dividends:DividendEvent[]){
- const items=holdings.map(h=>toETFItem(h,quotes,ledger,dividends));
- const canonical=calculatePortfolioSummary(items);
+ const canonical=calculatePortfolioCoreSummary(holdings,quotes,ledger,dividends);
  const rows=holdings.map(h=>calculateHoldingView(h,quotes,ledger,dividends));
  const historicalTradeCost=rows.reduce((s,m)=>s+m.historicalTradeCost,0);
  const historicalBuyFees=rows.reduce((s,m)=>s+m.historicalBuyFees,0);
@@ -224,13 +228,14 @@ export function calculatePortfolioView(holdings:Holding[],quotes:Record<string,Q
  const realizedCashPnl=rows.reduce((s,m)=>s+m.realizedCashPnl,0);
  const cumulativeDividends=calculateDividendIncome(ledger,dividends);
  const todayPnl=rows.reduce((s,m)=>s+m.todayPnl,0);
- const previousValue=rows.reduce((s,m)=>s+(Number(m.previousClose??m.price)*Math.max(0,Number(holdings.find(h=>h.symbol===items[rows.indexOf(m)]?.etfCode)?.shares??0))),0);
+ const previousValue=rows.reduce((s,m,index)=>s+(Number(m.previousClose??m.price)*Math.max(0,Number(holdings[index]?.shares??0))),0);
  const todayPnlPct=previousValue>0?roundPercent(todayPnl/previousValue*100):0;
  const pendingDividends=dividends.filter(e=>Number(e.actualAmount??0)<=0).reduce((s,e)=>s+Number(e.estimatedAmount??0),0);
  const safeCash=Number.isFinite(Number(cashBalance))?Number(cashBalance):0;
  const totalAssets=canonical.totalMarketValue+safeCash;
  const comprehensivePnl=canonical.totalUnrealizedProfit+realizedCashPnl+cumulativeDividends;
  return {
+  canonicalSummary:canonical,
   historicalTradeCost,historicalBuyFees,historicalCashOutflow,
   currentTradeCost,currentAllocatedBuyFees,currentCashBasis,
   grossMarketValue:canonical.totalMarketValue,

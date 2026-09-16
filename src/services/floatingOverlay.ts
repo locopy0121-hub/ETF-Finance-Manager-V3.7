@@ -3,7 +3,7 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { Holding } from '../data/portfolio';
 import type { DividendEvent } from '../screens/DividendCalendarScreen';
 import type { LedgerEntry, V3Preferences } from '../v3/model';
-import { holdingMetrics, portfolioMetrics } from '../v3/engine';
+import { calculateHoldingView, calculatePortfolioView } from '../v3/engine';
 import type { MonitorField } from '../v3/monitoring';
 import { monitorTemplate } from '../v3/monitorTemplates';
 
@@ -18,10 +18,10 @@ export function setFloatingOverlayLayoutSize(width:number,height:number){try{ret
 
 export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holding[];quotes:Record<string,any>;ledger:LedgerEntry[];dividends:DividendEvent[];cashBalance:number;lastSuccessAt?:number;marketState:string}){
  const {prefs,holdings,quotes,ledger,dividends,cashBalance,lastSuccessAt,marketState}=args;
- const profile=prefs.monitoring?.floating,m=portfolioMetrics(holdings,quotes,cashBalance,ledger,dividends);
+ const profile=prefs.monitoring?.floating,m=calculatePortfolioView(holdings,quotes,cashBalance,ledger,dividends);
  const selectedSymbols=profile?.selectedSymbols??[];const sourceSymbols=profile?.symbolSource==='watchlist'?prefs.watchlistSymbols:profile?.symbolSource==='all'?Array.from(new Set([...Object.keys(quotes),...prefs.watchlistSymbols,...holdings.map(h=>h.symbol)])):holdings.map(h=>h.symbol);const wanted=selectedSymbols.length?sourceSymbols.filter(x=>selectedSymbols.includes(x)):sourceSymbols;const selected=Array.from(new Set(wanted));
  const rowLimit=Math.max(1,Math.min(30,profile?.maxSymbols??6)); const allPositions=selected.map(symbol=>{const h=holdings.find(x=>x.symbol===symbol);const q=quotes[symbol]??{};if(!h)return {symbol,name:String(q.name??symbol),shares:0,price:Number(q.price??0),previousClose:Number(q.previousClose??q.price??0),open:Number(q.open??0),high:Number(q.high??0),low:Number(q.low??0),volume:Number(q.volume??0),limitUp:Number(q.limitUp??0),limitDown:Number(q.limitDown??0),pureCost:0,marketValue:0,instantPnl:0,instantRoi:0,nav:Number(q.nav??0),premium:Number(q.nav??0)>0?(Number(q.price??0)/Number(q.nav)-1)*100:0,todayPnl:0,todayPnlPct:Number(q.changePercent??0),change:Number(q.change??Number(q.price??0)-Number(q.previousClose??q.price??0)),changePct:Number(q.changePercent??0)};
-  const hm=holdingMetrics(h,quotes,ledger,dividends);
+  const hm=calculateHoldingView(h,quotes,ledger,dividends);
   return {
    symbol:h.symbol,name:h.name,shares:h.shares,price:hm.price,previousClose:Number(hm.previousClose??hm.price),
    open:Number(hm.open??0),high:Number(hm.high??0),low:Number(hm.low??0),volume:Number(hm.volume??0),limitUp:Number(q.limitUp??0),limitDown:Number(q.limitDown??0),
