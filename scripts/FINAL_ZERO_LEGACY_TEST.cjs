@@ -10,14 +10,14 @@ const banned=[/\bbrokerProfileId\b/g,/\bFeeSettings\b/g,/\bholdingMetrics\b/g,/\
 for(const file of walk('src')){const code=stripComments(fs.readFileSync(file,'utf8'));for(const re of banned){re.lastIndex=0;if(re.test(code))violations.push(`${file}: ${re}`);}}
 if(expectFail){assert.ok(violations.length>0,'RED gate expected legacy violations before final removal');console.log(`FINAL_ZERO_LEGACY_TEST RED: ${violations.length} violation(s) detected as expected`);process.exit(0);}
 const widget=fs.readFileSync('src/widgets/ProfitWidget.tsx','utf8');
-assert.match(widget,/portfolioSummary\?:PortfolioSummary/,'Widget must consume canonical PortfolioSummary');
+assert.match(widget,/portfolioSummary\?\s*:\s*PortfolioSummary/,'Widget must consume canonical PortfolioSummary');
 assert.match(widget,/unrealizedProfit/,'Widget must render canonical unrealizedProfit');
 assert.match(widget,/netLiquidationValue/,'Widget must render canonical netLiquidationValue');
 assert.ok(!/shares\s*\*\s*(?:h\.)?price/.test(widget),'Widget must not calculate market value');
 assert.ok(!/marketValue\s*-\s*(?:current|investment|cost)/i.test(widget),'Widget must not calculate P/L from market value minus cost');
 const task=fs.readFileSync('src/widgets/widgetTaskHandler.tsx','utf8');
 assert.match(task,/calculatePortfolioCoreSummary/,'Widget task adapter must subscribe to canonical portfolio core summary');
-assert.match(task,/portfolioSummary:/,'Widget task payload must carry canonical portfolio summary');
+assert.match(task,/portfolioSummary\s*:/,'Widget task payload must carry canonical portfolio summary');
 const engine=fs.readFileSync('src/v3/engine.ts','utf8');
 assert.match(engine,/return calculatePortfolioSummary\(/,'portfolio adapter must delegate directly to calculatePortfolioSummary');
 assert.match(engine,/requiredTradeMode/,'tradeMode must be runtime-required with no fallback');
