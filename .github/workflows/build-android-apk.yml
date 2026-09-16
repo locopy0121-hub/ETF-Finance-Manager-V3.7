@@ -10,17 +10,21 @@ permissions:
 
 env:
   CI: 'true'
+  EXPECTED_PACKAGE: 'com.etfpilot.twselive'
+  EXPECTED_VERSION_NAME: '3.7.5'
+  EXPECTED_VERSION_CODE: '43'
+  EXPECTED_SIGNING_CERT_SHA256: 'efee34e265df25cb2faa0c20473bccd7e28c34a8a359a9263f4b8006a4f96f06'
 
 jobs:
   verify-and-build:
-    name: Verify V3.7.2 and build signed APK
+    name: Verify V3.7.5 and build signed APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
-      - name: Checkout V3.7.2 source
+      - name: Checkout V3.7.5 source
         uses: actions/checkout@v5
         with:
           fetch-depth: 4
@@ -54,19 +58,21 @@ jobs:
           npx --yes eas-cli@latest whoami --non-interactive
           npx --yes eas-cli@latest project:info
 
-      - name: RED - V3.7.5 downgrade guard
+      - name: V3.7.5 downgrade guard
         run: node scripts/V375_VERSION_CHAIN_GUARD.cjs
 
-      - name: Verify V3.7.2 version chain
+      - name: Verify V3.7.5 version chain
         shell: bash
         run: |
           set -euo pipefail
-          grep -F "APP_SEMVER='3.7.2'" src/v3/version.ts
-          grep -F '"version": "3.7.2"' app.json
-          grep -F '"runtimeVersion": "3.7.2"' app.json
-          grep -F '"versionCode": 40' app.json
-          grep -F 'versionCode 40' android/app/build.gradle
-          grep -F 'versionName "3.7.2"' android/app/build.gradle
+          grep -F "APP_SEMVER='${EXPECTED_VERSION_NAME}'" src/v3/version.ts
+          grep -F "OTA_RUNTIME_VERSION='${EXPECTED_VERSION_NAME}'" src/v3/version.ts
+          grep -F "\"version\": \"${EXPECTED_VERSION_NAME}\"" app.json
+          grep -F "\"runtimeVersion\": \"${EXPECTED_VERSION_NAME}\"" app.json
+          grep -F "\"versionCode\": ${EXPECTED_VERSION_CODE}" app.json
+          grep -F "versionCode ${EXPECTED_VERSION_CODE}" android/app/build.gradle
+          grep -F "versionName \"${EXPECTED_VERSION_NAME}\"" android/app/build.gradle
+          grep -F "applicationId '${EXPECTED_PACKAGE}'" android/app/build.gradle
 
       - name: Apply broker-style open-position PnL formula
         run: python3 scripts/GOGO_V372_BROKER_PNL_FIX.py
@@ -83,7 +89,7 @@ jobs:
       - name: TypeScript
         run: npm run typecheck
 
-      - name: V3.7.2 accounting contracts
+      - name: Accounting contracts
         run: |
           node scripts/ACCOUNTING_CONTRACT_TEST.cjs
           node scripts/ACCOUNTING_GOLDEN_00878.cjs
@@ -114,7 +120,7 @@ jobs:
             src/services/backgroundQuoteTask.tsx \
             src/services/backgroundCloseTask.ts
           if ! git diff --cached --quiet; then
-            git commit -m 'fix(v3.7.2): broker-style open-position PnL [skip ci]'
+            git commit -m 'fix(v3.7.5): preserve broker-style open-position PnL [skip ci]'
             git push origin HEAD:v3.7-upgrade-20260915
           fi
 
@@ -145,7 +151,7 @@ jobs:
           grep -F 'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m' android/gradle.properties
           grep -F 'reactNativeArchitectures=arm64-v8a' android/gradle.properties
 
-      - name: Build V3.7.2 APK locally with EAS-managed signing credentials
+      - name: Build V3.7.5 APK locally with EAS-managed signing credentials
         shell: bash
         run: |
           set -euo pipefail
@@ -156,13 +162,13 @@ jobs:
             --local \
             --non-interactive \
             --freeze-credentials \
-            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.2-GOGO-Broker-PnL-EAS-Signed-ARM64.apk"
+            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.5-GOGO-Finance-EAS-Signed-ARM64.apk"
 
-      - name: Verify signed V3.7.2 APK and package metadata
+      - name: Verify signed V3.7.5 APK and package metadata
         shell: bash
         run: |
           set -euo pipefail
-          OUT='artifacts/ETF-Finance-Manager-V3.7.2-GOGO-Broker-PnL-EAS-Signed-ARM64.apk'
+          OUT='artifacts/ETF-Finance-Manager-V3.7.5-GOGO-Finance-EAS-Signed-ARM64.apk'
           test -s "$OUT"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
@@ -170,17 +176,21 @@ jobs:
           test -x "$AAPT"
           "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/SIGNING_CERT.txt
           "$AAPT" dump badging "$OUT" | grep -E "^package:|^application-label:" | tee artifacts/APK_BADGING.txt
-          grep -F "name='com.etfpilot.twselive'" artifacts/APK_BADGING.txt
-          grep -F "versionName='3.7.2'" artifacts/APK_BADGING.txt
-          grep -F "versionCode='40'" artifacts/APK_BADGING.txt
+          grep -F "name='${EXPECTED_PACKAGE}'" artifacts/APK_BADGING.txt
+          grep -F "versionName='${EXPECTED_VERSION_NAME}'" artifacts/APK_BADGING.txt
+          grep -F "versionCode='${EXPECTED_VERSION_CODE}'" artifacts/APK_BADGING.txt
+          ACTUAL_CERT_SHA256="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' artifacts/SIGNING_CERT.txt | tr '[:upper:]' '[:lower:]' | head -1)"
+          test -n "$ACTUAL_CERT_SHA256"
+          test "$ACTUAL_CERT_SHA256" = "$EXPECTED_SIGNING_CERT_SHA256"
+          printf 'expected_signing_cert_sha256=%s\nactual_signing_cert_sha256=%s\n' "$EXPECTED_SIGNING_CERT_SHA256" "$ACTUAL_CERT_SHA256" | tee artifacts/SIGNING_GUARD.txt
           sha256sum "$OUT" | tee artifacts/SHA256.txt
           stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
           {
             echo 'source_commit='$(git rev-parse HEAD)
-            echo 'package=com.etfpilot.twselive'
-            echo 'versionName=3.7.2'
-            echo 'versionCode=40'
-            echo 'scope=broker-style open-position PnL: gross market value minus estimated sell fee/tax minus current cash basis'
+            echo "package=${EXPECTED_PACKAGE}"
+            echo "versionName=${EXPECTED_VERSION_NAME}"
+            echo "versionCode=${EXPECTED_VERSION_CODE}"
+            echo 'scope=broker-style open-position PnL preserved; version-chain repair only'
             echo 'accounting_contracts=passed_before_build'
             echo 'build_executor=GitHub Actions local EAS build'
             echo 'credentials_source=EAS remote managed credentials'
@@ -189,10 +199,10 @@ jobs:
           } >> artifacts/BUILD_INFO.txt
           unzip -l "$OUT" | grep -E 'assets/index.android.bundle|index.android.bundle'
 
-      - name: Upload V3.7.2 signed APK
+      - name: Upload V3.7.5 signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: ETF-Finance-Manager-V3.7.2-GOGO-Broker-PnL-EAS-Signed-ARM64
+          name: ETF-Finance-Manager-V3.7.5-GOGO-Finance-EAS-Signed-ARM64
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
