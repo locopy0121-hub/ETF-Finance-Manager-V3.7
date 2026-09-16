@@ -22,7 +22,7 @@ rep('src/v3/screensBase.tsx',/\|\|!Number\.isFinite\(r\.fee\)\|\|r\.fee<0/g,'');
 rep('src/v3/screensBase.tsx',/<Field label="手續費" value=\{r\.fee\} onChange=\{v=>patchRecord\(r\.id,\{fee:v\}\)\} keyboard="number-pad" suffix="元"\/>/g,`<SettingRow label="交易模式"><Choice active={r.tradeMode==='ROUND_LOT'} label="整股" onPress={()=>patchRecord(r.id,{tradeMode:'ROUND_LOT'})}/><Choice active={r.tradeMode==='ODD_LOT'} label="盤後零股 / 定期定額" onPress={()=>patchRecord(r.id,{tradeMode:'ODD_LOT'})}/></SettingRow><Text style={s.note}>手續費由華南永昌金融核心自動計算。</Text>`);
 
 // SettingsModal no longer accepts any finance-profile configuration props.
-must('src/v3/screensBase.tsx',/export function SettingsModal\(\{visible,embedded=false,prefs,appSettings,feeSettings,brokerProfiles,marketMeta,holdings,quotes,ledger,dividends,cashBalance,lastSuccessAt,onChange,onWidgetChange,onNotifyChange,onOtaChange,onFeeChange,onBrokerProfilesChange,onCheckOta,/,`export function SettingsModal({visible,embedded=false,prefs,appSettings,marketMeta,holdings,quotes,ledger,dividends,cashBalance,lastSuccessAt,onChange,onWidgetChange,onNotifyChange,onOtaChange,onCheckOta,`,'SettingsModal destructuring');
+rep('src/v3/screensBase.tsx',/feeSettings,brokerProfiles,/g,'');
 rep('src/v3/screensBase.tsx',/;feeSettings:FeeSettings;brokerProfiles:BrokerProfile\[\]/g,'');
 rep('src/v3/screensBase.tsx',/;onFeeChange:\(p:Partial<FeeSettings>\)=>void;onBrokerProfilesChange:\(profiles:BrokerProfile\[\]\)=>void/g,'');
 
