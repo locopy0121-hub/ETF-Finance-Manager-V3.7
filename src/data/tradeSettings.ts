@@ -159,10 +159,10 @@ export function createBrokerProfileFromDefault(args: { id: string; name: string;
 }
 
 export function normalizeBrokerProfiles(raw: unknown): BrokerProfile[] {
-  const source = Array.isArray(raw) ? raw : [];
+  const hasPersistedList = Array.isArray(raw);
+  const source = hasPersistedList ? raw as unknown[] : builtInBrokerProfiles;
   const byId = new Map<string, BrokerProfile>();
   byId.set(defaultBrokerProfile.id, { ...defaultBrokerProfile });
-  byId.set(huananYongchangBrokerProfile.id, { ...huananYongchangBrokerProfile });
   for (const candidate of source) {
     if (!candidate || typeof candidate !== 'object') continue;
     const obj = candidate as Partial<BrokerProfile>;
@@ -171,9 +171,7 @@ export function normalizeBrokerProfiles(raw: unknown): BrokerProfile[] {
     const fallback = id === HUANAN_YONGCHANG_PROFILE_ID ? huananYongchangBrokerProfile : defaultBrokerProfile;
     byId.set(id, normalizeBrokerProfile(obj, fallback));
   }
-  // Built-ins are authoritative for their finance contract.
-  byId.set(defaultBrokerProfile.id, { ...defaultBrokerProfile });
-  byId.set(huananYongchangBrokerProfile.id, { ...huananYongchangBrokerProfile });
+  if (!byId.has(defaultBrokerProfile.id)) byId.set(defaultBrokerProfile.id, { ...defaultBrokerProfile });
   return Array.from(byId.values());
 }
 
@@ -195,10 +193,13 @@ export function resolveBrokerProfile(
   const id = String(brokerProfileId ?? '').trim();
   if (id) {
     const found = normalized.find(profile => profile.id === id);
-    return found ? { ...found } : { ...defaultBrokerProfile };
+    return found ? { ...found } : { ...normalized.find(profile => profile.id === DEFAULT_BROKER_PROFILE_ID) ?? defaultBrokerProfile };
   }
-  if (isHuananBroker(legacyBrokerName)) return { ...huananYongchangBrokerProfile };
-  return { ...defaultBrokerProfile };
+  if (isHuananBroker(legacyBrokerName)) {
+    const legacyHuanan = normalized.find(profile => profile.id === HUANAN_YONGCHANG_PROFILE_ID);
+    if (legacyHuanan) return { ...legacyHuanan };
+  }
+  return { ...normalized.find(profile => profile.id === DEFAULT_BROKER_PROFILE_ID) ?? defaultBrokerProfile };
 }
 
 export function applyRounding(value: number, mode: RoundingMode): number {

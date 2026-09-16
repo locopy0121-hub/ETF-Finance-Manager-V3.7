@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { defaultAppSettings, loadAppState } from '../storage/appStorage';
-import { defaultFeeSettings } from '../data/tradeSettings';
+import { defaultFeeSettings, normalizeBrokerProfiles } from '../data/tradeSettings';
 import { initialHoldings } from '../data/portfolio';
 import { mergeUnifiedMonitorPreferences } from './monitoring';
 import { defaultPageCardFields, defaultPageCardSpans, defaultV3Preferences, makeDefaultPageLayouts, seedLedgerFromHoldings, V3State } from './model';
@@ -8,7 +8,7 @@ import { defaultRegisteredNodes } from '../ui/universalRegistry';
 
 export const V3_STATE_KEY='@etf-finance-manager/v3-state';
 const KEY=V3_STATE_KEY;
-const SCHEMA=16;
+const SCHEMA=17;
 
 const LEGACY_FIELD_KEYS:Record<string,string>={
  totalInvestedCost:'historicalCashOutflow',
@@ -108,6 +108,7 @@ function mergeState(p:Partial<V3State>):V3State{
   preferences:{...defaultV3Preferences,...pp,market,ai,visibility,money,calendar,lifestyleProgress,ticker,dailyPnl,chartInteraction,themeId:pp.themeId??defaultV3Preferences.themeId,navDisplayMode:pp.navDisplayMode??defaultV3Preferences.navDisplayMode,iconDisplay:{...defaultV3Preferences.iconDisplay,...(pp.iconDisplay??{})},customThemes:Array.isArray(pp.customThemes)?pp.customThemes.slice(0,5):[],pageCardFields,pageCardSpans,homeCardFields:home,homeCardSpans:Array.isArray(pp.homeCardSpans)?pp.homeCardSpans:[{},{},{}],pageLayouts,selectedEtfFields:normalizeFieldList(pp.selectedEtfFields,defaultV3Preferences.selectedEtfFields),selectedEtfFieldSpans:(pp.selectedEtfFieldSpans&&typeof pp.selectedEtfFieldSpans==='object')?pp.selectedEtfFieldSpans:{},selectedEtfSymbols:Array.isArray(pp.selectedEtfSymbols)?pp.selectedEtfSymbols:[],watchlistSymbols:normalizeFieldList(pp.watchlistSymbols,[]),globalEditMode:Boolean(pp.globalEditMode??false),editorPresets:Array.isArray(pp.editorPresets)?pp.editorPresets.slice(-30):[],editorNodes:{...defaultRegisteredNodes(),...migratedEditorNodes},holdingFocusSort:pp.holdingFocusSort??defaultV3Preferences.holdingFocusSort,holdingFocusMax:Number(pp.holdingFocusMax??defaultV3Preferences.holdingFocusMax),holdingFocusOnDashboard:pp.holdingFocusOnDashboard??defaultV3Preferences.holdingFocusOnDashboard,holdingFocusOnPortfolio:pp.holdingFocusOnPortfolio??defaultV3Preferences.holdingFocusOnPortfolio,pageTitles:(pp.pageTitles&&typeof pp.pageTitles==='object')?pp.pageTitles:{},customMetrics:Array.isArray(pp.customMetrics)?pp.customMetrics:[],monitoring:mergeUnifiedMonitorPreferences(pp.monitoring)},
   appSettings:{...defaultAppSettings,...(p.appSettings??{}),widget:{...defaultAppSettings.widget,...(p.appSettings?.widget??{})},ota:{...defaultAppSettings.ota,...(p.appSettings?.ota??{})},goals:{...defaultAppSettings.goals,...(p.appSettings?.goals??{})},closeNotification:{...defaultAppSettings.closeNotification,...(p.appSettings?.closeNotification??{})},layout:{...defaultAppSettings.layout,...(p.appSettings?.layout??{})}},
   feeSettings:{...defaultFeeSettings,...(p.feeSettings??{})},
+  brokerProfiles:normalizeBrokerProfiles((p as any).brokerProfiles),
   dailySnapshots:Array.isArray(p.dailySnapshots)?p.dailySnapshots:[],
   intradayPnlPoints:Array.isArray((p as any).intradayPnlPoints)?(p as any).intradayPnlPoints:[],
   savingsPlans:Array.isArray((p as any).savingsPlans)?(p as any).savingsPlans:[],

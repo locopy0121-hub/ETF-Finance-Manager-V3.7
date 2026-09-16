@@ -2,7 +2,7 @@ import { Holding, PurchaseRecord } from '../data/portfolio';
 import { DividendEvent } from '../screens/DividendCalendarScreen';
 import { defaultUnifiedMonitorPreferences, type UnifiedMonitorPreferences } from './monitoring';
 import { AppSettings, DailySnapshot } from '../storage/appStorage';
-import { FeeSettings } from '../data/tradeSettings';
+import { BrokerProfile, FeeSettings } from '../data/tradeSettings';
 import type { UniversalEditorNode } from '../ui/editorSchema';
 
 export type LedgerKind = 'buy' | 'sell' | 'dividend' | 'cashIn' | 'cashOut';
@@ -27,6 +27,7 @@ export type LedgerEntry = {
   tax?: number;
   strategy?: StrategyKind;
   broker?: string;
+  brokerProfileId?: string;
   account?: string;
   dividendEventId?: string;
   note?: string;
@@ -218,6 +219,7 @@ export type V3State = {
   preferences: V3Preferences;
   appSettings: AppSettings;
   feeSettings: FeeSettings;
+  brokerProfiles: BrokerProfile[];
   dailySnapshots: DailySnapshot[];
   intradayPnlPoints:IntradayPnlPoint[];
   savingsPlans:SavingsPlan[];

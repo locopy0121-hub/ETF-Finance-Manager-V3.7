@@ -7,6 +7,7 @@ import {
   defaultFeeSettings,
   estimateBrokerBookValue,
   resolveBrokerProfile,
+  normalizeBrokerProfiles,
   roundForDisplay,
   type BrokerProfile,
   type FeeSettings,
@@ -14,6 +15,10 @@ import {
 import * as Base from './engineBase';
 
 export * from './engineBase';
+
+let runtimeBrokerProfiles:BrokerProfile[]=normalizeBrokerProfiles(undefined);
+export function configureBrokerProfiles(profiles:BrokerProfile[]|undefined){ runtimeBrokerProfiles=normalizeBrokerProfiles(profiles); }
+export function configuredBrokerProfiles(){ return runtimeBrokerProfiles.map(p=>({...p})); }
 
 /**
  * The cost-pool formulas are public/common. No broker-specific write-off layer is allowed here.
@@ -44,7 +49,7 @@ function legacySettingsProfile(settings:FeeSettings):BrokerProfile{
 export function holdingBrokerProfile(
   h:Holding,
   feeSettings:FeeSettings=defaultFeeSettings,
-  brokerProfiles:BrokerProfile[]=builtInBrokerProfiles,
+  brokerProfiles:BrokerProfile[]=runtimeBrokerProfiles,
 ):BrokerProfile{
   const globalProfile=legacySettingsProfile(feeSettings);
   const explicitId=String(h.brokerProfileId??'').trim();
@@ -66,7 +71,7 @@ export function holdingMetrics(
   ledger:LedgerEntry[]=[],
   dividends:DividendEvent[]=[],
   feeSettings:FeeSettings=defaultFeeSettings,
-  brokerProfiles:BrokerProfile[]=builtInBrokerProfiles,
+  brokerProfiles:BrokerProfile[]=runtimeBrokerProfiles,
 ){
   const q=quotes[h.symbol]??{};
   const price=Base.quotePrice(h,quotes);
@@ -155,7 +160,7 @@ export function portfolioMetrics(
   ledger:LedgerEntry[],
   dividends:DividendEvent[],
   feeSettings:FeeSettings=defaultFeeSettings,
-  brokerProfiles:BrokerProfile[]=builtInBrokerProfiles,
+  brokerProfiles:BrokerProfile[]=runtimeBrokerProfiles,
 ){
   const base=Base.portfolioMetrics(holdings,quotes,cashBalance,ledger,dividends);
   const metrics=holdings.map(h=>holdingMetrics(h,quotes,ledger,dividends,feeSettings,brokerProfiles));
