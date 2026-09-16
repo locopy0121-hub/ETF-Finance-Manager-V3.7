@@ -1,0 +1,33 @@
+name: Huanan Accounting V3.7.5 TDD
+
+on:
+  push:
+    branches: [v3.7.5-huanan-accounting-20260916]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v3.7.5-huanan-accounting-20260916
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - run: npm ci
+      - name: Huanan broker accounting regression
+        run: node scripts/HUANAN_ACCOUNTING_V375_TEST.cjs
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Existing finance regressions
+        run: |
+          node scripts/FINANCE_ENGINE_V342_TEST.cjs
+          node scripts/FORMULA_ENGINE_V342_TEST.cjs
+          node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
+          node scripts/DIVIDEND_CUTOFF_TEST.cjs
+          node scripts/ACCOUNTING_CONTRACT_TEST.cjs
+      - name: Diff integrity
+        run: git diff --check
