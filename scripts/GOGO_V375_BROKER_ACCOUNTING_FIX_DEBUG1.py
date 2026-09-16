@@ -31,4 +31,11 @@ p=Path('scripts/V340_FIX1_REGRESSION_AUDIT.cjs'); t=read(p)
 t=rep(t," ['no 5-arg holdingMetrics sort call', !/holdingMetrics\\([^)]*,[^)]*,[^)]*,[^)]*,[^)]*\\)/.test(s)],\n ['focus sort uses canonical 4-arg holdingMetrics', /holdingMetrics\\(a,quotes,ledger,dividends\\)/],"," ['broker-aware holdingMetrics signature is used', /holdingMetrics\\(a,quotes,ledger,dividends,feeSettings\\)/],\n ['focus sort receives broker fee settings', /sortFocusHoldings\\([^;]*feeSettings/],",'legacy V340 audit signature')
 write(p,t)
 
-print('[DEBUG1] V3.7.5 TypeScript + broker-aware focus-sort integration repair applied')
+# The V3.7.4 accounting contract expected mark-to-market P/L before estimated exit charges.
+# V3.7.5 intentionally changes the default displayed unrealized P/L to broker-style net liquidation
+# P/L, while retaining cashPnl/pricePnl as explicit gross metrics. Update only that source contract.
+p=Path('scripts/ACCOUNTING_CONTRACT_TEST.cjs'); t=read(p)
+t=rep(t,"  ['單檔預設即時損益採含費口徑', 'const pnl=cashPnl'],","  ['單檔預設即時損益採券商淨變現口徑', 'const pnl=brokerUnrealizedPnl'],",'accounting contract default pnl')
+write(p,t)
+
+print('[DEBUG1] V3.7.5 TypeScript + broker-aware regression integration repair applied')
