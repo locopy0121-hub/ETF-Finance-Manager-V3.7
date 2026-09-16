@@ -8,7 +8,7 @@ import { APP_STATE_KEY } from '../storage/appStorage';
 import { V3_STATE_KEY } from '../v3/storage';
 import { fetchTwseQuotes } from './twse';
 import { ProfitWidget } from '../widgets/ProfitWidget';
-import { portfolioMetrics } from '../v3/engine';
+import { configureAccountingFeeSettings, portfolioMetrics } from '../v3/engine';
 import { widgetAppearance } from '../v3/themes';
 
 const QUOTE_KEY='@etf-finance-manager/widget-quotes';
@@ -48,7 +48,7 @@ function controllerMode(market:any,ws:any){
 }
 async function readState(){
   const v3=await AsyncStorage.getItem(V3_STATE_KEY);
-  if(v3){const s=JSON.parse(v3);return {isV3:true,holdings:s?.holdings??[],settings:s?.appSettings??{},preferences:s?.preferences??{},market:s?.preferences?.market??{},ledger:s?.ledger??[],dividends:s?.dividends??[],cashBalance:Number(s?.cashBalance??0),intradayPnlPoints:s?.intradayPnlPoints??[],dailySnapshots:s?.dailySnapshots??[]};}
+  if(v3){const s=JSON.parse(v3);return {isV3:true,holdings:s?.holdings??[],settings:s?.appSettings??{},preferences:s?.preferences??{},market:s?.preferences?.market??{},feeSettings:s?.feeSettings,ledger:s?.ledger??[],dividends:s?.dividends??[],cashBalance:Number(s?.cashBalance??0),intradayPnlPoints:s?.intradayPnlPoints??[],dailySnapshots:s?.dailySnapshots??[]};}
   const old=await AsyncStorage.getItem(APP_STATE_KEY);
   if(old){const s=JSON.parse(old);return {isV3:false,holdings:s?.holdings??[],settings:s?.settings??{},preferences:null,market:{scheduleEnabled:true,live:{enabled:true,start:s?.settings?.widget?.startTime??'09:00',end:s?.settings?.widget?.endTime??'13:30'}},ledger:[],dividends:[],cashBalance:0};}
   return null;
@@ -58,6 +58,7 @@ try{
  TaskManager.defineTask(WIDGET_BACKGROUND_TASK,async()=>{
   try{
    const state=await readState();if(!state)return BackgroundTask.BackgroundTaskResult.Success;
+   if(state.isV3)configureAccountingFeeSettings((state as any).feeSettings);
    const ws=state.settings?.widget??{};const mode=controllerMode(state.market,ws);
    if(!mode.enabled)return BackgroundTask.BackgroundTaskResult.Success;
    const holdings=Array.isArray(state.holdings)?state.holdings:[];if(!holdings.length)return BackgroundTask.BackgroundTaskResult.Success;

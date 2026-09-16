@@ -6,6 +6,7 @@ import { V3_STATE_KEY } from '../v3/storage';
 import { fetchTwseQuotes } from './twse';
 import { buildDailySnapshot, upsertSnapshot } from './dailySnapshots';
 import { sendCloseProfitNotification } from './notifications';
+import { configureAccountingFeeSettings } from '../v3/engine';
 
 export const CLOSE_BACKGROUND_TASK='ETF_FINANCE_CLOSE_SNAPSHOT';
 try {
@@ -18,7 +19,7 @@ try {
       const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; const snapshots=Array.isArray(state.dailySnapshots)?state.dailySnapshots:[]; if(snapshots.some((x:any)=>x.date===date))return BackgroundTask.BackgroundTaskResult.Success;
       const holdings=Array.isArray(state.holdings)?state.holdings:[]; if(!holdings.length)return BackgroundTask.BackgroundTaskResult.Success;
       const quotes=await fetchTwseQuotes(holdings.map((h:any)=>h.symbol)); if(!Object.keys(quotes).length)return BackgroundTask.BackgroundTaskResult.Failed;
-      const ledger=isV3&&Array.isArray(state.ledger)?state.ledger:[]; const dividends=isV3&&Array.isArray(state.dividends)?state.dividends:[]; const cashBalance=isV3?Number(state.cashBalance??0):0; const snap=buildDailySnapshot(holdings,quotes,ledger,dividends,d,cashBalance); const next={...state,...(!isV3?{schemaVersion:STORAGE_SCHEMA_VERSION}:{}),dailySnapshots:upsertSnapshot(snapshots,snap),savedAt:Date.now()}; await AsyncStorage.setItem(isV3?V3_STATE_KEY:APP_STATE_KEY,JSON.stringify(next)); await sendCloseProfitNotification(snap,cfg); return BackgroundTask.BackgroundTaskResult.Success;
+      const ledger=isV3&&Array.isArray(state.ledger)?state.ledger:[]; const dividends=isV3&&Array.isArray(state.dividends)?state.dividends:[]; const cashBalance=isV3?Number(state.cashBalance??0):0; if(isV3)configureAccountingFeeSettings(state.feeSettings); const snap=buildDailySnapshot(holdings,quotes,ledger,dividends,d,cashBalance); const next={...state,...(!isV3?{schemaVersion:STORAGE_SCHEMA_VERSION}:{}),dailySnapshots:upsertSnapshot(snapshots,snap),savedAt:Date.now()}; await AsyncStorage.setItem(isV3?V3_STATE_KEY:APP_STATE_KEY,JSON.stringify(next)); await sendCloseProfitNotification(snap,cfg); return BackgroundTask.BackgroundTaskResult.Success;
     } catch { return BackgroundTask.BackgroundTaskResult.Failed; }
   });
 } catch {}

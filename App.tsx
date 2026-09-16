@@ -8,7 +8,7 @@ import { useTwseQuotes } from './src/services/useTwseQuotes';
 import { Holding, PurchaseRecord } from './src/data/portfolio';
 import { loadV3State, saveV3State } from './src/v3/storage';
 import { IntradayPnlPoint, LedgerEntry, SavingsPlan, V3State } from './src/v3/model';
-import { configureDisplayPreferences, dividendTotals, holdingMetrics, portfolioMetrics, sharesOnDate, money, pct } from './src/v3/engine';
+import { configureAccountingFeeSettings, configureDisplayPreferences, dividendTotals, holdingMetrics, portfolioMetrics, sharesOnDate, money, pct } from './src/v3/engine';
 import { preciseTradeAmount } from './src/v3/financeFormat';
 import { estimateSellFee, estimateSellTaxBySettings } from './src/data/tradeSettings';
 import { syncProfitWidget } from './src/widgets/syncWidget';
@@ -91,7 +91,7 @@ function Root(){
  const doExportPlan=async(p:SavingsPlan)=>{try{await exportSavingsPlan(p);}catch(e){Alert.alert('匯出失敗',e instanceof Error?e.message:'無法匯出存股計畫。')}}; const doImportPlan=async()=>{try{const p=await importSavingsPlan();if(!p)return;Alert.alert('匯入存股計畫',`即將新增「${p.name}」；不會修改真實庫存。`,[{text:'取消',style:'cancel'},{text:'加入計畫',onPress:()=>addPlan(p)}]);}catch(e){Alert.alert('匯入失敗',e instanceof Error?e.message:'無法讀取存股計畫。')}};
 
  if(!state)return <View style={styles.loading}><Text style={styles.loadingTitle}>ETF財務管家 {APP_DISPLAY_VERSION}</Text><Text style={styles.loadingText}>正在遷移並載入投資資料…</Text></View>;
- const p=state.preferences; configureDisplayPreferences(p.money); const navIcons=currentIcons(p);
+ const p=state.preferences; configureDisplayPreferences(p.money); configureAccountingFeeSettings(state.feeSettings); const navIcons=currentIcons(p);
  const todayIso=today();
  const pm=portfolioMetrics(state.holdings,quotes.quotes as any,state.cashBalance,state.ledger,state.dividends);
  const tickerGroups:Record<string,Array<{id:string;text:string;target:Tab}>>={

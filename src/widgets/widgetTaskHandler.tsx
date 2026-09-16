@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
 import { ProfitWidget, WidgetHolding } from './ProfitWidget';
 import { fetchTwseQuotes } from '../services/twse';
-import { portfolioMetrics } from '../v3/engine';
+import { configureAccountingFeeSettings, portfolioMetrics } from '../v3/engine';
 import { widgetAppearance } from '../v3/themes';
 
 const STATE_KEY='@etf-finance-manager/app-state';
@@ -75,6 +75,7 @@ async function buildData(){
   const ledger=isV3?(state?.ledger??[]):[];
   const dividends=isV3?(state?.dividends??[]):[];
   const cashBalance=isV3?Number(state?.cashBalance??0):0;
+  if(isV3)configureAccountingFeeSettings(state?.feeSettings);
   let extras:any=payload?.extras??{};
   if(isV3&&holdings.length){
     const m=portfolioMetrics(holdingsSource,quotes as any,cashBalance,ledger,dividends);
