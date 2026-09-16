@@ -1,0 +1,27 @@
+name: V3.7.4 Universal Editor Route Contract
+
+on:
+  push:
+    branches: [v3.7.4-release-20260916]
+    paths: ['.gogo-v374-route-trigger']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+
+jobs:
+  route-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v3.7.4-release-20260916
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+      - name: Universal Editor route regression contract
+        run: node scripts/UNIVERSAL_EDITOR_ROUTE_CONTRACT.cjs
