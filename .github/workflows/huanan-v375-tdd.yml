@@ -16,6 +16,8 @@ jobs:
           fetch-depth: 1
       - name: Apply breaking refactor transform
         run: node scripts/APPLY_BREAKING_HUANAN_REFACTOR.cjs
+      - name: Apply breaking refactor stage 2
+        run: node scripts/APPLY_BREAKING_HUANAN_STAGE2.cjs
       - name: Breaking Huanan core contract
         run: node scripts/BREAKING_HUANAN_CORE_TEST.cjs
       - name: Residual old-finance scan
