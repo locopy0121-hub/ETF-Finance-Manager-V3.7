@@ -88,9 +88,25 @@ export function isHuananBroker(value?:string){
   return String(value??'').replace(/\s+/g,'').includes('華南永昌');
 }
 
+/**
+ * Resolve a fee strategy for one holding. An explicitly named holding broker wins over
+ * the global default so selecting Huanan as the default never changes another broker's
+ * existing holdings. Holdings without a broker inherit the current global profile.
+ */
 export function resolveBrokerFeeSettings(broker:string|undefined,settings:FeeSettings=defaultFeeSettings):FeeSettings{
-  if(settings.brokerProfileId==='huanan-yongchang')return settings;
-  return isHuananBroker(broker)?huananYongchangFeeSettings:settings;
+  const brokerName=String(broker??'').trim();
+  const hasBroker=brokerName.length>0;
+  const globalHuanan=settings.brokerProfileId==='huanan-yongchang'||isHuananBroker(settings.brokerName);
+  if(isHuananBroker(brokerName)){
+    return globalHuanan?{...settings,brokerProfileId:'huanan-yongchang',brokerName:'華南永昌證券'}:huananYongchangFeeSettings;
+  }
+  if(!hasBroker&&globalHuanan){
+    return {...settings,brokerProfileId:'huanan-yongchang',brokerName:'華南永昌證券'};
+  }
+  if(hasBroker&&globalHuanan){
+    return {...defaultFeeSettings,brokerName};
+  }
+  return settings;
 }
 
 export function truncateTowardZero(value:number,digits=2){
