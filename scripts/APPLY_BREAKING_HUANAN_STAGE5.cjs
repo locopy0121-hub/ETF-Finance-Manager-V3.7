@@ -21,6 +21,10 @@ rep('src/widgets/widgetTaskHandler.tsx',/import \{ calculatePortfolioView \} fro
 rep('src/widgets/widgetTaskHandler.tsx',/cashBalance,\n      totalPnl:m\.totalPnl/g,`cashBalance,\n      portfolioSummary:calculatePortfolioCoreSummary(holdingsSource,quotes as any,ledger,dividends,ws.selectedSymbols??[]),\n      totalPnl:m.totalPnl`);
 rep('src/widgets/widgetTaskHandler.tsx',/holdingCount:rawHoldings\.length,cashBalance,totalPnl:m\.totalPnl/g,`holdingCount:rawHoldings.length,cashBalance,portfolioSummary:calculatePortfolioCoreSummary(rawHoldings,fresh as any,ledger,dividends,ws.selectedSymbols??[]),totalPnl:m.totalPnl`);
 
+// State migration sanitizes removed finance override properties without preserving a compatibility API.
+rep('src/v3/storage.ts',/const normalizedHoldings=\(Array\.isArray\(p\.holdings\)\?p\.holdings:\[\]\)\.map\(\(raw:any\)=>\{const \{feeRate,feeDiscount,brokerProfileId,\.\.\.rest\}=raw;return \{\.\.\.rest,liquidationTradeMode:/,`const stripRemovedFinanceOverrides=(raw:any)=>{const rest={...raw};for(const key of Object.keys(rest))if(/^(feeRate|feeDiscount)$|broker.*profile/i.test(key))delete rest[key];return rest;};\n const normalizedHoldings=(Array.isArray(p.holdings)?p.holdings:[]).map((raw:any)=>{const rest=stripRemovedFinanceOverrides(raw);return {...rest,liquidationTradeMode:`);
+rep('src/v3/storage.ts',/const rawLedger=\(Array\.isArray\(p\.ledger\)&&p\.ledger\.length\?p\.ledger:seedLedgerFromHoldings\(normalizedHoldings\)\)\.map\(\(raw:any\)=>\{const \{brokerProfileId,\.\.\.rest\}=raw;/,`const rawLedger=(Array.isArray(p.ledger)&&p.ledger.length?p.ledger:seedLedgerFromHoldings(normalizedHoldings)).map((raw:any)=>{const rest=stripRemovedFinanceOverrides(raw);`);
+
 // Physical deletion. No compatibility shells and no empty re-exports.
 for(const f of ['src/data/tradeSettings.ts','src/v3/engineBase.ts']){if(fs.existsSync(f))fs.unlinkSync(f);}
 
