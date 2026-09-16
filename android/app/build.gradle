@@ -65,7 +65,7 @@ android {
     for (i in 0..<options.size()) options[i] = options[i].trim();
     options -= ""
     if (options.length > 0) {
-        println "android.packagingOptions[prop] += $options ($options.length)"
+        println "android.packagingOptions.$prop += $options ($options.length)"
         options.each { android.packagingOptions[prop] += it }
     }
 }
