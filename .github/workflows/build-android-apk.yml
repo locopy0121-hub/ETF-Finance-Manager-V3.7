@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: v3.7.6-huanan-core-final
+  cancel-in-progress: true
+
 env:
   CI: 'true'
   NODE_ENV: production
@@ -163,15 +167,19 @@ jobs:
         run: |
           set -euo pipefail
           TAG='v3.7.6-huanan-core-final'
+          CURRENT="$(git rev-parse HEAD)"
           git fetch --tags --force
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             EXISTING="$(git rev-list -n 1 "$TAG")"
-            CURRENT="$(git rev-parse HEAD)"
-            test "$EXISTING" = "$CURRENT"
-            echo "Tag already exists at release commit: $CURRENT"
+            if [ "$EXISTING" != "$CURRENT" ]; then
+              git tag -fa "$TAG" HEAD -m 'ETF財務管家 V3.7.6 Huanan Core Final'
+              git push --force origin "refs/tags/$TAG"
+            else
+              echo "Tag already exists at release commit: $CURRENT"
+            fi
           else
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git tag -a "$TAG" HEAD -m 'ETF財務管家 V3.7.6 Huanan Core Final'
             git push origin "$TAG"
           fi
