@@ -1,65 +1,90 @@
 'use no memo';
 import React from 'react';
 import { FlexWidget, SvgWidget, TextWidget } from 'react-native-android-widget';
-import { Holding } from '../data/portfolio';
-import { WidgetAlign, WidgetField } from '../storage/appStorage';
-import {rendererNode,resolveRendererColor} from '../ui/universalRegistry';
-import type {UniversalEditorNode} from '../ui/editorSchema';
+import type { Holding } from '../data/portfolio';
+import type { WidgetAlign, WidgetField } from '../storage/appStorage';
+import type { ETFSummary, PortfolioSummary } from '../types/etf';
+import { rendererNode, resolveRendererColor } from '../ui/universalRegistry';
+import type { UniversalEditorNode } from '../ui/editorSchema';
 
-export type WidgetHolding=Holding&{price:number;previousClose?:number};
-export type WidgetExtras={
- cumulativeDividend?:number;monthDividend?:number;monthContribution?:number;holdingCount?:number;cashBalance?:number;
- totalPnl?:number;totalRoi?:number;totalAssets?:number;historicalTradeCost?:number;historicalBuyFees?:number;historicalCashOutflow?:number;
- currentTradeCost?:number;currentCashBasis?:number;pricePnl?:number;cashUnrealizedPnl?:number;realizedPnl?:number;
- trendValues?:number[];trendLabel?:string;
- widgetBackgroundColor?:string;widgetPrimaryTextColor?:string;widgetSecondaryTextColor?:string;widgetAccentColor?:string;widgetPositiveColor?:string;widgetNegativeColor?:string;widgetIcon?:string;showWidgetIcon?:boolean;widgetRadius?:number;
- universalNodes?:Record<string,UniversalEditorNode>;
+export type WidgetHolding = Holding & { price:number; previousClose?:number };
+export type WidgetExtras = {
+  portfolioSummary?: PortfolioSummary;
+  cumulativeDividend?:number; monthDividend?:number; monthContribution?:number; holdingCount?:number; cashBalance?:number;
+  totalPnl?:number; totalRoi?:number; totalAssets?:number; historicalTradeCost?:number; historicalBuyFees?:number; historicalCashOutflow?:number;
+  currentTradeCost?:number; currentCashBasis?:number; pricePnl?:number; cashUnrealizedPnl?:number; realizedPnl?:number; todayPnl?:number; todayPnlPct?:number;
+  trendValues?:number[]; trendLabel?:string;
+  widgetBackgroundColor?:string; widgetPrimaryTextColor?:string; widgetSecondaryTextColor?:string; widgetAccentColor?:string; widgetPositiveColor?:string; widgetNegativeColor?:string; widgetIcon?:string; showWidgetIcon?:boolean; widgetRadius?:number;
+  universalNodes?:Record<string,UniversalEditorNode>;
 };
-type Props={holdings:WidgetHolding[];opacity?:number;width?:number;height?:number;isActive?:boolean;updatedAt?:number;displayFields?:WidgetField[];selectedSymbols?:string[];fontScale?:number;align?:WidgetAlign;extras?:WidgetExtras;showStatusLight?:boolean;showTrendChart?:boolean;trendChartType?:'line'|'area'|'bar'|'sparkline'|'step';trendShowLastValue?:boolean;trendShowPercent?:boolean;trendHeight?:number;trendLineWidth?:number;trendShowGrid?:boolean;trendShowAxis?:boolean;trendShowUpdatedAt?:boolean;compactChart?:boolean;status?:'live'|'afterHours'|'delayed'|'error'|'stopped'};
+type Props = {
+  holdings:WidgetHolding[]; opacity?:number; width?:number; height?:number; isActive?:boolean; updatedAt?:number; displayFields?:WidgetField[]; selectedSymbols?:string[]; fontScale?:number; align?:WidgetAlign; extras?:WidgetExtras;
+  showStatusLight?:boolean; showTrendChart?:boolean; trendChartType?:'line'|'area'|'bar'|'sparkline'|'step'; trendShowLastValue?:boolean; trendShowPercent?:boolean; trendHeight?:number; trendLineWidth?:number; trendShowGrid?:boolean; trendShowAxis?:boolean; trendShowUpdatedAt?:boolean; compactChart?:boolean; status?:'live'|'afterHours'|'delayed'|'error'|'stopped';
+};
+
 const signedMoney=(n:number)=>`${n>=0?'+':'-'}${Math.round(Math.abs(n)).toLocaleString('zh-TW')}`;
-const plainMoney=(n:number)=>Math.round(n).toLocaleString('zh-TW');
-function pureAvg(h:Holding){return Number(h.tradeAvgPrice??h.avgCost??0);}
-function currentAllocatedFee(h:Holding){const gross=(h.purchaseRecords??[]).reduce((s,r)=>s+Number(r.shares??0),0)||Math.max(0,h.shares);return gross>0?Number(h.buyFee??0)*(h.shares/gross):0;}
-function cleanTrend(values:unknown){return Array.isArray(values)?values.map(Number).filter(Number.isFinite).slice(-720):[];}
+const plainMoney=(n:number)=>Math.round(Number(n)||0).toLocaleString('zh-TW');
+const cleanTrend=(values:unknown)=>Array.isArray(values)?values.map(Number).filter(Number.isFinite).slice(-720):[];
 function colorWithAlpha(color:string,alpha:number){const c=String(color||'').trim();const m=/^#([0-9a-f]{6})$/i.exec(c);if(!m)return c||`rgba(15,23,42,${alpha})`;const n=parseInt(m[1],16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${alpha})`;}
 function sparklineSvg(values:number[],color:string,type:'line'|'area'|'bar'|'sparkline'|'step'='area',lineWidth=3,showGrid=true,showAxis=false){
- const w=180,h=64,p=4;if(values.length<2)return '';
- const lo=Math.min(...values),hi=Math.max(...values),span=Math.max(1e-9,hi-lo);
- const pts=values.map((v,i)=>({x:p+i*(w-p*2)/Math.max(1,values.length-1),y:h-p-(v-lo)/span*(h-p*2)}));
- const line=pts.map(q=>`${q.x.toFixed(2)},${q.y.toFixed(2)}`).join(' '); const stepLine=pts.map((q,i)=>i===0?`${q.x.toFixed(2)},${q.y.toFixed(2)}`:`${q.x.toFixed(2)},${pts[i-1].y.toFixed(2)} ${q.x.toFixed(2)},${q.y.toFixed(2)}`).join(' ');
- const area=`M ${pts[0].x.toFixed(2)} ${h-p} L ${pts.map(q=>`${q.x.toFixed(2)} ${q.y.toFixed(2)}`).join(' L ')} L ${pts[pts.length-1].x.toFixed(2)} ${h-p} Z`;
- const bars=pts.map((q,i)=>{const bw=Math.max(1.4,(w-p*2)/Math.max(2,values.length)*.62);return `<rect x="${(q.x-bw/2).toFixed(2)}" y="${q.y.toFixed(2)}" width="${bw.toFixed(2)}" height="${Math.max(1,h-p-q.y).toFixed(2)}" rx="1" fill="${color}" fill-opacity="0.72"/>`}).join('');
- const grid=showGrid?[.25,.5,.75].map(r=>`<line x1="${p}" x2="${w-p}" y1="${(p+(h-p*2)*r).toFixed(2)}" y2="${(p+(h-p*2)*r).toFixed(2)}" stroke="rgba(255,255,255,.12)" stroke-width="0.7"/>`).join(''):'';
- const axis=showAxis?`<line x1="${p}" x2="${p}" y1="${p}" y2="${h-p}" stroke="rgba(255,255,255,.22)" stroke-width="0.8"/><line x1="${p}" x2="${w-p}" y1="${h-p}" y2="${h-p}" stroke="rgba(255,255,255,.22)" stroke-width="0.8"/>`:'';
- const body=type==='bar'?bars:`${type==='area'?`<path d="${area}" fill="${color}" fill-opacity="0.12"/>`:''}<polyline points="${type==='step'?stepLine:line}" fill="none" stroke="${color}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"/>`; 
- return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${grid}${axis}${body}</svg>`;
+  const w=180,h=64,p=4;if(values.length<2)return '';
+  const lo=Math.min(...values),hi=Math.max(...values),span=Math.max(1e-9,hi-lo);
+  const pts=values.map((v,i)=>({x:p+i*(w-p*2)/Math.max(1,values.length-1),y:h-p-(v-lo)/span*(h-p*2)}));
+  const line=pts.map(q=>`${q.x.toFixed(2)},${q.y.toFixed(2)}`).join(' ');
+  const stepLine=pts.map((q,i)=>i===0?`${q.x.toFixed(2)},${q.y.toFixed(2)}`:`${q.x.toFixed(2)},${pts[i-1].y.toFixed(2)} ${q.x.toFixed(2)},${q.y.toFixed(2)}`).join(' ');
+  const area=`M ${pts[0].x.toFixed(2)} ${h-p} L ${pts.map(q=>`${q.x.toFixed(2)} ${q.y.toFixed(2)}`).join(' L ')} L ${pts[pts.length-1].x.toFixed(2)} ${h-p} Z`;
+  const bars=pts.map(q=>`<rect x="${(q.x-1.5).toFixed(2)}" y="${q.y.toFixed(2)}" width="3" height="${Math.max(1,h-p-q.y).toFixed(2)}" rx="1" fill="${color}" fill-opacity="0.72"/>`).join('');
+  const grid=showGrid?[.25,.5,.75].map(r=>`<line x1="${p}" x2="${w-p}" y1="${(p+(h-p*2)*r).toFixed(2)}" y2="${(p+(h-p*2)*r).toFixed(2)}" stroke="rgba(255,255,255,.12)" stroke-width="0.7"/>`).join(''):'';
+  const axis=showAxis?`<line x1="${p}" x2="${p}" y1="${p}" y2="${h-p}" stroke="rgba(255,255,255,.22)" stroke-width="0.8"/><line x1="${p}" x2="${w-p}" y1="${h-p}" y2="${h-p}" stroke="rgba(255,255,255,.22)" stroke-width="0.8"/>`:'';
+  const body=type==='bar'?bars:`${type==='area'?`<path d="${area}" fill="${color}" fill-opacity="0.12"/>`:''}<polyline points="${type==='step'?stepLine:line}" fill="none" stroke="${color}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${grid}${axis}${body}</svg>`;
 }
 
-export function ProfitWidget({holdings,opacity=85,width=320,height=140,isActive=true,updatedAt,fontScale=100,align='left',displayFields=['totalPnl','totalPnlPct','todayPnl','totalAssets','historicalTradeCost','historicalBuyFees','historicalCashOutflow','etfPrice','etfShares','etfPricePnl','updatedAt','marketState'],selectedSymbols=[],extras={},showStatusLight=true,showTrendChart=true,trendChartType='area',trendShowLastValue=true,trendShowPercent=true,trendHeight=64,trendLineWidth=3,trendShowGrid=true,trendShowAxis=false,trendShowUpdatedAt=true,compactChart=true,status='live'}:Props){
- const selected=selectedSymbols.length?holdings.filter(h=>selectedSymbols.includes(h.symbol)):holdings; const metricHoldings=selectedSymbols.length?selected:holdings; const singleMode=selectedSymbols.length===1&&selected.length===1;
- const localTradeCost=metricHoldings.reduce((sum,h)=>sum+h.shares*pureAvg(h),0); const localFees=metricHoldings.reduce((sum,h)=>sum+currentAllocatedFee(h),0);
- const currentTradeCost=selectedSymbols.length?localTradeCost:(Number.isFinite(extras.currentTradeCost)?Number(extras.currentTradeCost):localTradeCost);
- const currentCashBasis=selectedSymbols.length?localTradeCost+localFees:(Number.isFinite(extras.currentCashBasis)?Number(extras.currentCashBasis):localTradeCost+localFees);
- const marketValue=metricHoldings.reduce((sum,h)=>sum+h.shares*h.price,0); const pricePnl=marketValue-currentTradeCost; const cashUnrealized=marketValue-currentCashBasis;
- const totalPnl=singleMode?cashUnrealized:(Number.isFinite(extras.totalPnl)?Number(extras.totalPnl):cashUnrealized); const totalPct=singleMode?(currentCashBasis>0?totalPnl/currentCashBasis*100:0):(Number.isFinite(extras.totalRoi)?Number(extras.totalRoi):(Number(extras.historicalCashOutflow)>0?totalPnl/Number(extras.historicalCashOutflow)*100:0));
- const todayPnl=metricHoldings.reduce((s,h)=>s+h.shares*(h.price-(h.previousClose??h.price)),0); const prevValue=marketValue-todayPnl; const todayPct=prevValue>0?todayPnl/prevValue*100:0;
- const has=(f:WidgetField)=>f==='totalPnl'||displayFields.includes(f); const alpha=Math.max(.12,Math.min(1,opacity/100)); const themePrimary=extras.widgetPrimaryTextColor??'#E2E8F0',secondary=extras.widgetSecondaryTextColor??'#94A3B8',accent=extras.widgetAccentColor??'#D4AF37',positive=extras.widgetPositiveColor??'#FCA5A5',negative=extras.widgetNegativeColor??'#86EFAC',neutral=secondary;const rootNode=rendererNode(extras.universalNodes,'widget:root:title','ETF財務管家'),pnlNode=rendererNode(extras.universalNodes,'widget:pnl:label','累積總損益');const primary=resolveRendererColor(rootNode.textColorMode,rootNode.textColor,themePrimary,totalPnl,positive,negative,neutral);const rootGradient=rootNode.effects.find(x=>x.kind==='gradient');const rootShine=rootNode.effects.find(x=>x.kind==='shimmer'||x.kind==='sweep');const rootBg=resolveRendererColor(rootNode.backgroundColorMode,rootNode.backgroundColor,extras.widgetBackgroundColor??'#0F172A',totalPnl,positive,negative,neutral);const bg=colorWithAlpha(rootGradient?.color??rootBg,alpha);const rootBorder=resolveRendererColor(rootNode.borderColorMode,rootNode.borderColor,rootShine?.color??accent,totalPnl,positive,negative,neutral); const compact=width<240||height<112; const medium=width>=240&&height>=140; const large=width>=320&&height>=180; const veryLarge=width>=360&&height>=260; const maxRows=veryLarge?Math.min(7,selected.length):large?Math.min(4,selected.length):medium?Math.min(2,selected.length):0; const rows=selected.slice(0,maxRows); const pnlColor=resolveRendererColor(pnlNode.textColorMode,pnlNode.textColor,totalPnl>=0?positive:negative,totalPnl,positive,negative,neutral); const todayColor=todayPnl>=0?positive:negative; const timeText=updatedAt?new Date(updatedAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'--:--:--'; const lamp=status==='error'?'🔴':status==='stopped'?'⚪':status==='delayed'?'🟡':status==='afterHours'?'🔵':((Math.floor(Date.now()/1000)%2===0)?'🟢':'◉'); const scale=Math.max(.7,Math.min(1.8,fontScale/100));
- const trend=cleanTrend(extras.trendValues);const trendColor=trend.length>=2&&trend[trend.length-1]>=trend[0]?positive:negative;const graph=showTrendChart&&!compact&&trend.length>=2?sparklineSvg(trend,trendColor,trendChartType,trendLineWidth,trendShowGrid,trendShowAxis):'';const graphW=Math.max(96,Math.min(180,Math.round(width*(compactChart ? .38 : .46))));const graphH=Math.max(40,Math.min(100,trendHeight|| (large?64:54)));const trendLast=trend.length?trend[trend.length-1]:0;const trendFirst=trend.length?trend[0]:0;const trendPct=Math.abs(trendFirst)>1e-9?(trendLast-trendFirst)/Math.abs(trendFirst)*100:0;
- const extra:string[]=[];
- if(has('todayPnl'))extra.push(`今日 ${signedMoney(todayPnl)}${has('todayPnlPct')?` ${todayPct>=0?'+':''}${todayPct.toFixed(2)}%`:''}`);
- if(has('marketValue'))extra.push(`持股市值 ${plainMoney(marketValue)}`); if(has('totalAssets'))extra.push(`總資產 ${plainMoney(Number(extras.totalAssets??marketValue))}`);
- if(has('historicalTradeCost'))extra.push(`累積成交成本 ${plainMoney(Number(extras.historicalTradeCost??currentTradeCost))}`);
- if(has('historicalBuyFees'))extra.push(`累積買進手續費 ${plainMoney(Number(extras.historicalBuyFees??0))}`);
- if(has('historicalCashOutflow'))extra.push(`累積現金支出 ${plainMoney(Number(extras.historicalCashOutflow??currentCashBasis))}`);
- if(has('currentTradeCost')||has('totalCost'))extra.push(`目前成交成本 ${plainMoney(currentTradeCost)}`); if(has('currentCashBasis'))extra.push(`目前含費成本 ${plainMoney(currentCashBasis)}`);
- if(has('pricePnl')||has('costPnl'))extra.push(`價格損益 ${signedMoney(pricePnl)}`); if(has('cashUnrealizedPnl'))extra.push(`含費未實現 ${signedMoney(cashUnrealized)}`);
- if(has('cumulativeDividend'))extra.push(`累積配息 ${plainMoney(extras.cumulativeDividend??0)}`); if(has('monthDividend'))extra.push(`本月配息 ${plainMoney(extras.monthDividend??0)}`); if(has('monthContribution'))extra.push(`本月投入 ${plainMoney(extras.monthContribution??0)}`); if(has('holdingCount'))extra.push(`持有 ${extras.holdingCount??holdings.length} 檔`);
- return <FlexWidget clickAction="ETF_WIDGET_TAP" clickActionData={{target:'dashboard'}} style={{width:'match_parent',height:'match_parent',backgroundColor:bg,borderColor:rootBorder,borderWidth:rootNode.effects.some(x=>x.kind==='outline'||x.kind==='innerGlow'||x.kind==='innerShadow')?2:1,borderRadius:Math.max(0,Number(extras.widgetRadius??8)),padding:12,flexDirection:'column'}} accessibilityLabel={`${rootNode.displayName}，${pnlNode.displayName} ${signedMoney(totalPnl)}`}>
-  <FlexWidget style={{width:'match_parent',flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}><FlexWidget clickAction="ETF_WIDGET_SELECT" clickActionData={{symbol:''}}>{rootNode.visible?<TextWidget text={`${extras.showWidgetIcon!==false&&extras.widgetIcon?`${extras.widgetIcon} `:''}${singleMode?selected[0]?.symbol+' 單檔':rootNode.displayName}`} style={{fontSize:12*scale,fontWeight:'bold',color:primary,textAlign:align}}/>:null}</FlexWidget><FlexWidget style={{flexDirection:'row',alignItems:'center'}}>{(()=>{const n=rendererNode(extras.universalNodes,isActive?'widget:market:live':'widget:market:closed',isActive?'盤中 / 最新快照':'盤後快照');return has('marketState')&&n.visible?<TextWidget text={n.displayName} style={{fontSize:9,color:secondary,marginRight:8}}/>:null})()}<TextWidget text="⚙" style={{fontSize:16,color:accent}} clickAction="OPEN_URI" clickActionData={{uri:'etffinance://widget-settings'}} accessibilityLabel="小工具設定"/></FlexWidget></FlexWidget>
-  <FlexWidget style={{width:'match_parent',flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}><FlexWidget clickAction="ETF_WIDGET_TAP" clickActionData={{target:'daily-profit'}} style={{flexDirection:'column'}}>{(()=>{const n=singleMode?rendererNode(extras.universalNodes,'widget:pnl:single','即時損益'):pnlNode;return n.visible?<TextWidget text={n.displayName} style={{fontSize:10*scale,color:secondary,marginTop:7,textAlign:align}}/>:null})()}<TextWidget text={signedMoney(totalPnl)} style={{fontSize:(compact?22:28)*scale,fontWeight:'bold',color:pnlColor}}/>{has('totalPnlPct')?<TextWidget text={`${totalPct>=0?'+':''}${totalPct.toFixed(2)}%`} style={{fontSize:11*scale,fontWeight:'bold',color:pnlColor}}/>:null}</FlexWidget>{graph?<FlexWidget style={{width:graphW,flexDirection:'column',alignItems:'flex-end'}}><TextWidget text={`${extras.trendLabel??'走勢'}${trendShowLastValue?` ${signedMoney(trendLast)}`:''}${trendShowPercent?` ${trendPct>=0?'+':''}${trendPct.toFixed(2)}%`:''}`} style={{fontSize:8*scale,color:trendColor,textAlign:'right'}}/><SvgWidget svg={graph} style={{width:graphW,height:graphH}}/></FlexWidget>:null}</FlexWidget>
-  {!compact&&extra.slice(0,veryLarge?7:large?4:graph?1:2).map((t,i)=><TextWidget key={`${i}-${t}`} text={t} style={{fontSize:10*scale,color:i===0?todayColor:primary,marginTop:4,textAlign:align}}/>)}
-  {rows.map((h,i)=>{const avg=pureAvg(h);const fee=currentAllocatedFee(h);const rowTradeCost=h.shares*avg;const rowCash=rowTradeCost+fee;const rowValue=h.shares*h.price;const priceRowPnl=rowValue-rowTradeCost;const cashRowPnl=rowValue-rowCash;const prev=h.previousClose??h.price;const today=h.shares*(h.price-prev);const returnPct=rowCash>0?cashRowPnl/rowCash*100:0;const parts=[h.symbol];if(has('etfShares'))parts.push(`${h.shares.toLocaleString()}股`);if(has('etfPrice'))parts.push(`行情${h.price.toFixed(2)}`);if(has('etfMarketValue'))parts.push(`市值${plainMoney(rowValue)}`);if(has('etfTradeCost'))parts.push(`成交成本${plainMoney(rowTradeCost)}`);if(has('etfBuyFee'))parts.push(`手續費${plainMoney(fee)}`);if(has('etfCashBasis'))parts.push(`含費成本${plainMoney(rowCash)}`);if(has('etfTodayPnl'))parts.push(`今日${signedMoney(today)}`);if(has('etfPricePnl')||has('etfTotalPnl'))parts.push(`即時損益${signedMoney(cashRowPnl)}`);if(has('etfCashPnl'))parts.push(`含費${signedMoney(cashRowPnl)}`);if(has('etfReturn'))parts.push(`${returnPct>=0?'+':''}${returnPct.toFixed(2)}%`);return <FlexWidget key={`${h.symbol}-${i}`} clickAction="ETF_WIDGET_SELECT" clickActionData={{symbol:h.symbol}} style={{width:'match_parent',marginTop:5}}><TextWidget text={parts.join('  ')} style={{fontSize:10*scale,color:cashRowPnl>=0?positive:negative,textAlign:align}}/></FlexWidget>})}
-  <FlexWidget style={{flexGrow:1}}/>
-  <FlexWidget style={{width:'match_parent',flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingTop:5}}>{showStatusLight?<TextWidget text={lamp} style={{fontSize:8*scale,color:secondary}}/>:null}<TextWidget text={trendShowUpdatedAt?`更新時間 ${timeText}`:' '} style={{fontSize:8*scale,color:secondary,textAlign:'right'}}/></FlexWidget>
- </FlexWidget>;
+const emptyPortfolioSummary:PortfolioSummary={totalMarketValue:0,totalInvestmentCost:0,totalNetLiquidationValue:0,totalEstimatedSellCommission:0,totalEstimatedSellTax:0,totalUnrealizedProfit:0,totalUnrealizedROI:0,totalDividendsReceived:0,nextEstimatedDividendTotal:0,etfSummaries:[]};
+function pickSummary(summary:PortfolioSummary,selectedSymbols:string[]):PortfolioSummary|ETFSummary{if(selectedSymbols.length===1){const single=summary.etfSummaries.find(x=>x.etfCode===selectedSymbols[0]);if(single)return single;}return summary;}
+
+export function ProfitWidget({holdings: _holdings,opacity=85,width=320,height=140,isActive=true,updatedAt,fontScale=100,align='left',displayFields=['totalPnl','totalPnlPct','todayPnl','totalAssets','marketValue','updatedAt','marketState'],selectedSymbols=[],extras={},showStatusLight=true,showTrendChart=true,trendChartType='area',trendShowLastValue=true,trendShowPercent=true,trendHeight=64,trendLineWidth=3,trendShowGrid=true,trendShowAxis=false,trendShowUpdatedAt=true,compactChart=true,status='live'}:Props){
+  const canonical=extras.portfolioSummary??emptyPortfolioSummary;
+  const active=pickSummary(canonical,selectedSymbols);
+  const single='etfCode' in active;
+  const unrealizedProfit=single?active.unrealizedProfit:active.totalUnrealizedProfit;
+  const unrealizedROI=single?active.unrealizedROI:active.totalUnrealizedROI;
+  const netLiquidationValue=single?active.netLiquidationValue:active.totalNetLiquidationValue;
+  const marketValue=single?active.currentMarketValue:active.totalMarketValue;
+  const investmentCost=single?active.totalInvestmentCost:active.totalInvestmentCost;
+  const estimatedSellCommission=single?active.estimatedSellCommission:active.totalEstimatedSellCommission;
+  const estimatedSellTax=single?active.estimatedSellTax:active.totalEstimatedSellTax;
+  const rows=canonical.etfSummaries.filter(x=>!selectedSymbols.length||selectedSymbols.includes(x.etfCode)).slice(0,height>=180?4:height>=140?2:0);
+  const has=(f:WidgetField)=>f==='totalPnl'||displayFields.includes(f);
+  const alpha=Math.max(.12,Math.min(1,opacity/100));
+  const primaryTheme=extras.widgetPrimaryTextColor??'#E2E8F0',secondary=extras.widgetSecondaryTextColor??'#94A3B8',accent=extras.widgetAccentColor??'#D4AF37',positive=extras.widgetPositiveColor??'#FCA5A5',negative=extras.widgetNegativeColor??'#86EFAC',neutral=secondary;
+  const rootNode=rendererNode(extras.universalNodes,'widget:root:title','ETF財務管家'),pnlNode=rendererNode(extras.universalNodes,'widget:pnl:label','未實現損益');
+  const primary=resolveRendererColor(rootNode.textColorMode,rootNode.textColor,primaryTheme,unrealizedProfit,positive,negative,neutral);
+  const rootBg=resolveRendererColor(rootNode.backgroundColorMode,rootNode.backgroundColor,extras.widgetBackgroundColor??'#0F172A',unrealizedProfit,positive,negative,neutral);
+  const bg=colorWithAlpha(rootBg,alpha);
+  const pnlColor=resolveRendererColor(pnlNode.textColorMode,pnlNode.textColor,unrealizedProfit>=0?positive:negative,unrealizedProfit,positive,negative,neutral);
+  const timeText=updatedAt?new Date(updatedAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'--:--:--';
+  const lamp=status==='error'?'🔴':status==='stopped'?'⚪':status==='delayed'?'🟡':status==='afterHours'?'🔵':'🟢';
+  const scale=Math.max(.7,Math.min(1.8,fontScale/100));
+  const trend=cleanTrend(extras.trendValues),trendColor=trend.length>=2&&trend[trend.length-1]>=trend[0]?positive:negative;
+  const graph=showTrendChart&&width>=240&&trend.length>=2?sparklineSvg(trend,trendColor,trendChartType,trendLineWidth,trendShowGrid,trendShowAxis):'';
+  const graphW=Math.max(96,Math.min(180,Math.round(width*(compactChart?.38:.46)))),graphH=Math.max(40,Math.min(100,trendHeight));
+  const trendLast=trend.length?trend[trend.length-1]:0,trendFirst=trend.length?trend[0]:0,trendPct=Math.abs(trendFirst)>1e-9?(trendLast-trendFirst)/Math.abs(trendFirst)*100:0;
+  const extra:string[]=[];
+  if(has('marketValue'))extra.push(`目前市值 ${plainMoney(marketValue)}`);
+  if(has('totalAssets'))extra.push(`淨清算價值 ${plainMoney(netLiquidationValue)}`);
+  if(has('currentCashBasis')||has('totalCost'))extra.push(`目前含費成本 ${plainMoney(investmentCost)}`);
+  if(has('historicalBuyFees'))extra.push(`預估賣出手續費 ${plainMoney(estimatedSellCommission)}`);
+  if(has('cashUnrealizedPnl')||has('pricePnl')||has('costPnl'))extra.push(`未實現損益 ${signedMoney(unrealizedProfit)}`);
+  if(has('cumulativeDividend'))extra.push(`累積配息 ${plainMoney(extras.cumulativeDividend??canonical.totalDividendsReceived)}`);
+  if(has('holdingCount'))extra.push(`持有 ${extras.holdingCount??canonical.etfSummaries.length} 檔`);
+  if(has('monthDividend'))extra.push(`本月配息 ${plainMoney(extras.monthDividend??0)}`);
+  if(has('monthContribution'))extra.push(`本月投入 ${plainMoney(extras.monthContribution??0)}`);
+  return <FlexWidget clickAction="ETF_WIDGET_TAP" clickActionData={{target:'dashboard'}} style={{width:'match_parent',height:'match_parent',backgroundColor:bg,borderColor:accent,borderWidth:1,borderRadius:Math.max(0,Number(extras.widgetRadius??8)),padding:12,flexDirection:'column'}} accessibilityLabel={`${rootNode.displayName}，${pnlNode.displayName} ${signedMoney(unrealizedProfit)}`}>
+    <FlexWidget style={{width:'match_parent',flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}><TextWidget text={`${extras.showWidgetIcon!==false&&extras.widgetIcon?`${extras.widgetIcon} `:''}${single?active.etfCode:rootNode.displayName}`} style={{fontSize:12*scale,fontWeight:'bold',color:primary,textAlign:align}}/><TextWidget text={`${showStatusLight?lamp+' ':''}${isActive?'盤中':'盤後'}`} style={{fontSize:9*scale,color:secondary}}/></FlexWidget>
+    <FlexWidget style={{width:'match_parent',flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}><FlexWidget style={{flexDirection:'column'}}><TextWidget text={pnlNode.displayName} style={{fontSize:10*scale,color:secondary,marginTop:7,textAlign:align}}/><TextWidget text={signedMoney(unrealizedProfit)} style={{fontSize:26*scale,fontWeight:'bold',color:pnlColor}}/>{has('totalPnlPct')?<TextWidget text={`${unrealizedROI>=0?'+':''}${unrealizedROI.toFixed(2)}%`} style={{fontSize:11*scale,fontWeight:'bold',color:pnlColor}}/>:null}</FlexWidget>{graph?<FlexWidget style={{width:graphW,flexDirection:'column',alignItems:'flex-end'}}><TextWidget text={`${extras.trendLabel??'走勢'}${trendShowLastValue?` ${signedMoney(trendLast)}`:''}${trendShowPercent?` ${trendPct>=0?'+':''}${trendPct.toFixed(2)}%`:''}`} style={{fontSize:8*scale,color:trendColor,textAlign:'right'}}/><SvgWidget svg={graph} style={{width:graphW,height:graphH}}/></FlexWidget>:null}</FlexWidget>
+    {extra.slice(0,height>=180?5:2).map((text,i)=><TextWidget key={`x-${i}`} text={text} style={{fontSize:9*scale,color:secondary,marginTop:3,textAlign:align}}/>)}
+    {rows.map(row=><FlexWidget key={row.etfCode} clickAction="ETF_WIDGET_SELECT" clickActionData={{symbol:row.etfCode}} style={{width:'match_parent',flexDirection:'row',justifyContent:'space-between',marginTop:4}}><TextWidget text={`${row.etfCode} ${row.currentPrice.toFixed(2)}`} style={{fontSize:9*scale,color:primary}}/><TextWidget text={`${signedMoney(row.unrealizedProfit)}｜淨值 ${plainMoney(row.netLiquidationValue)}`} style={{fontSize:9*scale,color:row.unrealizedProfit>=0?positive:negative}}/></FlexWidget>)}
+    {has('updatedAt')?<TextWidget text={`${trendShowUpdatedAt?'更新 ':''}${timeText}｜費 ${plainMoney(estimatedSellCommission)}｜稅 ${plainMoney(estimatedSellTax)}`} style={{fontSize:8*scale,color:secondary,marginTop:4,textAlign:align}}/>:null}
+  </FlexWidget>;
 }
