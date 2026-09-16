@@ -1,0 +1,132 @@
+name: V3.7.5 Broker Accounting GOGO Retry
+
+on:
+  push:
+    branches: [v3.7.5-broker-accounting-20260916]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CI: 'true'
+
+jobs:
+  validate-fix-build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+    steps:
+      - name: Checkout accounting branch
+        uses: actions/checkout@v5
+        with:
+          ref: v3.7.5-broker-accounting-20260916
+          fetch-depth: 1
+
+      - name: Apply broker accounting fix
+        run: |
+          python3 scripts/GOGO_V375_BROKER_ACCOUNTING_FIX.py
+          python3 scripts/GOGO_V375_BROKER_ACCOUNTING_FIX_DEBUG1.py
+
+      - name: Broker photo and multi-trade reconciliation
+        run: node scripts/BROKER_PNL_RECONCILIATION_TEST.cjs
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Finance regression checks
+        run: |
+          node scripts/BROKER_PNL_RECONCILIATION_TEST.cjs
+          node scripts/FINANCE_ENGINE_V342_TEST.cjs
+          node scripts/FORMULA_ENGINE_V342_TEST.cjs
+          node scripts/V340_FIX1_REGRESSION_AUDIT.cjs
+          node scripts/DIVIDEND_CUTOFF_TEST.cjs
+          node scripts/ACCOUNTING_CONTRACT_TEST.cjs
+
+      - name: Source diff integrity
+        run: git diff --check
+
+      - name: Commit verified V3.7.5 source
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add App.tsx app.json src/data/portfolio.ts src/data/tradeSettings.ts src/v3/engine.ts src/v3/model.ts src/v3/screens.tsx src/v3/storage.ts src/v3/version.ts
+          git commit -m 'fix(v3.7.5): reconcile broker fees and net liquidation P&L [skip ci]'
+          git push origin HEAD:v3.7.5-broker-accounting-20260916
+
+      - name: Verify Expo authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EXPO_TOKEN"
+          npx --yes eas-cli@latest whoami --non-interactive
+          npx --yes eas-cli@latest project:info
+
+      - name: Prepare Android build limits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('android/gradle.properties')
+          t=p.read_text(encoding='utf-8')
+          t=t.replace('org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m','org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m')
+          lines=[]; found=False
+          for line in t.splitlines():
+            if line.startswith('reactNativeArchitectures='):
+              lines.append('reactNativeArchitectures=arm64-v8a'); found=True
+            else:
+              lines.append(line)
+          if not found: lines.append('reactNativeArchitectures=arm64-v8a')
+          p.write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          PY
+
+      - name: Build signed V3.7.5 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          npx --yes eas-cli@latest build --platform android --profile preview --local --non-interactive --freeze-credentials --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.5-Broker-Accounting-GOGO.apk"
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT='artifacts/ETF-Finance-Manager-V3.7.5-Broker-Accounting-GOGO.apk'
+          test -s "$OUT"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/SIGNING_CERT.txt
+          "$AAPT" dump badging "$OUT" | grep -E "^package:|^application-label:" | tee artifacts/APK_BADGING.txt
+          grep -F "name='com.etfpilot.twselive'" artifacts/APK_BADGING.txt
+          grep -F "versionName='3.7.5'" artifacts/APK_BADGING.txt
+          sha256sum "$OUT" | tee artifacts/SHA256.txt
+          stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
+          echo source_commit=$(git rev-parse HEAD) >> artifacts/BUILD_INFO.txt
+          unzip -l "$OUT" | grep -E 'assets/index.android.bundle|index.android.bundle'
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ETF-Finance-Manager-V3.7.5-Broker-Accounting-GOGO
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
