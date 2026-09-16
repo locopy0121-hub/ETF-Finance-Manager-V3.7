@@ -1,8 +1,10 @@
+export type BrokerProfileId = 'custom' | 'huanan-yongchang';
 export type FeeDiscountMode = 'instant' | 'monthlyRebate';
 export type OrderChannel = 'electronic' | 'manual' | 'sip';
 export type TradeLotType = 'board' | 'odd' | 'sip';
 
 export type FeeSettings = {
+  brokerProfileId?: BrokerProfileId;
   brokerName: string;
   feeRate: number;      // e.g. 0.001425 = 0.1425%
   discount: number;     // economic discount target, e.g. 0.6 = 6 折
@@ -22,6 +24,7 @@ export type CommissionQuote = {
 };
 
 export const defaultFeeSettings: FeeSettings = {
+  brokerProfileId: 'custom',
   brokerName: '自訂券商',
   feeRate: 0.001425,
   discount: 1,
@@ -50,8 +53,7 @@ export function estimateCommissionQuote(tradeAmount:number,settings:FeeSettings)
 
 /**
  * Returns the fee expected to be charged at transaction/settlement time.
- * For brokers that rebate discounts monthly, this is the pre-rebate charge;
- * the economic net fee is available from estimateCommissionQuote().netFee.
+ * Historical broker corrections are never injected here; they are separate ledger adjustments.
  */
 export function estimateBuyFee(tradeAmount:number,settings:FeeSettings){
   return estimateCommissionQuote(tradeAmount,settings).chargedFee;
@@ -62,19 +64,52 @@ export function estimateEtfSellTax(tradeAmount:number,taxRate=0.001){if(!Number.
 export function estimateSellTaxBySettings(tradeAmount:number,settings:FeeSettings){return estimateEtfSellTax(tradeAmount,settings.etfSellTaxRate??0.001);}
 
 /**
- * Convenience builder for Huanan/SinoPac-like brokerage profiles where the
- * electronic discount may be rebated after month-end instead of reducing the
- * transaction-day charge. The actual minimum fee and discount remain user/profile data.
+ * Huanan Yongchang profile derived from the supplied broker transaction/holding screenshots.
+ * Every transaction is handled independently: floor(price*shares) first, then fee calculation.
+ * Historical one-off broker corrections are recorded by the cash/cost write-off flow, not here.
  */
-export function makeHuananFeeSettings(args:{discount:number;minimumFee:number;discountMode?:FeeDiscountMode;orderChannel?:OrderChannel;lotType?:TradeLotType}):FeeSettings{
+export function makeHuananFeeSettings(args:{discount?:number;minimumFee?:number;discountMode?:FeeDiscountMode;orderChannel?:OrderChannel;lotType?:TradeLotType}={}):FeeSettings{
   return {
+    brokerProfileId:'huanan-yongchang',
     brokerName:'華南永昌證券',
     feeRate:0.001425,
-    discount:args.discount,
-    minimumFee:args.minimumFee,
-    discountMode:args.discountMode??'monthlyRebate',
+    discount:args.discount??1,
+    minimumFee:args.minimumFee??1,
+    discountMode:args.discountMode??'instant',
     orderChannel:args.orderChannel??'electronic',
     lotType:args.lotType??'board',
     etfSellTaxRate:0.001,
   };
+}
+
+export const huananYongchangFeeSettings:FeeSettings=makeHuananFeeSettings();
+
+export function isHuananBroker(value?:string){
+  return String(value??'').replace(/\s+/g,'').includes('華南永昌');
+}
+
+export function resolveBrokerFeeSettings(broker:string|undefined,settings:FeeSettings=defaultFeeSettings):FeeSettings{
+  if(settings.brokerProfileId==='huanan-yongchang')return settings;
+  return isHuananBroker(broker)?huananYongchangFeeSettings:settings;
+}
+
+export function truncateTowardZero(value:number,digits=2){
+  if(!Number.isFinite(value))return 0;
+  const f=10**Math.max(0,Math.trunc(digits));
+  return Math.trunc(value*f)/f;
+}
+
+export type BrokerBookValueEstimate={
+  grossAmount:number;
+  sellFee:number;
+  sellTax:number;
+  bookValue:number;
+};
+
+export function estimateBrokerBookValue(tradeAmount:number,settings:FeeSettings):BrokerBookValueEstimate{
+  const grossAmount=Math.floor(Math.max(0,Number(tradeAmount)||0));
+  if(grossAmount<=0)return {grossAmount:0,sellFee:0,sellTax:0,bookValue:0};
+  const sellFee=estimateSellFee(grossAmount,settings);
+  const sellTax=estimateSellTaxBySettings(grossAmount,settings);
+  return {grossAmount,sellFee,sellTax,bookValue:grossAmount-sellFee-sellTax};
 }
