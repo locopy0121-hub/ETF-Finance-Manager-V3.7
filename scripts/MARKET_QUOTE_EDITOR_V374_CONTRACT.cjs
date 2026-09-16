@@ -35,7 +35,7 @@ has(native,'private fun priceMarketState','native monitor must classify price ag
 has(native,'limitUpBackgroundColor','native monitor must render configured limit-up background');
 has(native,'limitDownBackgroundColor','native monitor must render configured limit-down background');
 has(native,'val nextPositions = JSONArray(positions.toString())','native quote refresh must build an off-screen portfolio candidate');
-has(native,'payload.put("positions", nextPositions)','native quote refresh must atomically swap the candidate snapshot');
+must(native.includes('payload.put("positions", nextPositions)')||native.includes('basePayload.put("positions", nextPositions)'),'native quote refresh must atomically swap the candidate snapshot');
 must(!native.includes('val q = map[pos.optString("symbol")] ?: continue'),'missing one TWSE symbol must not drop that holding from totals');
 has(native,'pos.put("limitUp"','native batch refresh must update limit-up price');
 has(native,'pos.put("limitDown"','native batch refresh must update limit-down price');
