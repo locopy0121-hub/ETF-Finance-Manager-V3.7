@@ -24,6 +24,8 @@ export type Holding = {
   targetWeight: number;
   annualDividendPerShare: number;
   tag: string;
+  // Stable accounting binding. Display broker text is retained for compatibility/history.
+  brokerProfileId?: string;
   broker?: string;
   account?: string;
   purchaseRecords?: PurchaseRecord[];
