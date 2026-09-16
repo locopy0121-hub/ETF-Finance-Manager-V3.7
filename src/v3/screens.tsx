@@ -37,7 +37,11 @@ export function SettingsModal(props:any){
 
 function HuananWriteOffModal({visible,onClose,common,onCash}:{visible:boolean;onClose:()=>void;common:any;onCash:(x:{amount:number;date:string;broker:string;account:string;note?:string})=>void}){
   const holdings=Array.isArray(common?.holdings)?common.holdings:[];
-  const eligible=useMemo(()=>holdings.filter((h:any)=>isHuananBroker(h?.broker)||common?.feeSettings?.brokerProfileId==='huanan-yongchang'||isHuananBroker(common?.feeSettings?.brokerName)),[holdings,common?.feeSettings?.brokerProfileId,common?.feeSettings?.brokerName]);
+  const globalHuanan=common?.feeSettings?.brokerProfileId==='huanan-yongchang'||isHuananBroker(common?.feeSettings?.brokerName);
+  const eligible=useMemo(()=>holdings.filter((h:any)=>{
+    const broker=String(h?.broker??'').trim();
+    return isHuananBroker(broker)||(!broker&&globalHuanan);
+  }),[holdings,globalHuanan]);
   const [symbol,setSymbol]=useState('');
   const [amount,setAmount]=useState('');
   const [memo,setMemo]=useState('');
@@ -90,10 +94,11 @@ function HuananWriteOffModal({visible,onClose,common,onCash}:{visible:boolean;on
 export function LedgerScreen(props:any){
   const [open,setOpen]=useState(false);
   const common=props.common;
-  const huanan=(common?.feeSettings?.brokerProfileId==='huanan-yongchang')||isHuananBroker(common?.feeSettings?.brokerName)||common?.holdings?.some((h:any)=>isHuananBroker(h?.broker));
+  const globalHuanan=(common?.feeSettings?.brokerProfileId==='huanan-yongchang')||isHuananBroker(common?.feeSettings?.brokerName);
+  const hasHuananHolding=common?.holdings?.some((h:any)=>isHuananBroker(h?.broker)||(!String(h?.broker??'').trim()&&globalHuanan));
   return <View style={{flex:1}}>
     <Base.LedgerScreen {...props}/>
-    {huanan?<TouchableOpacity onPress={()=>setOpen(true)} style={{position:'absolute',right:14,bottom:86,paddingHorizontal:13,paddingVertical:10,borderRadius:18,backgroundColor:'#0e7490',borderWidth:1,borderColor:'#67e8f9',elevation:8}}><Text style={{color:'#fff',fontWeight:'900',fontSize:12}}>現金沖銷</Text></TouchableOpacity>:null}
+    {hasHuananHolding?<TouchableOpacity onPress={()=>setOpen(true)} style={{position:'absolute',right:14,bottom:86,paddingHorizontal:13,paddingVertical:10,borderRadius:18,backgroundColor:'#0e7490',borderWidth:1,borderColor:'#67e8f9',elevation:8}}><Text style={{color:'#fff',fontWeight:'900',fontSize:12}}>現金沖銷</Text></TouchableOpacity>:null}
     <HuananWriteOffModal visible={open} onClose={()=>setOpen(false)} common={common} onCash={props.onCash}/>
   </View>;
 }
