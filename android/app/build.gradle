@@ -3,7 +3,6 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
-
 react {
     entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
     reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
@@ -17,7 +16,6 @@ react {
 
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
-
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -59,7 +57,6 @@ android {
     }
     androidResources { ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~' }
 }
-
 ["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->
     def options = (findProperty("android.packagingOptions.$prop") ?: "").split(",");
     for (i in 0..<options.size()) options[i] = options[i].trim();
@@ -69,7 +66,6 @@ android {
         options.each { android.packagingOptions[prop] += it }
     }
 }
-
 dependencies {
     implementation("com.facebook.react:react-android")
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
