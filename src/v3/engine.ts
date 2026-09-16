@@ -62,6 +62,15 @@ export function positionCostStats(h:Holding,ledger:LedgerEntry[]){
 
 type QuoteLike={price?:number;change?:number;changePercent?:number;previousClose?:number;open?:number;high?:number;low?:number;volume?:number;nav?:number;quoteDate?:string;quoteTime?:string};
 
+function holdingFeeSettings(h:Holding,settings:FeeSettings){
+  const resolved=resolveBrokerFeeSettings(h.broker,settings);
+  return {
+    ...resolved,
+    feeRate:Number(h.feeRate??resolved.feeRate),
+    discount:Number(h.feeDiscount??resolved.discount),
+  } satisfies FeeSettings;
+}
+
 export function holdingMetrics(
   h:Holding,
   quotes:Record<string,QuoteLike>,
@@ -72,14 +81,15 @@ export function holdingMetrics(
   const q=quotes[h.symbol]??{};
   const price=Base.quotePrice(h,quotes);
   const c=positionCostStats(h,ledger);
-  const marketValue=price*h.shares;
-  const localSettings=resolveBrokerFeeSettings(h.broker,feeSettings);
+  const grossMarketValue=price*h.shares;
+  const localSettings=holdingFeeSettings(h,feeSettings);
   const isHuanan=localSettings.brokerProfileId==='huanan-yongchang';
-  const book=estimateBrokerBookValue(marketValue,localSettings);
-  const brokerBookValue=isHuanan?book.bookValue:marketValue;
+  const book=estimateBrokerBookValue(grossMarketValue,localSettings);
+  const brokerBookValue=isHuanan?book.bookValue:grossMarketValue;
+  const marketValue=brokerBookValue;
 
-  const pricePnl=marketValue-c.currentTradeCost;
-  const cashPnl=marketValue-c.currentCashBasis;
+  const pricePnl=grossMarketValue-c.currentTradeCost;
+  const cashPnl=grossMarketValue-c.currentCashBasis;
   const brokerPnl=brokerBookValue-c.currentCashBasis;
   const priceRoi=c.currentTradeCost>0?pricePnl/c.currentTradeCost*100:0;
   const cashRoi=c.currentCashBasis>0?cashPnl/c.currentCashBasis*100:0;
@@ -105,12 +115,15 @@ export function holdingMetrics(
     historicalTradeCost:c.historicalTradeCost,
     historicalBuyFees:c.historicalBuyFees,
     historicalCashOutflow:c.historicalCashOutflow,
+    grossMarketValue,
     marketValue,
     brokerBookValue,
     brokerSellFee:isHuanan?book.sellFee:0,
     brokerSellTax:isHuanan?book.sellTax:0,
     brokerPnl,
     costAdjustments:c.costAdjustments,
+    currentCostAdjustment:c.currentCostAdjustment,
+    realizedCostAdjustment:c.realizedCostAdjustment,
     pnl,pricePnl,cashPnl,roi,priceRoi,cashRoi,brokerRoi,comprehensivePnl,comprehensiveRoi,
     avgCost:isHuanan?truncateTowardZero(effectiveAvg,2):c.avgTradePrice,
     cashAvgCost:isHuanan?truncateTowardZero(effectiveAvg,2):effectiveAvg,
@@ -134,9 +147,11 @@ export function portfolioMetrics(
   const currentTradeCost=metrics.reduce((s,m)=>s+m.pureCost,0);
   const currentAllocatedBuyFees=metrics.reduce((s,m)=>s+m.totalFees,0);
   const currentCashBasis=metrics.reduce((s,m)=>s+m.totalCost,0);
+  const grossMarketValue=metrics.reduce((s,m)=>s+m.grossMarketValue,0);
+  const marketValue=metrics.reduce((s,m)=>s+m.marketValue,0);
   const brokerBookValue=metrics.reduce((s,m)=>s+m.brokerBookValue,0);
   const brokerUnrealizedPnl=metrics.reduce((s,m)=>s+m.pnl,0);
-  const currentCostAdjustments=metrics.reduce((s,m)=>s+m.costAdjustments,0);
+  const currentCostAdjustments=metrics.reduce((s,m)=>s+m.currentCostAdjustment,0);
   const allAdjustments=brokerCostWriteOffTotal(ledger);
   const historicalBuyFees=Math.max(0,base.historicalBuyFees-allAdjustments);
   const historicalCashOutflow=Math.max(0,base.historicalCashOutflow-allAdjustments);
@@ -144,7 +159,11 @@ export function portfolioMetrics(
   const realizedCashPnl=base.realizedCashPnl+realizedAdjustment;
   const comprehensivePnl=brokerUnrealizedPnl+realizedCashPnl+base.cumulativeDividends;
   const totalPnl=comprehensivePnl;
-  const totalRoi=historicalCashOutflow>0?totalPnl/historicalCashOutflow*100:0;
+  const rawTotalRoi=historicalCashOutflow>0?totalPnl/historicalCashOutflow*100:0;
+  const allCurrentHuanan=holdings.length>0&&holdings.every(h=>holdingFeeSettings(h,feeSettings).brokerProfileId==='huanan-yongchang');
+  const totalRoi=allCurrentHuanan?truncateTowardZero(rawTotalRoi,2):rawTotalRoi;
+  const totalAssets=marketValue+(Number.isFinite(Number(cashBalance))?Number(cashBalance):0);
+  const accountEquity=totalAssets;
 
   return {
     ...base,
@@ -153,6 +172,8 @@ export function portfolioMetrics(
     currentTradeCost,
     currentAllocatedBuyFees,
     currentCashBasis,
+    grossMarketValue,
+    marketValue,
     brokerBookValue,
     brokerUnrealizedPnl,
     costAdjustments:allAdjustments,
@@ -160,6 +181,8 @@ export function portfolioMetrics(
     comprehensivePnl,
     totalPnl,
     totalRoi,
+    totalAssets,
+    accountEquity,
     totalInvestedCost:historicalCashOutflow,
     currentCost:currentCashBasis,
     totalFees:historicalBuyFees,
