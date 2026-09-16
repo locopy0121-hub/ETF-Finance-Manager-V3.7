@@ -1,0 +1,65 @@
+name: Apply V3.7.4 Universal Editor Route
+
+on:
+  push:
+    branches: [v3.7.4-release-20260916]
+    paths: ['.gogo-v374-apply-trigger']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CI: 'true'
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v3.7.4-release-20260916
+          fetch-depth: 20
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Apply Universal Editor route recovery
+        run: python3 scripts/FIX_V374_UNIVERSAL_EDITOR_ROUTE.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Universal Editor route contract
+        run: node scripts/UNIVERSAL_EDITOR_ROUTE_CONTRACT.cjs
+      - name: Existing V3.7.3 integration contracts
+        run: |
+          node scripts/V373_MASTER_ACCEPTANCE.cjs
+          node scripts/MONITOR_TEMPLATE_CONTRACT_TEST.cjs
+          node scripts/COLOR_PALETTE_CONTRACT_TEST.cjs
+          node scripts/check-v37-editor-modules.cjs
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Finance regression guard
+        run: |
+          node scripts/ACCOUNTING_CONTRACT_TEST.cjs
+          node scripts/ACCOUNTING_GOLDEN_00878.cjs
+          node scripts/CASH_LEDGER_CONTRACT_TEST.cjs
+          node scripts/FINANCE_ENGINE_V342_TEST.cjs
+          node scripts/FORMULA_ENGINE_V342_TEST.cjs
+          node scripts/DIVIDEND_CUTOFF_TEST.cjs
+      - name: Source diff integrity
+        run: git diff --check
+      - name: Commit verified route recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src scripts
+          if git diff --cached --quiet; then
+            echo 'No route changes to commit.'
+          else
+            git commit -m 'fix(v3.7.4): restore canonical Universal Editor route for card fields'
+            git push origin HEAD:v3.7.4-release-20260916
+          fi
