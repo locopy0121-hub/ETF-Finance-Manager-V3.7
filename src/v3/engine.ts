@@ -1,6 +1,7 @@
 import { Holding } from '../data/portfolio';
 import { DividendEvent } from '../screens/DividendCalendarScreen';
 import { LedgerEntry, type MoneyPreferences } from './model';
+import { defaultFeeSettings, effectiveRecordedCommission, estimateBrokerExit, type FeeSettings } from '../data/tradeSettings';
 
 type QuoteLike={price?:number;change?:number;changePercent?:number;previousClose?:number;open?:number;high?:number;low?:number;volume?:number;nav?:number;quoteDate?:string;quoteTime?:string};
 
@@ -65,7 +66,7 @@ export type PositionCostStats={
  * - 目前市值 = 即時行情 × 目前持有股數。
  * - 部分賣出採移動平均成本法；賣出只等比例釋放成本池，剩餘平均成本不改變。
  */
-export function positionCostStats(h:Holding,ledger:LedgerEntry[]):PositionCostStats{
+export function positionCostStats(h:Holding,ledger:LedgerEntry[],feeSettings:FeeSettings=defaultFeeSettings):PositionCostStats{
  const trades=ledger
   .map((e,i)=>({e,i}))
   .filter(x=>x.e.symbol===h.symbol&&(x.e.kind==='buy'||x.e.kind==='sell'))
@@ -79,7 +80,7 @@ export function positionCostStats(h:Holding,ledger:LedgerEntry[]):PositionCostSt
   if(!(shares>0))continue;
   if(e.kind==='buy'){
    const amount=Number.isFinite(Number(e.price))&&Number(e.price)>0?Math.floor(Number(e.price)*shares):Math.floor(Math.max(0,Number(e.amount??0)));
-   const fee=Math.max(0,Number(e.fee??0));
+   const fee=effectiveRecordedCommission(amount,Number(e.fee??0),e.feeRebate,feeSettings).netFee;
    buyShares+=shares;historicalTradeCost+=amount;historicalBuyFees+=fee;
    poolShares+=shares;poolTradeCost+=amount;poolBuyFees+=fee;
   }else{
@@ -88,7 +89,7 @@ export function positionCostStats(h:Holding,ledger:LedgerEntry[]):PositionCostSt
    const avgFee=poolShares>0?poolBuyFees/poolShares:0;
    const allocatedTrade=qty*avgTrade,allocatedFee=qty*avgFee;
    const proceeds=Number.isFinite(Number(e.price))&&Number(e.price)>0?Math.floor(Number(e.price)*shares):Math.floor(Math.max(0,Number(e.amount??0)));
-   const fee=Math.max(0,Number(e.fee??0)),tax=Math.max(0,Number(e.tax??0));
+   const fee=effectiveRecordedCommission(proceeds,Number(e.fee??0),e.feeRebate,feeSettings).netFee,tax=Math.max(0,Number(e.tax??0));
    soldShares+=qty;soldTradeCost+=allocatedTrade;soldAllocatedBuyFees+=allocatedFee;
    grossSellProceeds+=proceeds;sellFees+=fee;sellTaxes+=tax;
    realizedPricePnl+=proceeds-allocatedTrade;
@@ -103,7 +104,7 @@ export function positionCostStats(h:Holding,ledger:LedgerEntry[]):PositionCostSt
    for(const r of records){
     const sh=Math.max(0,Number(r.shares??0)); if(!(sh>0))continue;
     const amount=Math.floor(Math.max(0,Number(r.tradePrice??0))*sh);
-    const fee=Math.max(0,Number(r.fee??0));
+    const fee=effectiveRecordedCommission(amount,Number(r.fee??0),r.feeRebate,feeSettings).netFee;
     buyShares+=sh;historicalTradeCost+=amount;historicalBuyFees+=fee;
    }
    poolShares=Math.max(0,Number(h.shares??buyShares));
@@ -130,13 +131,17 @@ export function positionCostStats(h:Holding,ledger:LedgerEntry[]):PositionCostSt
  return {symbol:h.symbol,buyShares,soldShares,currentShares,historicalTradeCost,historicalBuyFees,historicalCashOutflow:historicalTradeCost+historicalBuyFees,avgTradePrice,avgBuyFeePerShare,currentTradeCost,currentAllocatedBuyFees,currentCashBasis,soldTradeCost,soldAllocatedBuyFees,grossSellProceeds,sellFees,sellTaxes,netSellProceeds,realizedPricePnl,realizedCashPnl};
 }
 
-export function portfolioMetrics(holdings:Holding[],quotes:Record<string,QuoteLike>,cashBalance:number,ledger:LedgerEntry[],dividends:DividendEvent[]){
+export function portfolioMetrics(holdings:Holding[],quotes:Record<string,QuoteLike>,cashBalance:number,ledger:LedgerEntry[],dividends:DividendEvent[],feeSettings:FeeSettings=defaultFeeSettings){
  let currentTradeCost=0,currentAllocatedBuyFees=0,currentCashBasis=0,marketValue=0,todayPnl=0,previousValue=0;
+ let estimatedNetSellProceeds=0,estimatedSellFees=0,estimatedSellTaxes=0,estimatedSellFeeRebates=0;
  let historicalTradeCost=0,historicalBuyFees=0,historicalCashOutflow=0,realizedPricePnl=0,realizedCashPnl=0;
  const holdingSymbols=new Set(holdings.map(h=>h.symbol));
  for(const h of holdings){
-  const c=positionCostStats(h,ledger); const price=quotePrice(h,quotes); const value=price*h.shares; const prev=Number(quotes[h.symbol]?.previousClose??price);
+  const holdingFeeSettings:FeeSettings={...feeSettings,feeRate:Number(h.feeRate??feeSettings.feeRate),discount:Number(h.feeDiscount??feeSettings.discount)};
+  const c=positionCostStats(h,ledger,holdingFeeSettings); const price=quotePrice(h,quotes); const value=price*h.shares; const prev=Number(quotes[h.symbol]?.previousClose??price);
+  const exit=estimateBrokerExit(Math.floor(Math.max(0,value)),holdingFeeSettings);
   currentTradeCost+=c.currentTradeCost; currentAllocatedBuyFees+=c.currentAllocatedBuyFees; currentCashBasis+=c.currentCashBasis;
+  estimatedNetSellProceeds+=exit.netProceeds; estimatedSellFees+=exit.netFee; estimatedSellTaxes+=exit.tax; estimatedSellFeeRebates+=exit.feeRebate;
   historicalTradeCost+=c.historicalTradeCost; historicalBuyFees+=c.historicalBuyFees; historicalCashOutflow+=c.historicalCashOutflow;
   realizedPricePnl+=c.realizedPricePnl; realizedCashPnl+=c.realizedCashPnl;
   marketValue+=value; previousValue+=prev*h.shares; todayPnl+=(price-prev)*h.shares;
@@ -144,13 +149,14 @@ export function portfolioMetrics(holdings:Holding[],quotes:Record<string,QuoteLi
  const historicalSymbols=[...new Set(ledger.filter(e=>e.symbol&&(e.kind==='buy'||e.kind==='sell')).map(e=>String(e.symbol)))].filter(sym=>!holdingSymbols.has(sym));
  for(const symbol of historicalSymbols){
   const fake:Holding={symbol,name:symbol,subtitle:'歷史部位',shares:0,avgCost:0,fallbackPrice:0,targetWeight:0,annualDividendPerShare:0,tag:'歷史'} as Holding;
-  const c=positionCostStats(fake,ledger); historicalTradeCost+=c.historicalTradeCost; historicalBuyFees+=c.historicalBuyFees; historicalCashOutflow+=c.historicalCashOutflow; realizedPricePnl+=c.realizedPricePnl; realizedCashPnl+=c.realizedCashPnl;
+  const c=positionCostStats(fake,ledger,feeSettings); historicalTradeCost+=c.historicalTradeCost; historicalBuyFees+=c.historicalBuyFees; historicalCashOutflow+=c.historicalCashOutflow; realizedPricePnl+=c.realizedPricePnl; realizedCashPnl+=c.realizedCashPnl;
  }
  const cumulativeDividends=dividendTotals(ledger,dividends);
  const priceUnrealizedPnl=marketValue-currentTradeCost;
  const cashUnrealizedPnl=marketValue-currentCashBasis;
+ const brokerUnrealizedPnl=estimatedNetSellProceeds-currentCashBasis;
  const pricePnl=priceUnrealizedPnl+realizedPricePnl;
- const comprehensivePnl=cashUnrealizedPnl+realizedCashPnl+cumulativeDividends;
+ const comprehensivePnl=brokerUnrealizedPnl+realizedCashPnl+cumulativeDividends;
  const totalPnl=comprehensivePnl;
  const totalRoi=historicalCashOutflow>0?totalPnl/historicalCashOutflow*100:0;
  const priceRoi=historicalTradeCost>0?(pricePnl+cumulativeDividends)/historicalTradeCost*100:0;
@@ -161,22 +167,25 @@ export function portfolioMetrics(holdings:Holding[],quotes:Record<string,QuoteLi
  return {
   historicalTradeCost,historicalBuyFees,historicalCashOutflow,
   currentTradeCost,currentAllocatedBuyFees,currentCashBasis,
-  marketValue,cashBalance,totalAssets,accountEquity,priceUnrealizedPnl,cashUnrealizedPnl,realizedPricePnl,realizedCashPnl,pricePnl,cumulativeDividends,totalPnl,totalRoi,priceRoi,todayPnl,todayPnlPct,pendingDividends,holdingCount:holdings.length,comprehensivePnl,
-  totalInvestedCost:historicalCashOutflow,currentCost:currentCashBasis,pureCost:currentTradeCost,totalFees:historicalBuyFees,unrealizedPnl:cashUnrealizedPnl,realizedPnl:realizedCashPnl,
+  marketValue,cashBalance,totalAssets,accountEquity,priceUnrealizedPnl,cashUnrealizedPnl,brokerUnrealizedPnl,estimatedNetSellProceeds,estimatedSellFees,estimatedSellTaxes,estimatedSellFeeRebates,realizedPricePnl,realizedCashPnl,pricePnl,cumulativeDividends,totalPnl,totalRoi,priceRoi,todayPnl,todayPnlPct,pendingDividends,holdingCount:holdings.length,comprehensivePnl,
+  totalInvestedCost:historicalCashOutflow,currentCost:currentCashBasis,pureCost:currentTradeCost,totalFees:historicalBuyFees,unrealizedPnl:brokerUnrealizedPnl,realizedPnl:realizedCashPnl,
  };
 }
 
-export function holdingMetrics(h:Holding,quotes:Record<string,QuoteLike>,ledger:LedgerEntry[]=[],dividends:DividendEvent[]=[]){
- const q=quotes[h.symbol]??{}; const price=quotePrice(h,quotes), c=positionCostStats(h,ledger), marketValue=price*h.shares;
+export function holdingMetrics(h:Holding,quotes:Record<string,QuoteLike>,ledger:LedgerEntry[]=[],dividends:DividendEvent[]=[],feeSettings:FeeSettings=defaultFeeSettings){
+ const q=quotes[h.symbol]??{}; const price=quotePrice(h,quotes), holdingFeeSettings:FeeSettings={...feeSettings,feeRate:Number(h.feeRate??feeSettings.feeRate),discount:Number(h.feeDiscount??feeSettings.discount)}, c=positionCostStats(h,ledger,holdingFeeSettings), marketValue=price*h.shares;
+ const exit=estimateBrokerExit(Math.floor(Math.max(0,marketValue)),holdingFeeSettings);
  const pricePnl=marketValue-c.currentTradeCost;
  const cashPnl=marketValue-c.currentCashBasis;
+ const brokerUnrealizedPnl=exit.netProceeds-c.currentCashBasis;
  const priceRoi=c.currentTradeCost>0?pricePnl/c.currentTradeCost*100:0;
  const cashRoi=c.currentCashBasis>0?cashPnl/c.currentCashBasis*100:0;
- const pnl=cashPnl;
- const roi=cashRoi;
+ const brokerRoi=c.currentCashBasis>0?brokerUnrealizedPnl/c.currentCashBasis*100:0;
+ const pnl=brokerUnrealizedPnl;
+ const roi=brokerRoi;
  const prev=Number(q.previousClose??price); const todayPnl=(price-prev)*h.shares; const prevValue=prev*h.shares; const todayPnlPct=prevValue>0?todayPnl/prevValue*100:0;
  const cumulativeDividend=dividendTotals(ledger,dividends,h.symbol);
- const comprehensivePnl=cashPnl+c.realizedCashPnl+cumulativeDividend;
+ const comprehensivePnl=brokerUnrealizedPnl+c.realizedCashPnl+cumulativeDividend;
  const comprehensiveRoi=c.historicalCashOutflow>0?comprehensivePnl/c.historicalCashOutflow*100:0;
  const costYield=c.currentCashBasis>0?cumulativeDividend/c.currentCashBasis*100:0;
  return {
@@ -187,7 +196,7 @@ export function holdingMetrics(h:Holding,quotes:Record<string,QuoteLike>,ledger:
   historicalTradeCost:c.historicalTradeCost,
   historicalBuyFees:c.historicalBuyFees,
   historicalCashOutflow:c.historicalCashOutflow,
-  marketValue,pnl,pricePnl,cashPnl,roi,priceRoi,cashRoi,comprehensivePnl,comprehensiveRoi,
+  marketValue,pnl,pricePnl,cashPnl,brokerUnrealizedPnl,estimatedNetSellProceeds:exit.netProceeds,estimatedSellFee:exit.netFee,estimatedSellTax:exit.tax,estimatedSellFeeRebate:exit.feeRebate,roi,priceRoi,cashRoi,brokerRoi,comprehensivePnl,comprehensiveRoi,
   avgCost:c.avgTradePrice,
   cashAvgCost:h.shares>0?c.currentCashBasis/h.shares:0,
   realizedPricePnl:c.realizedPricePnl,realizedCashPnl:c.realizedCashPnl,

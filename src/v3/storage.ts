@@ -8,7 +8,7 @@ import { defaultRegisteredNodes } from '../ui/universalRegistry';
 
 export const V3_STATE_KEY='@etf-finance-manager/v3-state';
 const KEY=V3_STATE_KEY;
-const SCHEMA=16;
+const SCHEMA=17;
 
 const LEGACY_FIELD_KEYS:Record<string,string>={
  totalInvestedCost:'historicalCashOutflow',

@@ -5,6 +5,7 @@ export type PurchaseRecord = {
   tradePrice: number;
   purchaseCost: number;
   fee: number;
+  feeRebate?: number; // broker refund/rebate applied after the original commission charge
   totalCost: number;
 };
 

@@ -24,6 +24,7 @@ export type LedgerEntry = {
   price?: number;
   amount: number; // 成交金額或現金流原始金額，不混入手續費
   fee?: number;
+  feeRebate?: number; // commission refund/rebate; net fee = fee - feeRebate
   tax?: number;
   strategy?: StrategyKind;
   broker?: string;

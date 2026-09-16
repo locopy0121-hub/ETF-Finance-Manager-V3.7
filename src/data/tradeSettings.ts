@@ -78,3 +78,41 @@ export function makeHuananFeeSettings(args:{discount:number;minimumFee:number;di
     etfSellTaxRate:0.001,
   };
 }
+
+
+export type BrokerExitEstimate = {
+  grossAmount:number;
+  chargedFee:number;
+  feeRebate:number;
+  netFee:number;
+  tax:number;
+  netProceeds:number;
+};
+
+/** Broker-style liquidation estimate after the configured commission rebate/refund. */
+export function estimateBrokerExit(tradeAmount:number,settings:FeeSettings,extraFeeRebate=0):BrokerExitEstimate{
+  const grossAmount=Math.floor(Math.max(0,Number(tradeAmount)||0));
+  if(grossAmount<=0)return {grossAmount:0,chargedFee:0,feeRebate:0,netFee:0,tax:0,netProceeds:0};
+  const quote=estimateCommissionQuote(grossAmount,settings);
+  const extra=Math.max(0,Math.floor(Number(extraFeeRebate)||0));
+  const feeRebate=Math.min(quote.chargedFee,quote.expectedRebate+extra);
+  const netFee=Math.max(0,quote.chargedFee-feeRebate);
+  const tax=estimateSellTaxBySettings(grossAmount,settings);
+  return {grossAmount,chargedFee:quote.chargedFee,feeRebate,netFee,tax,netProceeds:grossAmount-netFee-tax};
+}
+
+/**
+ * Convert a recorded transaction-day commission into the economic fee after rebate.
+ * Explicit transaction data always wins. For legacy entries with no rebate field,
+ * a monthly-rebate profile may infer the configured expected rebate only when the
+ * recorded fee exactly equals that profile's charged fee.
+ */
+export function effectiveRecordedCommission(tradeAmount:number,recordedFee:number,recordedRebate:number|undefined,settings:FeeSettings){
+  const grossAmount=Math.floor(Math.max(0,Number(tradeAmount)||0));
+  const chargedFee=Math.max(0,Math.floor(Number(recordedFee)||0));
+  const quote=estimateCommissionQuote(grossAmount,settings);
+  const explicit=recordedRebate==null||!Number.isFinite(Number(recordedRebate))?undefined:Math.max(0,Math.floor(Number(recordedRebate)));
+  const inferred=explicit==null&&settings.discountMode==='monthlyRebate'&&chargedFee===quote.chargedFee?quote.expectedRebate:0;
+  const feeRebate=Math.min(chargedFee,explicit??inferred);
+  return {chargedFee,feeRebate,netFee:Math.max(0,chargedFee-feeRebate)};
+}
