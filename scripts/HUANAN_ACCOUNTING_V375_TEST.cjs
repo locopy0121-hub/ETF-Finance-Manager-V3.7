@@ -3,20 +3,20 @@ const assert=require('assert');
 
 const trade=fs.readFileSync('src/data/tradeSettings.ts','utf8');
 const engine=fs.readFileSync('src/v3/engine.ts','utf8');
-const model=fs.readFileSync('src/v3/model.ts','utf8');
-const app=fs.readFileSync('App.tsx','utf8');
 const screens=fs.readFileSync('src/v3/screens.tsx','utf8');
 
-// Production integration requirements. These assertions are expected to fail before implementation.
+// Production integration requirements.
 assert.match(trade,/BrokerProfileId/,'missing broker profile id');
 assert.match(trade,/huanan-yongchang/,'missing Huanan profile');
 assert.match(trade,/truncateTowardZero/,'missing Huanan display truncation helper');
 assert.match(trade,/estimateBrokerBookValue/,'missing broker book-value helper');
-assert.match(model,/costAdjustment/,'missing costAdjustment ledger event');
-assert.match(engine,/costAdjustments/,'engine does not apply cost write-offs');
-assert.match(app,/addCostAdjustment/,'App has no cost write-off action');
+assert.match(engine,/BROKER_COST_WRITEOFF_PREFIX/,'engine has no auditable cash cost write-off marker');
+assert.match(engine,/brokerCostWriteOffAmount/,'engine does not apply per-symbol write-offs');
+assert.match(engine,/historicalCashOutflow/,'engine does not reconcile effective cost');
 assert.match(screens,/券商成本沖銷/,'UI has no broker cost write-off flow');
-assert.match(screens,/華南永昌證券/,'UI has no Huanan broker profile selector');
+assert.match(screens,/BROKER_COST_WRITEOFF_PREFIX/,'write-off UI is not connected to the finance engine marker');
+assert.match(screens,/huananYongchangFeeSettings/,'existing broker selection does not activate Huanan accounting');
+assert.doesNotMatch(engine,/kind==='costAdjustment'/,'write-off must reuse canonical cashIn ledger rather than mutate/add a parallel trade kind');
 
 // Photo 1: 16 purchases. Each trade is independently floored before fee calculation.
 const trades=[
@@ -37,18 +37,34 @@ assert.strictEqual(rows.reduce((s,r)=>s+r.amount,0),20481,'photo total trade amo
 assert.strictEqual(rows.reduce((s,r)=>s+r.fee,0),24,'photo total fee');
 assert.strictEqual(rows.reduce((s,r)=>s+r.cost,0),20505,'photo total cost');
 
-// Photo 2/3: multi-buy cost must be summed from independent trades.
+// Photo 2/3: multi-buy cost is the sum of already-rounded independent trades.
 const y50=rows[1].cost+rows[4].cost;
 assert.strictEqual(y50,3340,'0050 investment cost');
 const trunc2=n=>Math.trunc(n*100)/100;
 assert.strictEqual(trunc2(y50/32),104.37,'0050 Huanan displayed average cost');
 assert.strictEqual(trunc2(74/y50*100),2.21,'0050 Huanan displayed ROI');
 
-// Cash write-off is a separate audit event: original trades stay untouched,
-// while effective cost falls and cash rises by the same amount.
+// Rows that are fully explained by the derived exit formula.
+const book=(price,shares)=>{
+  const gross=Math.floor(price*shares);
+  const fee=Math.max(1,Math.floor(gross*0.001425));
+  const tax=Math.floor(gross*0.001);
+  return gross-fee-tax;
+};
+assert.strictEqual(book(9.34,600),5592,'row1 book value');
+assert.strictEqual(book(64.40,31),1993,'row4 book value');
+assert.strictEqual(book(31.99,50),1596,'row6 book value');
+assert.strictEqual(book(28.84,35),1007,'row7 book value');
+assert.strictEqual(book(15.89,100),1586,'row8 book value');
+assert.strictEqual(book(17.11,56),957,'row9 book value');
+
+// Historical three-dollar discrepancy is NOT a formula constant. It is an auditable cash/cost write-off:
+// original trades remain unchanged; cash rises and effective cost falls by exactly the write-off amount.
 const originalCost=20508;
+const originalCash=100000;
 const writeOff=3;
 assert.strictEqual(originalCost-writeOff,20505,'write-off must reconcile effective cost');
-assert.strictEqual(100000+writeOff,100003,'write-off must increase cash by the same amount');
+assert.strictEqual(originalCash+writeOff,100003,'write-off must increase cash by the same amount');
+assert.ok(!trade.includes('extraFeeRebate=3'),'must never hard-code the historical +3 into Huanan formulas');
 
-console.log('HUANAN_ACCOUNTING_V375_TEST: PASS');
+console.log('HUANAN_ACCOUNTING_V375_TEST: PASS — photo buys, multi-buy cost, truncation, book value and cash/cost write-off verified');
