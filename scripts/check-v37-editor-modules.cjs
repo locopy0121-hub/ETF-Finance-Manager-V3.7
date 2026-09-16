@@ -18,7 +18,7 @@ expect(designer.includes('【資料框】'),'deepest editor identifies data-fram
 expect(designer.includes('【卡片框架】'),'card editor identifies card-frame level');
 expect(designer.includes('【頁面框架】'),'page editor identifies page-frame level');
 expect(designer.includes('customWidth'),'card editor exposes custom width');
-expect(designer.includes('setConfigs(next);'),'deep data-frame save updates parent draft before returning');
+expect(designer.includes('saveUniversalTarget')&&designer.includes('applyUniversalToFieldConfig')&&designer.includes('onEditorNodesChange?.({...editorNodes,[node.id]:node})'),'deep data-frame save updates parent draft and canonical editor node store before returning');
 expect(flow.includes('customWidth'),'runtime FlowItem supports custom width');
 expect(screens.includes("c.role!=='module'"),'registered runtime modules are not duplicated by generic deck');
 for(const id of ['dashboard-market','dashboard-watchlist','dashboard-pnl-history','dashboard-daily-pnl','dashboard-wealth','dashboard-allocation','portfolio-contribution','portfolio-recent','portfolio-allocation']) expect(screens.includes(`cardId:'${id}'`),`runtime module links to editor target ${id}`);
