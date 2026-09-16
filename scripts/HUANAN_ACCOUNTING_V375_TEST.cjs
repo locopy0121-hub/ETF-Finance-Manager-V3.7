@@ -10,12 +10,17 @@ assert.match(trade,/BrokerProfileId/,'missing broker profile id');
 assert.match(trade,/huanan-yongchang/,'missing Huanan profile');
 assert.match(trade,/truncateTowardZero/,'missing Huanan display truncation helper');
 assert.match(trade,/estimateBrokerBookValue/,'missing broker book-value helper');
+assert.match(trade,/hasBroker&&globalHuanan/,'Huanan global profile can leak into explicitly named other brokers');
 assert.match(engine,/BROKER_COST_WRITEOFF_PREFIX/,'engine has no auditable cash cost write-off marker');
 assert.match(engine,/brokerCostWriteOffAmount/,'engine does not apply per-symbol write-offs');
-assert.match(engine,/historicalCashOutflow/,'engine does not reconcile effective cost');
+assert.match(engine,/currentCostAdjustment/,'engine does not split write-offs between current and realized cost pools');
+assert.match(engine,/grossMarketValue/,'engine does not preserve gross market value alongside broker book value');
+assert.match(engine,/feeRate:Number\(h\.feeRate/,'per-holding fee rate is ignored');
+assert.match(engine,/feeDiscount/,'per-holding fee discount is ignored');
 assert.match(screens,/券商成本沖銷/,'UI has no broker cost write-off flow');
 assert.match(screens,/BROKER_COST_WRITEOFF_PREFIX/,'write-off UI is not connected to the finance engine marker');
 assert.match(screens,/huananYongchangFeeSettings/,'existing broker selection does not activate Huanan accounting');
+assert.match(screens,/!broker&&globalHuanan/,'write-off selector can include explicitly named non-Huanan holdings');
 assert.doesNotMatch(engine,/kind==='costAdjustment'/,'write-off must reuse canonical cashIn ledger rather than mutate/add a parallel trade kind');
 
 // Photo 1: 16 purchases. Each trade is independently floored before fee calculation.
@@ -44,7 +49,8 @@ const trunc2=n=>Math.trunc(n*100)/100;
 assert.strictEqual(trunc2(y50/32),104.37,'0050 Huanan displayed average cost');
 assert.strictEqual(trunc2(74/y50*100),2.21,'0050 Huanan displayed ROI');
 
-// Rows that are fully explained by the derived exit formula.
+// Rows that are fully explained by the derived exit formula. The three unresolved one-dollar
+// differences are deliberately NOT encoded as a constant or hidden broker rebate rule.
 const book=(price,shares)=>{
   const gross=Math.floor(price*shares);
   const fee=Math.max(1,Math.floor(gross*0.001425));
@@ -67,4 +73,13 @@ assert.strictEqual(originalCost-writeOff,20505,'write-off must reconcile effecti
 assert.strictEqual(originalCash+writeOff,100003,'write-off must increase cash by the same amount');
 assert.ok(!trade.includes('extraFeeRebate=3'),'must never hard-code the historical +3 into Huanan formulas');
 
-console.log('HUANAN_ACCOUNTING_V375_TEST: PASS — photo buys, multi-buy cost, truncation, book value and cash/cost write-off verified');
+// Partial-sale allocation: only the fraction of the original buy-fee pool still attached to
+// current shares may be removed from current cost; the remainder increases realized P/L.
+const historicalFees=10,currentFees=6,adjustment=3;
+const currentRatio=currentFees/historicalFees;
+const currentAdjustment=Math.min(currentFees,adjustment*currentRatio);
+const realizedAdjustment=adjustment-currentAdjustment;
+assert.strictEqual(currentAdjustment,1.8,'current cost adjustment allocation');
+assert.strictEqual(realizedAdjustment,1.2,'realized adjustment allocation');
+
+console.log('HUANAN_ACCOUNTING_V375_TEST: PASS — photo buys, multi-buy cost, truncation, broker isolation and cash/cost write-off verified');
