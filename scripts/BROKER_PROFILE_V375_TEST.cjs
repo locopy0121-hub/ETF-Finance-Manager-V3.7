@@ -6,7 +6,7 @@ const trade=read('src/data/tradeSettings.ts');
 const engine=read('src/v3/engine.ts');
 const model=read('src/v3/model.ts');
 const portfolio=read('src/data/portfolio.ts');
-const screens=read('src/v3/screens.tsx');
+const screens=read('src/v3/screens.tsx')+'\n'+read('src/v3/screensBase.tsx');
 const storage=read('src/v3/storage.ts');
 
 // One public engine + parameterized broker profiles.
