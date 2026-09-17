@@ -13,8 +13,13 @@ import {
   calculatePurchaseCost,
 } from '../utils/etfCalculators';
 import type { LedgerEntry, MoneyPreferences } from './model';
+import { builtInBrokerProfiles, normalizeBrokerProfiles, resolveBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
 
 type QuoteLike={price?:number;change?:number;changePercent?:number;previousClose?:number;open?:number;high?:number;low?:number;volume?:number;nav?:number;quoteDate?:string;quoteTime?:string};
+
+let RUNTIME_BROKER_PROFILES:BrokerProfile[]=normalizeBrokerProfiles(builtInBrokerProfiles);
+export function configureBrokerProfiles(profiles?:BrokerProfile[]){RUNTIME_BROKER_PROFILES=normalizeBrokerProfiles(profiles);}
+export function configuredBrokerProfiles(){return RUNTIME_BROKER_PROFILES.map(x=>({...x}));}
 
 let DISPLAY_MONEY:MoneyPreferences|undefined;
 export function configureDisplayPreferences(moneyPrefs?:MoneyPreferences){DISPLAY_MONEY=moneyPrefs;}
@@ -60,6 +65,7 @@ function canonicalTransactions(symbol:string,ledger:LedgerEntry[]):Transaction[]
    shares:Math.max(0,Number(e.shares??0)),
    price:Math.max(0,Number(e.price??0)),
    date:e.date,
+   brokerProfile:resolveBrokerProfile(e.brokerProfileId,RUNTIME_BROKER_PROFILES,e.broker),
   }))
   .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
 }
@@ -72,6 +78,8 @@ function canonicalDividendRecords(symbol:string,dividends:DividendEvent[]){
 
 function toETFItem(h:Holding,quotes:Record<string,QuoteLike>,ledger:LedgerEntry[],dividends:DividendEvent[]):ETFItem{
  const transactions=canonicalTransactions(h.symbol,ledger);
+ const holdingProfileId=(h as Holding&{brokerProfileId?:string}).brokerProfileId??[...ledger].reverse().find(e=>e.symbol===h.symbol&&(e.kind==='buy'||e.kind==='sell'))?.brokerProfileId;
+ const brokerProfile=resolveBrokerProfile(holdingProfileId,RUNTIME_BROKER_PROFILES,h.broker);
  if(Number(h.shares)>0&&!transactions.length)throw new Error(`${h.symbol} 有持股但沒有 canonical transaction；Breaking Refactor 禁止舊成本 fallback。`);
  return {
   etfCode:h.symbol,
@@ -82,6 +90,7 @@ function toETFItem(h:Holding,quotes:Record<string,QuoteLike>,ledger:LedgerEntry[
   latestDividendPerShare:Math.max(0,Number(h.annualDividendPerShare??0))/requiredDividendFrequency((h as Holding&{dividendFrequency?:DividendFrequency}).dividendFrequency,`${h.symbol} 配息頻率`),
   transactions,
   dividendRecords:canonicalDividendRecords(h.symbol,dividends),
+  brokerProfile,
  };
 }
 
@@ -94,6 +103,7 @@ function liquidationForSale(tx:Transaction){
   dividendFrequency:1,
   transactions:[{...tx,id:`probe-${tx.id}`,type:'BUY'}],
   dividendRecords:[],
+  brokerProfile:tx.brokerProfile,
  };
  const s=calculateETFSummary(probe);
  return {gross:s.currentMarketValue,fee:s.estimatedSellCommission,tax:s.estimatedSellTax,net:s.netLiquidationValue};

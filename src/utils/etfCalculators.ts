@@ -29,6 +29,7 @@ import {
   TradeMode,
   Transaction,
 } from '../types/etf';
+import { calculateBrokerCommission, calculateBrokerSellTax, defaultBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
 
 const safeNumber = (value: number): number => {
   return Number.isFinite(value) ? value : 0;
@@ -47,47 +48,11 @@ const roundPercentage = (value: number): number => {
   return Math.round((safeValue + Number.EPSILON) * 100) / 100;
 };
 
-const getMinimumCommission = (tradeMode: TradeMode): number => {
-  return tradeMode === 'ODD_LOT'
-    ? HUANAN_CONFIG.MIN_COMMISSION_ODD_LOT
-    : HUANAN_CONFIG.MIN_COMMISSION_ROUND_LOT;
-};
+export const resolveTransactionBrokerProfile=(profile?:BrokerProfile)=>profile??defaultBrokerProfile;
 
-const calculateCommission = (
-  tradeAmount: number,
-  tradeMode: TradeMode,
-): number => {
-  const amount = nonNegative(tradeAmount);
+const calculateCommission = (tradeAmount:number,tradeMode:TradeMode,profile?:BrokerProfile):number => calculateBrokerCommission(nonNegative(tradeAmount),tradeMode,resolveTransactionBrokerProfile(profile));
 
-  if (amount <= 0) {
-    return 0;
-  }
-
-  const calculatedCommission = Math.floor(
-    amount *
-      HUANAN_CONFIG.COMMISSION_RATE *
-      HUANAN_CONFIG.COMMISSION_DISCOUNT,
-  );
-
-  return Math.max(
-    getMinimumCommission(tradeMode),
-    calculatedCommission,
-  );
-};
-
-const calculateETFSellTax = (
-  tradeAmount: number,
-): number => {
-  const amount = nonNegative(tradeAmount);
-
-  if (amount <= 0) {
-    return 0;
-  }
-
-  return Math.floor(
-    amount * HUANAN_CONFIG.ETF_SELL_TAX_RATE,
-  );
-};
+const calculateETFSellTax = (tradeAmount:number,profile?:BrokerProfile):number => calculateBrokerSellTax(nonNegative(tradeAmount),resolveTransactionBrokerProfile(profile),'etf');
 
 const sortTransactions = (
   transactions: Transaction[],
@@ -162,6 +127,7 @@ export const calculatePurchaseCost = (
   const commission = calculateCommission(
     tradeAmount,
     transaction.tradeMode,
+    transaction.brokerProfile,
   );
 
   return {
@@ -264,12 +230,13 @@ export const calculateETFSummary = (
       ? calculateCommission(
           currentMarketValue,
           etf.liquidationTradeMode,
+          etf.brokerProfile,
         )
       : 0;
 
   const estimatedSellTax =
     currentMarketValue > 0
-      ? calculateETFSellTax(currentMarketValue)
+      ? calculateETFSellTax(currentMarketValue, etf.brokerProfile)
       : 0;
 
   const netLiquidationValue =

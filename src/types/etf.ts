@@ -8,6 +8,8 @@
  * - 全 App 金融運算唯一基準：華南永昌證券。
  */
 
+import type { BrokerProfile } from '../data/brokerProfiles';
+
 export type TransactionType = 'BUY' | 'SELL';
 
 /**
@@ -43,6 +45,8 @@ export interface Transaction {
   shares: number;
   price: number;
   date: string;
+  /** Resolved runtime brokerage parameters; supplied by Broker Profile Resolver. */
+  brokerProfile?: BrokerProfile;
 }
 
 /**
@@ -84,6 +88,8 @@ export interface ETFItem {
 
   transactions: Transaction[];
   dividendRecords: DividendRecord[];
+  /** Profile used for current-position liquidation estimates. */
+  brokerProfile?: BrokerProfile;
 }
 
 /**

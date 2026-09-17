@@ -3,6 +3,7 @@ import { DividendEvent } from '../screens/DividendCalendarScreen';
 import { defaultUnifiedMonitorPreferences, type UnifiedMonitorPreferences } from './monitoring';
 import { AppSettings, DailySnapshot } from '../storage/appStorage';
 import type { TradeMode } from '../types/etf';
+import type { BrokerProfile } from '../data/brokerProfiles';
 import type { UniversalEditorNode } from '../ui/editorSchema';
 
 export type LedgerKind = 'buy' | 'sell' | 'dividend' | 'cashIn' | 'cashOut';
@@ -28,6 +29,7 @@ export type LedgerEntry = {
   tax?: number;
   strategy?: StrategyKind;
   broker?: string;
+  brokerProfileId?: string;
   account?: string;
   dividendEventId?: string;
   note?: string;
@@ -218,6 +220,8 @@ export type V3State = {
   cashReconciliation: CashReconciliation;
   preferences: V3Preferences;
   appSettings: AppSettings;
+  brokerProfiles: BrokerProfile[];
+  defaultBrokerProfileId: string;
   dailySnapshots: DailySnapshot[];
   intradayPnlPoints:IntradayPnlPoint[];
   savingsPlans:SavingsPlan[];
