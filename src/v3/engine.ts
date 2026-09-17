@@ -176,8 +176,8 @@ export function calculateHoldingView(h:Holding,quotes:Record<string,QuoteLike>,l
  const todayPnl=(price-prev)*summary.totalShares;
  const prevValue=prev*summary.totalShares;
  const todayPnlPct=prevValue>0?roundPercent(todayPnl/prevValue*100):0;
- const cumulativeDividend=calculateDividendIncome(ledger,dividends,h.symbol);
- const comprehensivePnl=summary.unrealizedProfit+cost.realizedCashPnl+cumulativeDividend;
+ const cumulativeDividend=summary.totalDividendsReceived;
+ const comprehensivePnl=summary.comprehensivePnL;
  const comprehensiveRoi=cost.historicalCashOutflow>0?roundPercent(comprehensivePnl/cost.historicalCashOutflow*100):0;
  const costYield=summary.totalInvestmentCost>0?roundPercent(cumulativeDividend/summary.totalInvestmentCost*100):0;
  return {
@@ -204,7 +204,7 @@ export function calculateHoldingView(h:Holding,quotes:Record<string,QuoteLike>,l
   avgCost:summary.averageCostPerShare,
   cashAvgCost:summary.averageCostPerShare,
   realizedPricePnl:cost.realizedPricePnl,
-  realizedCashPnl:cost.realizedCashPnl,
+  realizedCashPnl:summary.realizedNetPnL,
   todayPnl,
   todayPnlPct,
   cumulativeDividend,
@@ -235,15 +235,16 @@ export function calculatePortfolioView(holdings:Holding[],quotes:Record<string,Q
  const currentAllocatedBuyFees=rows.reduce((s,m)=>s+m.totalFees,0);
  const currentCashBasis=canonical.totalInvestmentCost;
  const realizedPricePnl=rows.reduce((s,m)=>s+m.realizedPricePnl,0);
- const realizedCashPnl=rows.reduce((s,m)=>s+m.realizedCashPnl,0);
- const cumulativeDividends=calculateDividendIncome(ledger,dividends);
+ const realizedCashPnl=canonical.realizedNetPnL;
+ const cumulativeDividends=canonical.totalDividendsReceived;
  const todayPnl=rows.reduce((s,m)=>s+m.todayPnl,0);
  const previousValue=rows.reduce((s,m,index)=>s+(Number(m.previousClose??m.price)*Math.max(0,Number(holdings[index]?.shares??0))),0);
  const todayPnlPct=previousValue>0?roundPercent(todayPnl/previousValue*100):0;
  const pendingDividends=dividends.filter(e=>Number(e.actualAmount??0)<=0).reduce((s,e)=>s+Number(e.estimatedAmount??0),0);
  const safeCash=Number.isFinite(Number(cashBalance))?Number(cashBalance):0;
  const totalAssets=canonical.totalMarketValue+safeCash;
- const comprehensivePnl=canonical.totalUnrealizedProfit+realizedCashPnl+cumulativeDividends;
+ const comprehensivePnl=canonical.comprehensivePnL;
+ const comprehensiveRoi=historicalCashOutflow>0?roundPercent(comprehensivePnl/historicalCashOutflow*100):0;
  return {
   canonicalSummary:canonical,
   historicalTradeCost,historicalBuyFees,historicalCashOutflow,
@@ -260,8 +261,8 @@ export function calculatePortfolioView(holdings:Holding[],quotes:Record<string,Q
   realizedPricePnl,realizedCashPnl,realizedPnl:realizedCashPnl,
   pricePnl:canonical.totalUnrealizedProfit,
   cumulativeDividends,
-  totalPnl:canonical.totalUnrealizedProfit,
-  totalRoi:canonical.totalUnrealizedROI,
+  totalPnl:canonical.totalPnl,
+  totalRoi:comprehensiveRoi,
   priceRoi:canonical.totalUnrealizedROI,
   todayPnl,todayPnlPct,pendingDividends,holdingCount:holdings.length,comprehensivePnl,
   totalInvestedCost:canonical.totalInvestmentCost,currentCost:canonical.totalInvestmentCost,pureCost:currentTradeCost,totalFees:historicalBuyFees,
