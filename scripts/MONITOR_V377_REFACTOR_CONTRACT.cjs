@@ -63,6 +63,7 @@ expect('native pulse supports paused success error',nativeService.includes('"PAU
 expect('native double tap restores isolated normal layout',nativeService.includes('restoreNormal()')&&nativeService.includes('store.minimize()'));
 expect('native renderer reads semantic color targets',nativeService.includes('colorTargets')&&nativeService.includes('THEME_PROFIT_LOSS')&&nativeService.includes('GENERAL_TEXT'));
 expect('native drag resize stores active layout only',nativeStore.includes('fun saveActive'));
-expect('native payload cannot overwrite active mode',!nativeStore.match(/applyPayload[\s\S]{0,500}setMinimized\(/));
+const applyPayloadBody=(nativeStore.split('fun applyPayload')[1]||'').split('fun restoreNormal')[0]||'';
+expect('native payload cannot overwrite active mode',!applyPayloadBody.includes('setMinimized('));
 
 console.log(`PASS ${checks.length} monitor refactor contracts`);
