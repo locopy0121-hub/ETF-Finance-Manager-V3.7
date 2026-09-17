@@ -17,11 +17,27 @@ jobs:
           ref: gogo-monitor-refactor-20260917
           fetch-depth: 0
       - name: Apply source patches
-        run: node scripts/APPLY_MONITOR_REFACTOR_V377.cjs
-      - name: Commit generated refactor
+        id: patch
+        shell: bash
+        run: |
+          set +e
+          node scripts/APPLY_MONITOR_REFACTOR_V377.cjs > monitor-patch-result.txt 2>&1
+          code=$?
+          cat monitor-patch-result.txt
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Commit generated refactor or diagnostic
+        shell: bash
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          if [ "${{ steps.patch.outputs.exit_code }}" != "0" ]; then
+            git add monitor-patch-result.txt
+            git commit -m "chore: capture monitor patch failure [monitor-refactor-diagnostic]" || true
+            git push origin HEAD:gogo-monitor-refactor-20260917
+            exit 1
+          fi
+          rm -f monitor-patch-result.txt
           git add src/v3/screensBase.tsx modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt
           git diff --cached --quiet && exit 0
           git commit -m "feat: apply monitor refactor [monitor-refactor-applied]"
