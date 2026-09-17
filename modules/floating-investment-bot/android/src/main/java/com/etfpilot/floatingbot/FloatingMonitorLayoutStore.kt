@@ -35,10 +35,11 @@ internal class FloatingMonitorLayoutStore(private val context:Context) {
   fun saveNormal(rect:MonitorRect){prefs.edit().putInt(NORMAL_X,rect.x).putInt(NORMAL_Y,rect.y).putInt(NORMAL_W,rect.width).putInt(NORMAL_H,rect.height).apply()}
   fun saveMini(rect:MonitorRect){prefs.edit().putInt(MINI_X,rect.x).putInt(MINI_Y,rect.y).putInt(MINI_W,rect.width).putInt(MINI_H,rect.height).apply()}
 
+  /** Payload may refresh many times while a native Mini window is active. It may update
+   * the two stored rectangles, but must never force the active mode back to NORMAL. */
   fun applyPayload(payload:JSONObject){
     payload.optJSONObject("normalLayout")?.let{saveNormal(fromJson(it,normal()))}
     payload.optJSONObject("miniLayout")?.let{saveMini(fromJson(it,mini()))}
-    if(payload.has("isMinimized"))setMinimized(payload.optBoolean("isMinimized",isMinimized()))
   }
 
   fun restoreNormal():MonitorRect{setMinimized(false);return normal()}
