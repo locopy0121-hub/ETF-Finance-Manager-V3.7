@@ -1,5 +1,6 @@
 name: Verify Monitor Refactor V3.7.7
 on:
+  workflow_dispatch:
   push:
     branches: [gogo-monitor-refactor-20260917]
     paths:
