@@ -42,6 +42,12 @@ expect('template long press editor',screens.includes('delayLongPress={500}')&&sc
 expect('mini settings expose five layouts',screens.includes('Mini 縮小模式')&&screens.includes("layoutType:'SINGLE_ROW'")&&screens.includes("layoutType:'GRID'"));
 expect('mini independent size controls',screens.includes('Mini 寬度')&&screens.includes('Mini 高度'));
 
+const fieldEditor=read('src/v3/MonitorFieldEditor.tsx');
+expect('all monitor fields expose color source',fieldEditor.includes('顏色來源')&&fieldEditor.includes('跟隨主題一般色')&&fieldEditor.includes('自訂顏色'));
+expect('semantic fields expose pnl theme color',fieldEditor.includes('跟隨主題損益色'));
+const monitoring=read('src/v3/monitoring.ts');
+expect('field style persists color mode',monitoring.includes("colorMode?:'CUSTOM'|'THEME_GENERAL'|'THEME_PROFIT_LOSS'"));
+
 const overlay=read('src/services/floatingOverlay.ts');
 expect('overlay payload carries dual layouts',overlay.includes('normalLayout')&&overlay.includes('miniLayout')&&overlay.includes('isMinimized'));
 expect('overlay payload carries mini config',overlay.includes('miniConfig'));
@@ -54,6 +60,7 @@ expect('native mini has independent renderer',nativeService.includes('renderMini
 expect('native refresh is single flight',nativeService.includes('refreshInFlight'));
 expect('native pulse supports paused success error',nativeService.includes('"PAUSED"')&&nativeService.includes('"SUCCESS"')&&nativeService.includes('"ERROR"'));
 expect('native double tap restores isolated normal layout',nativeService.includes('restoreNormal()')&&nativeService.includes('store.minimize()'));
+expect('native renderer reads semantic color targets',nativeService.includes('colorTargets')&&nativeService.includes('THEME_PROFIT_LOSS')&&nativeService.includes('GENERAL_TEXT'));
 const nativeStore=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingMonitorLayoutStore.kt');
 expect('native drag resize stores active layout only',nativeStore.includes('fun saveActive'));
 expect('native payload cannot overwrite active mode',!nativeStore.match(/applyPayload[\s\S]{0,500}setMinimized\(/));
