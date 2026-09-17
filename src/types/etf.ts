@@ -107,6 +107,7 @@ export interface PurchaseCostResult {
 export interface NetDividendResult {
   grossDividend: number;
   supplementaryHealthPremium: number;
+  transferFee: number;
   netDividend: number;
 }
 
@@ -194,7 +195,9 @@ export const HUANAN_CONFIG = Object.freeze({
   MIN_COMMISSION_ODD_LOT: 1,
 
   ETF_SELL_TAX_RATE: 0.001,
+  STOCK_SELL_TAX_RATE: 0.003,
 
   HEALTH_PREMIUM_THRESHOLD: 20_000,
   HEALTH_PREMIUM_RATE: 0.0211,
+  DIVIDEND_TRANSFER_FEE: 10,
 } as const);
