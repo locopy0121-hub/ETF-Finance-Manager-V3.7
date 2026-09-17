@@ -9,6 +9,7 @@ const required=[
  'src/types/monitor.ts',
  'src/utils/monitorColorResolver.ts',
  'src/engine/MonitorRefreshEngine.ts',
+ 'src/engine/createMonitorSnapshot.ts',
  'src/adapters/MonitorStorageAdapter.ts',
  'src/context/MonitorContext.tsx',
  'src/components/monitor/MiniMonitorContainer.tsx',
@@ -29,6 +30,9 @@ const engine=read('src/engine/MonitorRefreshEngine.ts');
 for(const token of ['class MonitorRefreshEngine','REFRESHING','SUCCESS','ERROR','PAUSED','subscribeSnapshot','subscribeStatus'])expect(engine.includes(token),`refresh engine contract missing: ${token}`);
 expect(!engine.includes('setInterval(() => this.tick()'), 'refresh engine must not use overlapping setInterval ticks');
 
+const snapshot=read('src/engine/createMonitorSnapshot.ts');
+for(const token of ['createMonitorSnapshot','calculatePortfolioView','calculateHoldingView','portfolioSummary','etfSummaries','rawQuotes'])expect(snapshot.includes(token),`snapshot projection missing: ${token}`);
+
 const storage=read('src/adapters/MonitorStorageAdapter.ts');
 expect(storage.includes('monitor_settings_v3'),'storage key must be monitor_settings_v3');
 
@@ -45,6 +49,8 @@ expect(templates.includes('normalConfig')&&templates.includes('miniConfig'),'tem
 
 const overlay=read('src/services/floatingOverlay.ts');
 expect(overlay.includes('normalLayout')&&overlay.includes('miniLayout')&&overlay.includes('isMinimized'),'overlay payload must carry isolated layouts');
+expect(overlay.includes('createMonitorSnapshot('),'overlay must consume centralized monitor snapshot');
+expect(!overlay.includes('calculatePortfolioView(')&&!overlay.includes('calculateHoldingView('),'overlay must not independently run finance calculations');
 
 const nativeStore=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/MonitorLayoutStore.kt');
 for(const token of ['normal_x','normal_y','normal_w','normal_h','mini_x','mini_y','mini_w','mini_h','is_minimized'])expect(nativeStore.includes(token),`native layout store missing ${token}`);
