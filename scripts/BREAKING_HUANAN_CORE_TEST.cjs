@@ -17,8 +17,10 @@ assert.match(types,/COMMISSION_DISCOUNT:\s*0\.65/,'commission discount must be 0
 assert.match(types,/MIN_COMMISSION_ROUND_LOT:\s*20/,'ROUND_LOT minimum must be 20');
 assert.match(types,/MIN_COMMISSION_ODD_LOT:\s*1/,'ODD_LOT minimum must be 1');
 assert.match(types,/ETF_SELL_TAX_RATE:\s*0\.001/,'ETF sell tax must be 0.001');
+assert.match(types,/STOCK_SELL_TAX_RATE:\s*0\.003/,'stock sell tax must be 0.003');
 assert.match(types,/HEALTH_PREMIUM_THRESHOLD:\s*20_000/,'health premium threshold must be 20,000');
 assert.match(types,/HEALTH_PREMIUM_RATE:\s*0\.0211/,'health premium rate must be 0.0211');
+assert.match(types,/DIVIDEND_TRANSFER_FEE:\s*10/,'dividend transfer fee must be 10');
 
 assert.ok(!types.includes('customFeeDiscount'),'transaction-level fee discount override must not exist');
 for(const forbidden of [
@@ -31,25 +33,35 @@ for(const forbidden of [
   assert.ok(!calc.includes(forbidden),`forbidden legacy calculation symbol remains: ${forbidden}`);
 }
 
-// BrokerProfile is the current shared resolver architecture, not a legacy fallback.
+// Broker profiles may exist for metadata/settings, but canonical Huanan math must not delegate
+// to mutable per-profile commission/tax implementations.
 assert.match(broker,/export type BrokerProfile/,'shared BrokerProfile definition must exist');
 assert.match(broker,/HUANAN_YONGCHANG_PROFILE_ID/,'Huanan broker profile must exist');
-assert.match(broker,/calculateBrokerCommission/,'broker commission resolver must exist');
-assert.match(broker,/calculateBrokerSellTax/,'broker sell-tax resolver must exist');
-assert.match(calc,/resolveTransactionBrokerProfile/,'calculator must resolve the transaction broker profile');
-assert.match(calc,/calculateBrokerCommission/,'calculator must delegate commission to broker profile engine');
-assert.match(calc,/calculateBrokerSellTax/,'calculator must delegate sell tax to broker profile engine');
+assert.ok(!/calculateBrokerCommission\(/.test(calc),'canonical calculator must not delegate commission to mutable broker profile math');
+assert.ok(!/calculateBrokerSellTax\(/.test(calc),'canonical calculator must not delegate sell tax to mutable broker profile math');
+assert.match(calc,/HUANAN_CONFIG\.COMMISSION_DISCOUNT/,'canonical calculator must use locked Huanan discount');
+assert.match(calc,/Math\.floor\(shares \* price\)/,'buy trade amount must floor before commission');
+assert.match(calc,/Math\.floor\(totalShares \* currentPrice\)/,'current market value must floor before liquidation charges');
+assert.match(calc,/DIVIDEND_TRANSFER_FEE/,'net dividend must deduct the canonical transfer fee');
 
 assert.match(calc,/const sortTransactions\s*=/,'transactions must be deterministically sorted');
 assert.match(calc,/averageCostBeforeSell/,'SELL must release moving-average cost');
 assert.ok(!/totalInvestmentCost\s*-=?\s*calculateSellProceeds/.test(calc),'sell proceeds must never reduce holding cost');
 assert.match(calc,/Math\.round\(\s*\(safeValue \+ Number\.EPSILON\) \* 100/,'percentages must use the approved two-decimal rounding rule');
 
-const fee=(amount,mode)=>Math.max(mode==='ODD_LOT'?1:20,Math.floor(amount*0.001425*0.65));
-const tax=amount=>Math.floor(amount*0.001);
-assert.strictEqual(fee(2206.08,'ODD_LOT'),2,'00878 odd-lot estimated sell fee');
-assert.strictEqual(tax(2206.08),2,'00878 ETF estimated sell tax');
-assert.strictEqual(2206.08-fee(2206.08,'ODD_LOT')-tax(2206.08),2202.08,'00878 net liquidation value');
+const floorAmount=(price,shares)=>Math.floor(price*shares);
+const fee=(amount,mode)=>Math.max(mode==='ODD_LOT'?1:20,Math.floor(Math.floor(amount)*0.001425*0.65));
+const etfTax=amount=>Math.floor(Math.floor(amount)*0.001);
+const stockTax=amount=>Math.floor(Math.floor(amount)*0.003);
+const gross=floorAmount(22.0608,100);
+assert.strictEqual(gross,2206,'trade/current market value must floor first');
+assert.strictEqual(fee(gross,'ODD_LOT'),2,'00878 odd-lot estimated sell fee');
+assert.strictEqual(etfTax(gross),2,'00878 ETF estimated sell tax');
+assert.strictEqual(gross-fee(gross,'ODD_LOT')-etfTax(gross),2202,'00878 net liquidation value');
+assert.strictEqual(stockTax(20000),60,'stock sell tax must be 0.3%');
 assert.strictEqual(Math.floor(20000*0.0211),422,'health premium at threshold');
+assert.strictEqual(Math.max(0,Math.floor(1000*1.5)-0-10),1490,'dividend under threshold deducts 10 transfer fee');
+assert.strictEqual(Math.max(0,20000-Math.floor(20000*0.0211)-10),19568,'dividend at threshold deducts NHI and 10 transfer fee');
+assert.match(calc,/totalPnl:\s*comprehensivePnL/,'portfolio totalPnl must alias comprehensivePnL');
 
 console.log('BREAKING_HUANAN_CORE_TEST: PASS');
