@@ -17,7 +17,7 @@ react {
     enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
     // Use Expo CLI to bundle the app, this ensures the Metro config
     // works correctly with Expo projects.
-    cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
+    cliFile = new File(["node", "--print", "require.resolve('@expo/cli/package.json', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
     bundleCommand = "export:embed"
 
     /* Folders */
@@ -25,7 +25,6 @@ react {
     // root = file("../../")
     //   The folder where the reactNativeDir is. Default is ../../node_modules/react-native
     // reactNativeDir = new File("../../node_modules/react-native")
-    //   The folder where the codegenDir is. Default is ../../node_modules/@react-native/codegen
     // codegenDir = new File("../../node_modules/@react-native/codegen")
 
     /* Variants */
@@ -66,8 +65,8 @@ android {
         applicationId 'com.etfpilot.twselive'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 44
-        versionName "3.7.6"
+        versionCode 46
+        versionName "3.7.8"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -110,9 +109,7 @@ android {
     options -= ""
     if (options.length > 0) {
         println "android.packagingOptions.$prop += $options ($options.length)"
-        options.each {
-            android.packagingOptions[prop] += it
-        }
+        android.packagingOptions[prop] += it
     }
 }
 
