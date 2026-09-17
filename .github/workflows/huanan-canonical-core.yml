@@ -1,0 +1,19 @@
+name: Huanan Canonical Finance Core
+
+on:
+  push:
+    branches:
+      - refactor/huanan-canonical-finance-core
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+      - name: Canonical finance RED/GREEN contract
+        run: node scripts/HUANAN_CANONICAL_FINANCE_CORE_TEST.cjs
