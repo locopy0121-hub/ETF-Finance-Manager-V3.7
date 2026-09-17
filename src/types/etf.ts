@@ -71,6 +71,11 @@ export interface ETFSummary {
   name: string;
   currentPrice: number;
   totalShares: number;
+  historicalTradeCost: number;
+  historicalBuyFees: number;
+  historicalCashOutflow: number;
+  currentTradeCost: number;
+  currentAllocatedBuyFees: number;
   totalInvestmentCost: number;
   averageCostPerShare: number;
   currentMarketValue: number;
