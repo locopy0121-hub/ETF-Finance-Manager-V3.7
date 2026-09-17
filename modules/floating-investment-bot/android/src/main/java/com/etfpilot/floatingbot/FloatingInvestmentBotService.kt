@@ -378,8 +378,15 @@ class FloatingInvestmentBotService : Service() {
     val style=fieldStyle(key)
     val globalScale=payload.optDouble("fontScale",1.0).toFloat().coerceIn(.7f,1.8f)
     val localScale=(style.optDouble("fontScale",100.0)/100.0).toFloat().coerceIn(.6f,2.2f)
-    val useMarketColor=style.optBoolean("profitLossColor",key=="price")
-    var color=parseColor(style.optString("textColor",""),fallbackColor)
+    val targetType=payload.optJSONObject("colorTargets")?.optString(key,"GENERAL_TEXT")?:"GENERAL_TEXT"
+    val config=payload.optJSONObject("colorSettings")?.optJSONObject(key)
+    val configuredMode=config?.optString("mode","")?.takeIf{it.isNotBlank()} ?: style.optString("colorMode",if(style.optBoolean("profitLossColor",false))"THEME_PROFIT_LOSS" else "THEME_GENERAL")
+    val useMarketColor=configuredMode=="THEME_PROFIT_LOSS"&&targetType!="GENERAL_TEXT"
+    var color=when(configuredMode){
+      "CUSTOM"->parseColor(config?.optString("customColor",style.optString("textColor",""))?:style.optString("textColor",""),fallbackColor)
+      "THEME_GENERAL"->fallbackColor
+      else->parseColor(style.optString("textColor",""),fallbackColor)
+    }
     if(useMarketColor&&pnlValue!=null){
       val rawNeutral=style.optString("neutralColor","")
       val neutralDefault=if(key=="price"&&(rawNeutral.isBlank()||rawNeutral.equals("#8E9BAE",true)))"#F4D35E" else if(rawNeutral.isNotBlank())rawNeutral else payload.optString("neutral","#94A3B8")
