@@ -43,12 +43,13 @@ jobs:
         if: steps.precheck.outputs.already_restored != 'true'
         run: python3 scripts/RESTORE_BROKER_MODULE_V37.py
 
-      - name: Normalize generated broker TSX
+      - name: Normalize generated broker integration
         if: steps.precheck.outputs.already_restored != 'true'
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           p=Path('src/v3/screensBase.tsx')
           s=p.read_text(encoding='utf-8')
           s=s.replace('title=\\"交易券商\\"','title="交易券商"')
@@ -62,6 +63,20 @@ jobs:
           if start >= 0 and end > start:
               block=s[start:end].replace('\\n','\n').replace('\\"','"')
               s=s[:start]+block+s[end:]
+          p.write_text(s,encoding='utf-8')
+
+          p=Path('App.tsx')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace(
+              'rebuildHoldingsFromLedger(s.holdings,s.ledger,symbols)',
+              'rebuildHoldingsFromLedger(s.holdings,s.ledger,symbols,s.brokerProfiles)',
+              1,
+          )
+          s=s.replace(
+              'onConfirmBuy={(draft:AiBuyDraft)=>{addBuy(draft);',
+              'onConfirmBuy={(draft:AiBuyDraft)=>{addBuy({...draft,brokerProfileId:state.defaultBrokerProfileId});',
+              1,
+          )
           p.write_text(s,encoding='utf-8')
           PY
 
