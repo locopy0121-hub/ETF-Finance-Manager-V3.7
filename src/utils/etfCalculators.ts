@@ -54,22 +54,12 @@ export const calculateDividendDetail = (
   const shares = safeShares(sharesHeld);
   const dividendPerShare = nonNegative(perShareAmount);
   if (shares <= 0 || dividendPerShare <= 0) {
-    return {
-      grossDividend: 0,
-      supplementaryHealthPremium: 0,
-      remittanceFee: 0,
-      netDividend: 0,
-    };
+    return { grossDividend: 0, supplementaryHealthPremium: 0, remittanceFee: 0, netDividend: 0 };
   }
 
   const grossDividend = Math.floor(dividendPerShare * shares);
   if (grossDividend <= 0) {
-    return {
-      grossDividend: 0,
-      supplementaryHealthPremium: 0,
-      remittanceFee: 0,
-      netDividend: 0,
-    };
+    return { grossDividend: 0, supplementaryHealthPremium: 0, remittanceFee: 0, netDividend: 0 };
   }
 
   const supplementaryHealthPremium = grossDividend >= HUANAN_CONFIG.HEALTH_PREMIUM_THRESHOLD
@@ -77,7 +67,6 @@ export const calculateDividendDetail = (
     : 0;
   const remittanceFee = HUANAN_CONFIG.DIVIDEND_REMITTANCE_FEE;
   const netDividend = Math.max(0, grossDividend - supplementaryHealthPremium - remittanceFee);
-
   return { grossDividend, supplementaryHealthPremium, remittanceFee, netDividend };
 };
 
@@ -127,13 +116,20 @@ export const calculateNetDividend = (record: DividendRecord): number => (
 
 type PositionState = {
   totalShares: number;
+  historicalTradeCost: number;
+  historicalBuyFees: number;
+  currentTradeCost: number;
+  currentAllocatedBuyFees: number;
   totalInvestmentCost: number;
   realizedProfit: number;
 };
 
 const calculatePositionState = (transactions: Transaction[]): PositionState => {
   let totalShares = 0;
-  let totalInvestmentCost = 0;
+  let historicalTradeCost = 0;
+  let historicalBuyFees = 0;
+  let currentTradeCost = 0;
+  let currentAllocatedBuyFees = 0;
   let realizedProfit = 0;
 
   for (const transaction of sortTransactions(transactions)) {
@@ -143,35 +139,63 @@ const calculatePositionState = (transactions: Transaction[]): PositionState => {
 
     if (transaction.type === 'BUY') {
       const purchase = calculatePurchaseCost(transaction);
+      historicalTradeCost += purchase.tradeAmount;
+      historicalBuyFees += purchase.commission;
+      currentTradeCost += purchase.tradeAmount;
+      currentAllocatedBuyFees += purchase.commission;
       totalShares += shares;
-      totalInvestmentCost += purchase.settlementAmount;
       continue;
     }
 
+    const totalInvestmentCost = currentTradeCost + currentAllocatedBuyFees;
     if (totalShares <= 0 || totalInvestmentCost <= 0) continue;
+
     const sellShares = Math.min(shares, totalShares);
-    const averageCostBeforeSell = totalInvestmentCost / totalShares;
-    const releasedCost = averageCostBeforeSell * sellShares;
+    const shareRatio = sellShares / totalShares;
+    const releasedTradeCost = currentTradeCost * shareRatio;
+    const releasedBuyFees = currentAllocatedBuyFees * shareRatio;
+    const releasedCost = releasedTradeCost + releasedBuyFees;
     const sale = calculateSell(transaction, releasedCost, sellShares);
 
     realizedProfit += sale.realizedProfit;
     totalShares -= sellShares;
-    totalInvestmentCost -= releasedCost;
+    currentTradeCost -= releasedTradeCost;
+    currentAllocatedBuyFees -= releasedBuyFees;
 
     if (totalShares <= 1e-9) {
       totalShares = 0;
-      totalInvestmentCost = 0;
+      currentTradeCost = 0;
+      currentAllocatedBuyFees = 0;
     } else {
-      totalInvestmentCost = Math.max(0, totalInvestmentCost);
+      currentTradeCost = Math.max(0, currentTradeCost);
+      currentAllocatedBuyFees = Math.max(0, currentAllocatedBuyFees);
     }
   }
 
-  return { totalShares, totalInvestmentCost, realizedProfit };
+  return {
+    totalShares,
+    historicalTradeCost,
+    historicalBuyFees,
+    currentTradeCost,
+    currentAllocatedBuyFees,
+    totalInvestmentCost: currentTradeCost + currentAllocatedBuyFees,
+    realizedProfit,
+  };
 };
 
 export const calculateETFSummary = (etf: ETFItem): ETFSummary => {
   const currentPrice = nonNegative(etf.currentPrice);
-  const { totalShares, totalInvestmentCost, realizedProfit } = calculatePositionState(etf.transactions);
+  const state = calculatePositionState(etf.transactions);
+  const {
+    totalShares,
+    historicalTradeCost,
+    historicalBuyFees,
+    currentTradeCost,
+    currentAllocatedBuyFees,
+    totalInvestmentCost,
+    realizedProfit,
+  } = state;
+  const historicalCashOutflow = historicalTradeCost + historicalBuyFees;
   const hasValidPosition = totalShares > 0 && currentPrice > 0;
   const averageCostPerShare = hasValidPosition && totalInvestmentCost > 0
     ? totalInvestmentCost / totalShares
@@ -216,6 +240,11 @@ export const calculateETFSummary = (etf: ETFItem): ETFSummary => {
     name: etf.name,
     currentPrice,
     totalShares,
+    historicalTradeCost,
+    historicalBuyFees,
+    historicalCashOutflow,
+    currentTradeCost,
+    currentAllocatedBuyFees,
     totalInvestmentCost,
     averageCostPerShare,
     currentMarketValue,
