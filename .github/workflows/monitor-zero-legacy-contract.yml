@@ -13,6 +13,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - run: npm ci
       - run: node scripts/MONITOR_ZERO_LEGACY_CONTRACT_TEST.cjs
       - run: npx tsc --noEmit
+      - run: chmod +x android/gradlew && cd android && ./gradlew :app:compileDebugKotlin --no-daemon --stacktrace
