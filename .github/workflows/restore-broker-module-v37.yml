@@ -22,9 +22,9 @@ jobs:
           ref: main
           fetch-depth: 20
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-      - name: RED - broker contract must fail before restoration
+
+      - name: Precheck broker restoration contract
+        id: precheck
         shell: bash
         run: |
           set +e
@@ -32,18 +32,34 @@ jobs:
           code=$?
           set -e
           if [ "$code" -eq 0 ]; then
-            echo 'Broker module unexpectedly already satisfies the restoration contract.'
-            exit 1
+            echo 'already_restored=true' >> "$GITHUB_OUTPUT"
+            echo 'Broker module already satisfies the restoration contract.'
+          else
+            echo 'already_restored=false' >> "$GITHUB_OUTPUT"
+            echo 'Broker module restoration is required.'
           fi
-          echo 'Expected RED confirmed.'
+
       - name: Apply deterministic broker restoration
+        if: steps.precheck.outputs.already_restored != 'true'
         run: python3 scripts/RESTORE_BROKER_MODULE_V37.py
+
       - name: GREEN - broker contract
         run: node scripts/BROKER_MODULE_RESTORE_TEST.cjs
+
+      - name: Install dependencies for TypeScript verification
+        timeout-minutes: 10
+        env:
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
+          npm_config_fetch_retries: '2'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: TypeScript verification
         run: npx tsc --noEmit
+
       - name: Diff integrity
         run: git diff --check
+
       - name: Commit restored broker module
         shell: bash
         run: |
