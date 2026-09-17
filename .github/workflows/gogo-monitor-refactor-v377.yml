@@ -9,7 +9,7 @@ permissions:
   contents: write
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[monitor-refactor-applied]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[monitor-refactor-applied]') && !contains(github.event.head_commit.message, '[monitor-refactor-diagnostic]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +21,13 @@ jobs:
         shell: bash
         run: |
           set +e
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/APPLY_MONITOR_REFACTOR_V377.cjs')
+          s=p.read_text()
+          s=s.replace('$lamp ${payload.optString', '$lamp \\${payload.optString')
+          p.write_text(s)
+          PY
           node scripts/APPLY_MONITOR_REFACTOR_V377.cjs > monitor-patch-result.txt 2>&1
           code=$?
           cat monitor-patch-result.txt
@@ -32,12 +39,14 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           if [ "${{ steps.patch.outputs.exit_code }}" != "0" ]; then
+            git restore scripts/APPLY_MONITOR_REFACTOR_V377.cjs
             git add monitor-patch-result.txt
             git commit -m "chore: capture monitor patch failure [monitor-refactor-diagnostic]" || true
             git push origin HEAD:gogo-monitor-refactor-20260917
             exit 1
           fi
           rm -f monitor-patch-result.txt
+          git restore scripts/APPLY_MONITOR_REFACTOR_V377.cjs
           git add src/v3/screensBase.tsx modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt
           git diff --cached --quiet && exit 0
           git commit -m "feat: apply monitor refactor [monitor-refactor-applied]"
