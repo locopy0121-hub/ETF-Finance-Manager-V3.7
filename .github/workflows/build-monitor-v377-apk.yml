@@ -1,0 +1,170 @@
+name: V3.7.7 Monitor Refactor APK
+
+on:
+  push:
+    branches: [gogo-monitor-refactor-20260917]
+    paths:
+      - 'src/**'
+      - 'modules/**'
+      - 'android/**'
+      - 'app.json'
+      - 'eas.json'
+      - 'scripts/MONITOR_V377_REFACTOR_CONTRACT.cjs'
+      - '.github/workflows/build-monitor-v377-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v3.7.7-monitor-refactor-apk
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NODE_ENV: production
+
+jobs:
+  verify-and-build:
+    name: Verify V3.7.7 Monitor and build signed APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+    steps:
+      - name: Checkout monitor release source
+        uses: actions/checkout@v5
+        with:
+          ref: gogo-monitor-refactor-20260917
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Expo authentication and linked EAS project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EXPO_TOKEN"
+          npx --yes eas-cli@latest whoami --non-interactive
+          npx --yes eas-cli@latest project:info
+
+      - name: Verify V3.7.7 version chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F "APP_SEMVER='3.7.7'" src/v3/version.ts
+          grep -F 'APP_BUILD=45' src/v3/version.ts
+          grep -F '"name": "ETF財務管家 V3.7.7"' app.json
+          grep -F '"version": "3.7.7"' app.json
+          grep -F '"runtimeVersion": "3.7.7"' app.json
+          grep -F '"versionCode": 45' app.json
+          grep -F '"buildNumber": "45"' app.json
+          grep -F 'versionCode 45' android/app/build.gradle
+          grep -F 'versionName "3.7.7"' android/app/build.gradle
+          grep -F '<string name="app_name">ETF財務管家 V3.7.7 NATIVE</string>' android/app/src/main/res/values/strings.xml
+          grep -F '<string name="expo_runtime_version">3.7.7</string>' android/app/src/main/res/values/strings.xml
+
+      - name: Verify monitor refactor contracts
+        run: node scripts/MONITOR_V377_REFACTOR_CONTRACT.cjs
+
+      - name: Verify finance core contracts
+        run: |
+          node scripts/BREAKING_HUANAN_CORE_TEST.cjs
+          node scripts/FINAL_ZERO_LEGACY_TEST.cjs
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Source diff integrity
+        run: git diff --check
+
+      - name: Prepare runner-only Android build limits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/gradle.properties')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace(
+              'org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m',
+              'org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m',
+              1,
+          )
+          lines = []
+          found_arch = False
+          for line in text.splitlines():
+              if line.startswith('reactNativeArchitectures='):
+                  lines.append('reactNativeArchitectures=arm64-v8a')
+                  found_arch = True
+              else:
+                  lines.append(line)
+          if not found_arch:
+              lines.append('reactNativeArchitectures=arm64-v8a')
+          p.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+
+      - name: Build V3.7.7 signed APK with EAS-managed credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          npx --yes eas-cli@latest build \
+            --platform android \
+            --profile preview \
+            --local \
+            --non-interactive \
+            --freeze-credentials \
+            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.7-Monitor-Refactor-ARM64.apk"
+
+      - name: Verify signed APK and package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT='artifacts/ETF-Finance-Manager-V3.7.7-Monitor-Refactor-ARM64.apk'
+          test -s "$OUT"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/SIGNING_CERT.txt
+          "$AAPT" dump badging "$OUT" | grep -E "^package:|^application-label:" | tee artifacts/APK_BADGING.txt
+          grep -F "name='com.etfpilot.twselive'" artifacts/APK_BADGING.txt
+          grep -F "versionName='3.7.7'" artifacts/APK_BADGING.txt
+          grep -F "versionCode='45'" artifacts/APK_BADGING.txt
+          sha256sum "$OUT" | tee artifacts/SHA256.txt
+          stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
+          {
+            echo 'source_commit='$(git rev-parse HEAD)
+            echo 'source_branch=gogo-monitor-refactor-20260917'
+            echo 'package=com.etfpilot.twselive'
+            echo 'versionName=3.7.7'
+            echo 'versionCode=45'
+            echo 'release=monitor-refactor-v377'
+            echo 'architecture=arm64-v8a'
+          } >> artifacts/BUILD_INFO.txt
+
+      - name: Upload V3.7.7 signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ETF-Finance-Manager-V3.7.7-Monitor-Refactor-ARM64
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
