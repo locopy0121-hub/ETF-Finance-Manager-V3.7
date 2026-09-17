@@ -145,7 +145,13 @@ export interface ETFSummary {
   /** 未實現損益 / 目前剩餘持倉含費成本 × 100。 */
   unrealizedROI: number;
 
-  /** 歷史股息扣除二代健保補充保費後的累積淨額。 */
+  /** 歷史賣出淨收入 - 對應釋放的含費移動平均成本。 */
+  realizedNetPnL: number;
+
+  /** 未實現 + 已實現 + 累積淨股息。 */
+  comprehensivePnL: number;
+
+  /** 歷史股息扣除二代健保補充保費與匯費後的累積淨額。 */
   totalDividendsReceived: number;
 
   /** 依目前持股及最新每股預估配息計算，並套用單筆二代健保補充保費規則。 */
@@ -174,6 +180,9 @@ export interface PortfolioSummary {
 
   totalUnrealizedProfit: number;
   totalUnrealizedROI: number;
+  realizedNetPnL: number;
+  comprehensivePnL: number;
+  totalPnl: number;
 
   totalDividendsReceived: number;
   nextEstimatedDividendTotal: number;
