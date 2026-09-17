@@ -8,25 +8,14 @@ export interface ResolveMonitorColorParams {
   themeColors: MonitorColorSettings;
 }
 
-export const resolveMonitorColor = ({
-  targetType,
-  value = 0,
-  quoteStatus,
-  config,
-  themeColors,
-}: ResolveMonitorColorParams): string => {
+export const resolveMonitorColor = ({ targetType, value = 0, quoteStatus, config, themeColors }: ResolveMonitorColorParams): string => {
   if (config.mode === 'CUSTOM' && config.customColor) return config.customColor;
-
-  if (config.mode === 'THEME_GENERAL' || targetType === 'GENERAL_TEXT') {
-    return themeColors.textPrimary;
-  }
-
+  if (config.mode === 'THEME_GENERAL' || targetType === 'GENERAL_TEXT') return themeColors.textPrimary;
   if (targetType === 'PROFIT_LOSS') {
     if (value > 0) return themeColors.gain;
     if (value < 0) return themeColors.loss;
     return themeColors.neutral;
   }
-
   if (targetType === 'MARKET_QUOTE') {
     switch (quoteStatus) {
       case 'LIMIT_UP': return themeColors.limitUp;
@@ -37,12 +26,16 @@ export const resolveMonitorColor = ({
       default: return themeColors.neutral;
     }
   }
-
   return themeColors.textPrimary;
 };
 
-export const PROFIT_LOSS_FIELDS = new Set(['unrealizedProfit', 'totalProfit', 'todayProfit', 'roi']);
-export const MARKET_QUOTE_FIELDS = new Set(['currentPrice', 'changeAmount', 'changePercent']);
+export const PROFIT_LOSS_FIELDS = new Set([
+  'unrealizedProfit','totalProfit','todayProfit','roi',
+  'instantPnl','instantRoi','todayPnl','todayPnlPct','totalRoi',
+]);
+export const MARKET_QUOTE_FIELDS = new Set([
+  'currentPrice','changeAmount','changePercent','price','change','changePct','premium',
+]);
 
 export const monitorColorTargetForField = (field: string): ColorTargetType => {
   if (PROFIT_LOSS_FIELDS.has(field)) return 'PROFIT_LOSS';
