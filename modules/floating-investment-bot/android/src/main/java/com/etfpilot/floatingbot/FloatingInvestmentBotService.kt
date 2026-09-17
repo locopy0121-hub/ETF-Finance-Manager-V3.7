@@ -79,14 +79,18 @@ class FloatingInvestmentBotService : Service() {
   private var payload = JSONObject()
   private var rotateIndex = 0
   private var destroyed = false
+  private var refreshInFlight = false
+  private fun layoutStore() = FloatingMonitorLayoutStore(this)
 
   private val refreshRunnable = object : Runnable {
     override fun run() {
       if (destroyed) return
-      refreshQuotesInBackground()
       val sec = payload.optDouble("refreshSeconds", 5.0)
-      val delay = if (sec <= 0.0) 1000L else max(250L, (sec * 1000.0).toLong())
-      handler.postDelayed(this, delay)
+      if (sec <= 0.0) { payload.put("pulseStatus", "PAUSED"); updateOverlayText(); return }
+      payload.put("pulseStatus", "REFRESHING")
+      updateOverlayText()
+      refreshQuotesInBackground()
+      handler.postDelayed(this, max(1000L, (sec * 1000.0).toLong()))
     }
   }
 
@@ -182,16 +186,16 @@ class FloatingInvestmentBotService : Service() {
     val scale = payload.optDouble("scale", 1.0).coerceIn(.7, 1.5)
     val mode = payload.optString("mode", "bubble")
     val preset = modeSize(mode, scale)
-    val saved = getSharedPreferences(PREF, MODE_PRIVATE)
-    val customW = payload.optDouble("width", 0.0)
-    val customH = payload.optDouble("height", 0.0)
-    val savedW = saved.getInt(PREF_W, 0)
-    val savedH = saved.getInt(PREF_H, 0)
-    val size = Pair(if (savedW > 0) savedW else if (customW > 0) customW.toInt() else preset.first, if (savedH > 0) savedH else if (customH > 0) customH.toInt() else preset.second)
+    val store = layoutStore()
+    store.applyPayload(payload)
+    val active = store.active()
+    val size = Pair(active.width.takeIf { it > 0 } ?: preset.first, active.height.takeIf { it > 0 } ?: preset.second)
     val p = params
     if (root != null && p != null) {
       p.width = dp(size.first)
-      p.height = if (payload.optBoolean("autoHeight", true)) WindowManager.LayoutParams.WRAP_CONTENT else dp(size.second)
+      p.height = dp(size.second)
+      p.x = active.x
+      p.y = active.y
       try { wm.updateViewLayout(root, p) } catch (_: Throwable) {}
       return
     }
@@ -200,17 +204,16 @@ class FloatingInvestmentBotService : Service() {
       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
     else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
 
-    val prefs = getSharedPreferences(PREF, MODE_PRIVATE)
     params = WindowManager.LayoutParams(
-      dp(size.first), if (payload.optBoolean("autoHeight", true)) WindowManager.LayoutParams.WRAP_CONTENT else dp(size.second), type,
+      dp(size.first), dp(size.second), type,
       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
       PixelFormat.TRANSLUCENT
     ).apply {
       gravity = Gravity.TOP or Gravity.START
-      x = prefs.getInt(PREF_X, dp(18))
-      y = prefs.getInt(PREF_Y, dp(180))
+      x = active.x
+      y = active.y
     }
 
     root = LinearLayout(this).apply {
@@ -248,7 +251,7 @@ class FloatingInvestmentBotService : Service() {
           if (moved) {
             if (payload.optBoolean("snap",true)) { val sw=resources.displayMetrics.widthPixels; p.x=if(p.x+p.width/2<sw/2)0 else max(0,sw-p.width) }
             val dock=payload.optString("dockMode","edge"); if(dock=="peek") { val sw=resources.displayMetrics.widthPixels; val peek=dp(28); p.x=if(p.x<sw/2)-max(0,p.width-peek) else max(0,sw-peek) }
-            try{wm.updateViewLayout(root,p)}catch(_:Throwable){}; getSharedPreferences(PREF,MODE_PRIVATE).edit().putInt(PREF_X,p.x).putInt(PREF_Y,p.y).apply()
+            try{wm.updateViewLayout(root,p)}catch(_:Throwable){}; val store=layoutStore();val current=store.active();store.saveActive(current.copy(x=p.x,y=p.y))
           } else {
             val now=System.currentTimeMillis(); val doubleTap=now-lastTapAt<420; lastTapAt=now
             if(doubleTap && payload.optBoolean("doubleTapLayout",true)) toggleFavoriteSize()
@@ -273,17 +276,24 @@ class FloatingInvestmentBotService : Service() {
           val grid=dp(payload.optInt("gridSnap",8).coerceIn(1,32)); if(grid>1){nw=max(minW,(nw/grid)*grid);nh=max(minH,(nh/grid)*grid)}
           p.width=nw;p.height=nh;try{wm.updateViewLayout(root,p)}catch(_:Throwable){};true
         }
-        MotionEvent.ACTION_UP->{getSharedPreferences(PREF,MODE_PRIVATE).edit().putInt(PREF_W,(p.width/resources.displayMetrics.density).toInt()).putInt(PREF_H,(p.height/resources.displayMetrics.density).toInt()).apply();if(payload.optBoolean("haptics",true))view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);true}
+        MotionEvent.ACTION_UP->{val store=layoutStore();val current=store.active();store.saveActive(current.copy(x=p.x,y=p.y,width=(p.width/resources.displayMetrics.density).toInt(),height=(p.height/resources.displayMetrics.density).toInt()));if(payload.optBoolean("haptics",true))view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);true}
         else->false
       }
     }
   }
 
   private fun toggleFavoriteSize(){
-    val p=params?:return;val minW=dp(max(120,payload.optInt("minWidth",120)));val minH=dp(max(48,payload.optInt("minHeight",48)));val expanded=p.width>minW*2
-    if(expanded){p.width=minW;p.height=minH}else{p.width=min(resources.displayMetrics.widthPixels-dp(16),dp(payload.optInt("width",390)));p.height=min((resources.displayMetrics.heightPixels*.72).toInt(),dp(payload.optInt("height",240)))}
+    val p=params?:return
+    val store=layoutStore()
+    val next=if(store.isMinimized()){store.restoreNormal()}else{
+      store.saveNormal(store.normal().copy(x=p.x,y=p.y,width=(p.width/resources.displayMetrics.density).toInt(),height=(p.height/resources.displayMetrics.density).toInt()))
+      store.minimize()
+    }
+    p.x=next.x;p.y=next.y;p.width=dp(next.width);p.height=dp(next.height)
+    payload.put("isMinimized",store.isMinimized())
+    payload.put("fields",if(store.isMinimized())payload.optJSONArray("miniFields")?:payload.optJSONArray("fields") else payload.optJSONArray("normalFields")?:payload.optJSONArray("fields"))
     try{wm.updateViewLayout(root,p)}catch(_:Throwable){}
-    getSharedPreferences(PREF,MODE_PRIVATE).edit().putInt(PREF_W,(p.width/resources.displayMetrics.density).toInt()).putInt(PREF_H,(p.height/resources.displayMetrics.density).toInt()).apply()
+    updateOverlayText()
   }
 
   private fun launchApp() {
@@ -325,6 +335,7 @@ class FloatingInvestmentBotService : Service() {
       setStroke(dp(1), withAlpha(border, 190))
     }
     root?.background = bg
+    if (layoutStore().isMinimized()) { renderMiniOverlay(); return }
     if (payload.optString("mode", "bubble") == "table") { renderTableOverlay(); return }
     if (payload.optString("mode", "bubble") == "puzzle") { renderPuzzleOverlay(); return }
     if (text?.parent == null) {
@@ -392,6 +403,31 @@ class FloatingInvestmentBotService : Service() {
       if(bgOpacity>0||effect=="outline")background=GradientDrawable().apply{cornerRadius=dp(style.optInt("radius",4).coerceIn(0,30)).toFloat();setColor(withAlpha(parseColor(bgRaw,Color.TRANSPARENT),(255*bgOpacity/100.0).toInt()));if(effect=="outline")setStroke(dp(max(1,strength/35)),withAlpha(color,220))}
       when(effect){"shadow"->setShadowLayer(max(1f,strength/10f),dp(1).toFloat(),dp(1).toFloat(),Color.BLACK);"glow"->setShadowLayer(max(1f,strength/7f),0f,0f,color)}
     }
+  }
+
+  private fun renderMiniOverlay() {
+    val host=root?:return
+    host.removeAllViews();host.setPadding(dp(6),dp(4),dp(6),dp(4))
+    val cfg=payload.optJSONObject("miniConfig")?:JSONObject()
+    val layout=cfg.optString("layoutType","LIST")
+    val lines=selectedMetricLines().take(cfg.optInt("maxDisplayCount",3).coerceIn(1,10))
+    val textColor=parseColor(payload.optString("textColor","#FFFFFF"),Color.WHITE)
+    val accent=parseColor(payload.optString("accent","#3AC7FF"),Color.CYAN)
+    val status=payload.optString("pulseStatus","IDLE")
+    val lamp=when(status){"REFRESHING"->"●";"ERROR"->"◉";"PAUSED"->"○";else->"•"}
+    val header=TextView(this).apply{text="$lamp ${payload.optString("updatedAt","--:--:--")}";textSize=8f;setTextColor(accent);gravity=Gravity.END;setPadding(dp(2),0,dp(2),dp(2))}
+    host.addView(header,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT))
+    val columns=when(layout){"SINGLE_ROW"->max(1,lines.size);"DUAL_ROW"->max(1,(lines.size+1)/2);"GRID"->2;else->1}
+    if(layout=="LIST"||layout=="MINI_CARD"){
+      val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
+      lines.forEach{line->list.addView(TextView(this).apply{text=line;textSize=cfg.optDouble("fontSize",11.0).toFloat();setTextColor(textColor);setPadding(dp(4),dp(2),dp(4),dp(2));maxLines=1},LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT))}
+      host.addView(list,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f))
+    }else{
+      val grid=GridLayout(this).apply{columnCount=columns;rowCount=GridLayout.UNDEFINED}
+      lines.forEach{line->val cell=TextView(this).apply{text=line;textSize=cfg.optDouble("fontSize",11.0).toFloat();setTextColor(textColor);gravity=Gravity.CENTER;setPadding(dp(3),dp(2),dp(3),dp(2));maxLines=1};grid.addView(cell,GridLayout.LayoutParams().apply{width=0;height=android.view.ViewGroup.LayoutParams.WRAP_CONTENT;columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f)})}
+      host.addView(grid,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f))
+    }
+    if(!payload.optBoolean("locked",false)){val grip=TextView(this).apply{text="↘";textSize=14f;setTextColor(accent);gravity=Gravity.END};host.addView(grip,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(22)));installResizeTouch(grip)}
   }
 
   private fun renderTableOverlay() {
@@ -503,6 +539,8 @@ class FloatingInvestmentBotService : Service() {
   }
 
   private fun refreshQuotesInBackground() {
+    if(refreshInFlight)return
+    refreshInFlight=true
     val basePayload=payload
     val cashBalance = payload.optDouble("cashBalance", 0.0)
     val positions=basePayload.optJSONArray("positions")?:return
@@ -553,10 +591,12 @@ class FloatingInvestmentBotService : Service() {
             payload.put("totalAssets", totalAssets + cashBalance)
             payload.put("updatedAt", nextUpdatedAt)
             payload.put("healthy", true)
+            payload.put("pulseStatus", "SUCCESS")
+            refreshInFlight=false
             getSharedPreferences(PREF,MODE_PRIVATE).edit().putString(PREF_PAYLOAD,payload.toString()).apply();updateOverlayText()
           }
         }
-      }catch(_:Throwable){handler.post{if(payload===basePayload){basePayload.put("healthy",false);updateOverlayText()}}}
+      }catch(_:Throwable){handler.post{refreshInFlight=false;if(payload===basePayload){basePayload.put("healthy",false);basePayload.put("pulseStatus","ERROR");updateOverlayText()}}}
     }
   }
 
