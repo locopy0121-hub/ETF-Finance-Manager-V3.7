@@ -1,0 +1,28 @@
+name: GOGO Monitor Color V3.7.7
+on:
+  push:
+    branches: [gogo-monitor-refactor-20260917]
+    paths:
+      - 'scripts/APPLY_MONITOR_COLOR_V377.cjs'
+      - '.github/workflows/gogo-monitor-color-v377.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[monitor-color-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gogo-monitor-refactor-20260917
+          fetch-depth: 0
+      - name: Apply unified color patches
+        run: node scripts/APPLY_MONITOR_COLOR_V377.cjs
+      - name: Commit generated color refactor
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/v3/monitoring.ts src/v3/MonitorFieldEditor.tsx modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: apply unified monitor colors [monitor-color-applied]"
+          git push origin HEAD:gogo-monitor-refactor-20260917
