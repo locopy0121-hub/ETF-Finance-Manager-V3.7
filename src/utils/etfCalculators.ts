@@ -165,9 +165,11 @@ const calculateCurrentPositionCost = (
 ): {
   totalShares: number;
   totalInvestmentCost: number;
+  realizedNetPnL: number;
 } => {
   let totalShares = 0;
   let totalInvestmentCost = 0;
+  let realizedNetPnL = 0;
 
   const orderedTransactions = sortTransactions(transactions);
 
@@ -193,9 +195,13 @@ const calculateCurrentPositionCost = (
       totalInvestmentCost > 0
     ) {
       const sellShares = Math.min(shares, totalShares);
-      const averageCostBeforeSell =
-        totalInvestmentCost / totalShares;
+      const averageCostBeforeSell = totalInvestmentCost / totalShares;
       const releasedCost = averageCostBeforeSell * sellShares;
+      const sellAmount = Math.floor(price * sellShares);
+      const sellCommission = calculateCommission(sellAmount, transaction.tradeMode, transaction.brokerProfile);
+      const sellTax = calculateETFSellTax(sellAmount, transaction.brokerProfile);
+      const netSellIncome = sellAmount - sellCommission - sellTax;
+      realizedNetPnL += netSellIncome - releasedCost;
 
       totalShares -= sellShares;
       totalInvestmentCost -= releasedCost;
@@ -213,6 +219,7 @@ const calculateCurrentPositionCost = (
   return {
     totalShares,
     totalInvestmentCost,
+    realizedNetPnL,
   };
 };
 
@@ -224,6 +231,7 @@ export const calculateETFSummary = (
   const {
     totalShares,
     totalInvestmentCost,
+    realizedNetPnL,
   } = calculateCurrentPositionCost(etf.transactions);
 
   const hasValidPosition =
@@ -284,6 +292,8 @@ export const calculateETFSummary = (
     etf.latestDividendPerShare ?? 0,
   );
 
+  const comprehensivePnL = unrealizedProfit + realizedNetPnL + totalDividendsReceived;
+
   const nextEstimatedDividend =
     hasValidPosition && latestDividendPerShare > 0
       ? calculateDividendDetail(
@@ -323,6 +333,8 @@ export const calculateETFSummary = (
     netLiquidationValue,
     unrealizedProfit,
     unrealizedROI,
+    realizedNetPnL,
+    comprehensivePnL,
     totalDividendsReceived,
     nextEstimatedDividend,
     singlePeriodYield,
@@ -374,11 +386,17 @@ export const calculatePortfolioSummary = (
         )
       : 0;
 
-  const totalDividendsReceived = rawSummaries.reduce(
-    (total, summary) =>
-      total + summary.totalDividendsReceived,
+  const realizedNetPnL = rawSummaries.reduce(
+    (total, summary) => total + summary.realizedNetPnL,
     0,
   );
+
+  const totalDividendsReceived = rawSummaries.reduce(
+    (total, summary) => total + summary.totalDividendsReceived,
+    0,
+  );
+
+  const comprehensivePnL = totalUnrealizedProfit + realizedNetPnL + totalDividendsReceived;
 
   const nextEstimatedDividendTotal = rawSummaries.reduce(
     (total, summary) =>
@@ -413,6 +431,9 @@ export const calculatePortfolioSummary = (
     totalEstimatedSellTax,
     totalUnrealizedProfit,
     totalUnrealizedROI,
+    realizedNetPnL,
+    comprehensivePnL,
+    totalPnl: comprehensivePnL,
     totalDividendsReceived,
     nextEstimatedDividendTotal,
     etfSummaries,
