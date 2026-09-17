@@ -1,5 +1,6 @@
 import type { MonitorDisplayMode, MonitorField } from './monitoring';
 import type { MonitorColorConfig, MonitorTemplate as CoreMonitorTemplate, TemplateModeConfig } from '../types/monitor';
+import { monitorColorTargetForField } from '../utils/monitorColorResolver';
 
 export type MonitorNativeMode = 'strip' | 'table' | 'puzzle';
 export type MonitorTemplate = CoreMonitorTemplate & {
@@ -11,39 +12,17 @@ export type MonitorTemplate = CoreMonitorTemplate & {
 };
 
 const colorConfig = (fields: MonitorField[]): Record<string, MonitorColorConfig> => Object.fromEntries(
-  fields.map(field => [field, { mode: 'THEME_PROFIT_LOSS' } satisfies MonitorColorConfig]),
+  fields.map(field => [field, { mode: monitorColorTargetForField(field) === 'GENERAL_TEXT' ? 'THEME_GENERAL' : 'THEME_PROFIT_LOSS' } satisfies MonitorColorConfig]),
 );
 
 const modeConfig = (fields: MonitorField[], layoutType: TemplateModeConfig['layoutType'], compact = false): TemplateModeConfig => ({
-  displayFields: [...fields],
-  fieldOrder: [...fields],
-  maxDisplayCount: compact ? Math.min(3, fields.length) : fields.length,
-  layoutType,
-  fontSize: compact ? 11 : 13,
-  textAlign: 'left',
-  itemSpacing: compact ? 4 : 8,
-  backgroundColor: '#08111F',
-  opacity: 0.92,
-  borderRadius: compact ? 10 : 16,
-  borderWidth: 1,
-  borderColor: '#3AC7FF',
+  displayFields: [...fields], fieldOrder: [...fields], maxDisplayCount: compact ? Math.min(3, fields.length) : fields.length,
+  layoutType, fontSize: compact ? 11 : 13, textAlign: 'left', itemSpacing: compact ? 4 : 8,
+  backgroundColor: '#08111F', opacity: 0.92, borderRadius: compact ? 10 : 16, borderWidth: 1, borderColor: '#3AC7FF',
 });
 
-const template = (
-  id: MonitorDisplayMode,
-  name: string,
-  fields: MonitorField[],
-  columns: 1 | 2 | 3,
-  nativeMode: MonitorNativeMode,
-  compact = false,
-): MonitorTemplate => ({
-  id,
-  name,
-  isDefault: true,
-  fields: [...fields],
-  columns,
-  compact,
-  nativeMode,
+const template = (id: MonitorDisplayMode, name: string, fields: MonitorField[], columns: 1 | 2 | 3, nativeMode: MonitorNativeMode, compact = false): MonitorTemplate => ({
+  id, name, isDefault: true, fields: [...fields], columns, compact, nativeMode,
   normalConfig: modeConfig(fields, columns === 1 ? 'LIST' : 'GRID', compact),
   miniConfig: modeConfig(fields, compact ? 'SINGLE_ROW' : columns === 1 ? 'LIST' : 'DUAL_ROW', true),
   colorConfig: colorConfig(fields),
