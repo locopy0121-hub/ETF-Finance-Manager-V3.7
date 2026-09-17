@@ -29,7 +29,7 @@ import {
   TradeMode,
   Transaction,
 } from '../types/etf';
-import { calculateBrokerCommission, calculateBrokerSellTax, defaultBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
+import { defaultBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
 
 const safeNumber = (value: number): number => {
   return Number.isFinite(value) ? value : 0;
@@ -50,9 +50,19 @@ const roundPercentage = (value: number): number => {
 
 export const resolveTransactionBrokerProfile=(profile?:BrokerProfile)=>profile??defaultBrokerProfile;
 
-const calculateCommission = (tradeAmount:number,tradeMode:TradeMode,profile?:BrokerProfile):number => calculateBrokerCommission(nonNegative(tradeAmount),tradeMode,resolveTransactionBrokerProfile(profile));
+const floorMoney = (value:number):number => Math.floor(nonNegative(value));
 
-const calculateETFSellTax = (tradeAmount:number,profile?:BrokerProfile):number => calculateBrokerSellTax(nonNegative(tradeAmount),resolveTransactionBrokerProfile(profile),'etf');
+const calculateCommission = (tradeAmount:number,tradeMode:TradeMode,_profile?:BrokerProfile):number => {
+  const amount=floorMoney(tradeAmount);
+  if(amount<=0)return 0;
+  const minimum=tradeMode==='ROUND_LOT'?HUANAN_CONFIG.MIN_COMMISSION_ROUND_LOT:HUANAN_CONFIG.MIN_COMMISSION_ODD_LOT;
+  return Math.max(minimum,Math.floor(amount*HUANAN_CONFIG.COMMISSION_RATE*HUANAN_CONFIG.COMMISSION_DISCOUNT));
+};
+
+const calculateETFSellTax = (tradeAmount:number,_profile?:BrokerProfile):number => {
+  const amount=floorMoney(tradeAmount);
+  return amount>0?Math.floor(amount*HUANAN_CONFIG.ETF_SELL_TAX_RATE):0;
+};
 
 const sortTransactions = (
   transactions: Transaction[],
@@ -81,11 +91,12 @@ const calculateDividendDetail = (
     return {
       grossDividend: 0,
       supplementaryHealthPremium: 0,
+      transferFee: 0,
       netDividend: 0,
     };
   }
 
-  const grossDividend = shares * dividendPerShare;
+  const grossDividend = Math.floor(shares * dividendPerShare);
 
   const supplementaryHealthPremium =
     grossDividend >= HUANAN_CONFIG.HEALTH_PREMIUM_THRESHOLD
@@ -94,10 +105,13 @@ const calculateDividendDetail = (
         )
       : 0;
 
+  const transferFee = grossDividend > 0 ? HUANAN_CONFIG.DIVIDEND_TRANSFER_FEE : 0;
+
   return {
     grossDividend,
     supplementaryHealthPremium,
-    netDividend: grossDividend - supplementaryHealthPremium,
+    transferFee,
+    netDividend: Math.max(0, grossDividend - supplementaryHealthPremium - transferFee),
   };
 };
 
@@ -123,7 +137,7 @@ export const calculatePurchaseCost = (
     };
   }
 
-  const tradeAmount = shares * price;
+  const tradeAmount = Math.floor(shares * price);
   const commission = calculateCommission(
     tradeAmount,
     transaction.tradeMode,
@@ -222,7 +236,7 @@ export const calculateETFSummary = (
 
   const currentMarketValue =
     hasValidPosition
-      ? totalShares * currentPrice
+      ? Math.floor(totalShares * currentPrice)
       : 0;
 
   const estimatedSellCommission =
