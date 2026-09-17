@@ -3,11 +3,14 @@ const assert=require('assert');
 
 const typesPath='src/types/etf.ts';
 const calcPath='src/utils/etfCalculators.ts';
+const brokerPath='src/data/brokerProfiles.ts';
 assert.ok(fs.existsSync(typesPath),'missing src/types/etf.ts');
 assert.ok(fs.existsSync(calcPath),'missing src/utils/etfCalculators.ts');
+assert.ok(fs.existsSync(brokerPath),'missing src/data/brokerProfiles.ts');
 
 const types=fs.readFileSync(typesPath,'utf8');
 const calc=fs.readFileSync(calcPath,'utf8');
+const broker=fs.readFileSync(brokerPath,'utf8');
 
 assert.match(types,/COMMISSION_RATE:\s*0\.001425/,'commission rate must be 0.001425');
 assert.match(types,/COMMISSION_DISCOUNT:\s*0\.65/,'commission discount must be 0.65');
@@ -23,12 +26,20 @@ for(const forbidden of [
   'calculateHuaNanFee',
   'calculateSellProceeds',
   'formatPrecision',
-  'defaultBrokerProfile',
   'FeeSettings',
-  'BrokerProfile',
 ]){
   assert.ok(!calc.includes(forbidden),`forbidden legacy calculation symbol remains: ${forbidden}`);
 }
+
+// BrokerProfile is the current shared resolver architecture, not a legacy fallback.
+assert.match(broker,/export type BrokerProfile/,'shared BrokerProfile definition must exist');
+assert.match(broker,/HUANAN_YONGCHANG_PROFILE_ID/,'Huanan broker profile must exist');
+assert.match(broker,/calculateBrokerCommission/,'broker commission resolver must exist');
+assert.match(broker,/calculateBrokerSellTax/,'broker sell-tax resolver must exist');
+assert.match(calc,/resolveTransactionBrokerProfile/,'calculator must resolve the transaction broker profile');
+assert.match(calc,/calculateBrokerCommission/,'calculator must delegate commission to broker profile engine');
+assert.match(calc,/calculateBrokerSellTax/,'calculator must delegate sell tax to broker profile engine');
+
 assert.match(calc,/const sortTransactions\s*=/,'transactions must be deterministically sorted');
 assert.match(calc,/averageCostBeforeSell/,'SELL must release moving-average cost');
 assert.ok(!/totalInvestmentCost\s*-=?\s*calculateSellProceeds/.test(calc),'sell proceeds must never reduce holding cost');
