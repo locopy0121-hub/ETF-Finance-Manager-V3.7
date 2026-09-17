@@ -21,8 +21,8 @@ const normalizeRect=(value:Partial<WindowRect>|undefined,fallback:WindowRect):Wi
  x:Number.isFinite(value?.x)?Number(value?.x):fallback.x,
  y:Number.isFinite(value?.y)?Number(value?.y):fallback.y,
  width:Math.max(48,Number.isFinite(value?.width)?Number(value?.width):fallback.width),
- height:Math.max(36,Number.isFinite(value?.height)?Number(value?.height):fallback.height,
-)});
+ height:Math.max(36,Number.isFinite(value?.height)?Number(value?.height):fallback.height),
+});
 
 export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holding[];quotes:Record<string,any>;ledger:LedgerEntry[];dividends:DividendEvent[];cashBalance:number;lastSuccessAt?:number;marketState:string;monitorInstance?:MonitorInstanceState}){
  const {prefs,holdings,quotes,ledger,dividends,cashBalance,lastSuccessAt,marketState,monitorInstance}=args;
