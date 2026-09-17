@@ -1,0 +1,59 @@
+name: Restore Broker Module V3.7
+
+on:
+  push:
+    branches: [main]
+    paths: ['.gogo-restore-broker-module']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CI: 'true'
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 20
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: RED - broker contract must fail before restoration
+        shell: bash
+        run: |
+          set +e
+          node scripts/BROKER_MODULE_RESTORE_TEST.cjs
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo 'Broker module unexpectedly already satisfies the restoration contract.'
+            exit 1
+          fi
+          echo 'Expected RED confirmed.'
+      - name: Apply deterministic broker restoration
+        run: python3 scripts/RESTORE_BROKER_MODULE_V37.py
+      - name: GREEN - broker contract
+        run: node scripts/BROKER_MODULE_RESTORE_TEST.cjs
+      - name: TypeScript verification
+        run: npx tsc --noEmit
+      - name: Diff integrity
+        run: git diff --check
+      - name: Commit restored broker module
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/data/brokerProfiles.ts src/types/etf.ts src/utils/etfCalculators.ts src/v3/model.ts src/v3/storage.ts src/v3/engine.ts src/v3/screensBase.tsx App.tsx
+          if git diff --cached --quiet; then
+            echo 'No broker restoration changes to commit.'
+          else
+            git commit -m 'fix(v3.7): restore broker profile accounting module'
+            git push origin HEAD:main
+          fi
