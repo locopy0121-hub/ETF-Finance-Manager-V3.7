@@ -15,17 +15,12 @@ const required=[
  'src/components/monitor/TemplateCard.tsx',
  'src/components/monitor/TemplateEditorModal.tsx',
  'src/components/monitor/PulseLight.tsx',
+ 'modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/MonitorLayoutStore.kt',
 ];
 for(const file of required)expect(exists(file),`missing ${file}`);
 
 const types=read('src/types/monitor.ts');
-for(const token of [
- "'NORMAL' | 'MINI'",
- "'SINGLE_ROW' | 'DUAL_ROW' | 'LIST' | 'MINI_CARD' | 'GRID'",
- 'normalLayout: WindowRect','miniLayout: WindowRect','isMinimized: boolean',
- 'normalConfig: TemplateModeConfig','miniConfig: TemplateModeConfig','colorConfig: Record<string, MonitorColorConfig>',
- 'portfolioSummary:','etfSummaries:','rawQuotes:'
-])expect(types.includes(token),`monitor type contract missing: ${token}`);
+for(const token of ["'NORMAL' | 'MINI'","'SINGLE_ROW' | 'DUAL_ROW' | 'LIST' | 'MINI_CARD' | 'GRID'",'normalLayout: WindowRect','miniLayout: WindowRect','isMinimized: boolean','normalConfig: TemplateModeConfig','miniConfig: TemplateModeConfig','colorConfig: Record<string, MonitorColorConfig>','portfolioSummary:','etfSummaries:','rawQuotes:'])expect(types.includes(token),`monitor type contract missing: ${token}`);
 
 const resolver=read('src/utils/monitorColorResolver.ts');
 for(const token of ['resolveMonitorColor','PROFIT_LOSS','MARKET_QUOTE','GENERAL_TEXT','LIMIT_UP','LIMIT_DOWN'])expect(resolver.includes(token),`resolver contract missing: ${token}`);
@@ -50,5 +45,12 @@ expect(templates.includes('normalConfig')&&templates.includes('miniConfig'),'tem
 
 const overlay=read('src/services/floatingOverlay.ts');
 expect(overlay.includes('normalLayout')&&overlay.includes('miniLayout')&&overlay.includes('isMinimized'),'overlay payload must carry isolated layouts');
+
+const nativeStore=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/MonitorLayoutStore.kt');
+for(const token of ['normal_x','normal_y','normal_w','normal_h','mini_x','mini_y','mini_w','mini_h','is_minimized'])expect(nativeStore.includes(token),`native layout store missing ${token}`);
+const nativeService=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt');
+expect(nativeService.includes('restoreNormalLayout'),'native overlay must restore saved normal layout');
+expect(nativeService.includes('saveCurrentLayout'),'native overlay must persist only active layout');
+expect(!nativeService.includes('toggleFavoriteSize()'),'legacy size-toggle path must be removed');
 
 console.log('MONITOR_ZERO_LEGACY_CONTRACT_TEST PASS');
