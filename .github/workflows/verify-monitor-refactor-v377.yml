@@ -1,0 +1,28 @@
+name: Verify Monitor Refactor V3.7.7
+on:
+  push:
+    branches: [gogo-monitor-refactor-20260917]
+    paths:
+      - 'src/**'
+      - 'modules/floating-investment-bot/**'
+      - 'scripts/MONITOR_V377_REFACTOR_CONTRACT.cjs'
+      - '.github/workflows/verify-monitor-refactor-v377.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gogo-monitor-refactor-20260917
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.0'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Monitor contracts
+        run: node scripts/MONITOR_V377_REFACTOR_CONTRACT.cjs
+      - name: TypeScript strict check
+        run: npm run typecheck
