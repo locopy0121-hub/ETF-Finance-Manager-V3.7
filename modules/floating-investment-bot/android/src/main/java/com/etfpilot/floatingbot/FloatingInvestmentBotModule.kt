@@ -11,6 +11,7 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import org.json.JSONObject
 
 class FloatingInvestmentBotModule : Module() {
   override fun definition() = ModuleDefinition {
@@ -23,22 +24,22 @@ class FloatingInvestmentBotModule : Module() {
 
     Function("requestOverlayPermission") {
       val context = appContext.reactContext ?: return@Function false
-      val intent = Intent(
-        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-        Uri.parse("package:${context.packageName}")
-      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       context.startActivity(intent)
       true
     }
 
     Function("start") { payload: String ->
       val context = appContext.reactContext ?: return@Function false
+      try { FloatingMonitorLayoutStore(context).applyPayload(JSONObject(payload)) } catch (_: Throwable) {}
       FloatingInvestmentBotService.start(context, payload)
       true
     }
 
     Function("update") { payload: String ->
       val context = appContext.reactContext ?: return@Function false
+      try { FloatingMonitorLayoutStore(context).applyPayload(JSONObject(payload)) } catch (_: Throwable) {}
       FloatingInvestmentBotService.update(context, payload)
       true
     }
@@ -51,18 +52,20 @@ class FloatingInvestmentBotModule : Module() {
 
     Function("getLayoutSnapshot") {
       val context = appContext.reactContext ?: return@Function "{}"
-      val prefs = context.getSharedPreferences("floating_investment_bot", 0)
-      val width = prefs.getInt("w", 0)
-      val height = prefs.getInt("h", 0)
-      "{\"width\":$width,\"height\":$height}"
+      FloatingMonitorLayoutStore(context).snapshotJson()
     }
 
     Function("setLayoutSize") { width: Int, height: Int ->
       val context = appContext.reactContext ?: return@Function false
-      context.getSharedPreferences("floating_investment_bot", 0).edit()
-        .putInt("w", width.coerceAtLeast(120))
-        .putInt("h", height.coerceAtLeast(48))
-        .apply()
+      val store=FloatingMonitorLayoutStore(context)
+      val current=store.active()
+      store.saveActive(current.copy(width=width.coerceAtLeast(if(store.isMinimized())96 else 120),height=height.coerceAtLeast(if(store.isMinimized())40 else 48)))
+      true
+    }
+
+    Function("setLayoutMode") { minimized: Boolean ->
+      val context = appContext.reactContext ?: return@Function false
+      FloatingMonitorLayoutStore(context).setMinimized(minimized)
       true
     }
 
@@ -80,10 +83,7 @@ class FloatingInvestmentBotModule : Module() {
         } else {
           @Suppress("DEPRECATION")
           window.decorView.systemUiVisibility = if (enabled) {
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-              View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-              View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-              View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
           } else View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         }
       }
@@ -99,7 +99,6 @@ class FloatingInvestmentBotModule : Module() {
       val context = appContext.reactContext ?: return@Function false
       val index = key.removePrefix("icon-").toIntOrNull()?.coerceIn(1, 10) ?: return@Function false
       val pm = context.packageManager
-      // Enable the destination first so the launcher always has at least one valid entry.
       val selectedName = "${context.packageName}.Icon${index.toString().padStart(2, '0')}"
       pm.setComponentEnabledSetting(ComponentName(context, selectedName), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
       for (i in 1..10) {
