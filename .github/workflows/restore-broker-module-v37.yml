@@ -43,6 +43,28 @@ jobs:
         if: steps.precheck.outputs.already_restored != 'true'
         run: python3 scripts/RESTORE_BROKER_MODULE_V37.py
 
+      - name: Normalize generated broker TSX
+        if: steps.precheck.outputs.already_restored != 'true'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/v3/screensBase.tsx')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('title=\\"交易券商\\"','title="交易券商"')
+          start=s.find('function BrokerProfileManager')
+          if start < 0:
+              escaped=s.find('\\nfunction BrokerProfileManager')
+              if escaped >= 0:
+                  s=s[:escaped]+'\n'+s[escaped+2:]
+                  start=s.find('function BrokerProfileManager')
+          end=s.find('export function SettingsModal', start if start >= 0 else 0)
+          if start >= 0 and end > start:
+              block=s[start:end].replace('\\n','\n').replace('\\"','"')
+              s=s[:start]+block+s[end:]
+          p.write_text(s,encoding='utf-8')
+          PY
+
       - name: GREEN - broker contract
         run: node scripts/BROKER_MODULE_RESTORE_TEST.cjs
 
