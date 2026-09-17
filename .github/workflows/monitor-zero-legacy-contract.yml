@@ -1,0 +1,18 @@
+name: Monitor Zero Legacy Contract
+on:
+  push:
+    branches: [refactor/monitor-zero-legacy]
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/MONITOR_ZERO_LEGACY_CONTRACT_TEST.cjs
+      - run: npx tsc --noEmit
