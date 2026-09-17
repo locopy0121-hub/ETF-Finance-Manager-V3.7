@@ -54,14 +54,14 @@ expect('overlay payload carries mini config',overlay.includes('miniConfig'));
 expect('overlay payload carries color target metadata',overlay.includes('colorTargets'));
 
 const nativeModule=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotModule.kt');
-expect('native snapshot exposes normal mini layouts',nativeModule.includes('normalLayout')&&nativeModule.includes('miniLayout')&&nativeModule.includes('isMinimized'));
+const nativeStore=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingMonitorLayoutStore.kt');
+expect('native snapshot exposes normal mini layouts',nativeModule.includes('getLayoutSnapshot')&&nativeStore.includes('normalLayout')&&nativeStore.includes('miniLayout')&&nativeStore.includes('isMinimized'));
 const nativeService=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingInvestmentBotService.kt');
 expect('native mini has independent renderer',nativeService.includes('renderMiniOverlay()'));
 expect('native refresh is single flight',nativeService.includes('refreshInFlight'));
 expect('native pulse supports paused success error',nativeService.includes('"PAUSED"')&&nativeService.includes('"SUCCESS"')&&nativeService.includes('"ERROR"'));
 expect('native double tap restores isolated normal layout',nativeService.includes('restoreNormal()')&&nativeService.includes('store.minimize()'));
 expect('native renderer reads semantic color targets',nativeService.includes('colorTargets')&&nativeService.includes('THEME_PROFIT_LOSS')&&nativeService.includes('GENERAL_TEXT'));
-const nativeStore=read('modules/floating-investment-bot/android/src/main/java/com/etfpilot/floatingbot/FloatingMonitorLayoutStore.kt');
 expect('native drag resize stores active layout only',nativeStore.includes('fun saveActive'));
 expect('native payload cannot overwrite active mode',!nativeStore.match(/applyPayload[\s\S]{0,500}setMinimized\(/));
 
