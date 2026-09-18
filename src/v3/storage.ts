@@ -10,7 +10,7 @@ import { DEFAULT_BROKER_PROFILE_ID, HUANAN_YONGCHANG_PROFILE_ID, normalizeBroker
 
 export const V3_STATE_KEY='@etf-finance-manager/v3-state';
 const KEY=V3_STATE_KEY;
-const SCHEMA=19;
+const SCHEMA=20;
 
 const LEGACY_FIELD_KEYS:Record<string,string>={
  totalInvestedCost:'historicalCashOutflow',
@@ -21,7 +21,30 @@ const normalizeFieldList=(raw:any, fallback:string[]=[])=>Array.isArray(raw)?Arr
 const validMode=(value:unknown):value is TradeMode=>value==='ROUND_LOT'||value==='ODD_LOT';
 const inferMode=(shares:unknown):TradeMode=>{const n=Math.max(0,Number(shares)||0);return n>=1000&&n%1000===0?'ROUND_LOT':'ODD_LOT';};
 const validFrequency=(value:unknown):value is DividendFrequency=>value===1||value===2||value===4||value===6||value===12;
-function canonicalSellCharges(symbol:string,shares:number,price:number,mode:TradeMode,brokerProfile:any){const tx:Transaction={id:'migration-probe',etfCode:symbol,type:'BUY',tradeMode:mode,shares,price,date:'2000-01-01',brokerProfile};const item:ETFItem={etfCode:symbol,name:symbol,currentPrice:price,liquidationTradeMode:mode,dividendFrequency:1,transactions:[tx],dividendRecords:[],brokerProfile};const s=calculateETFSummary(item);return {amount:s.currentMarketValue,fee:s.estimatedSellCommission,tax:s.estimatedSellTax};}
+function canonicalSellCharges(symbol:string,shares:number,price:number,mode:TradeMode,brokerProfile:any){const tx:Transaction={id:'migration-probe',etfCode:symbol,type:'BUY',tradeMode:mode,shares,price,date:'2000-01-01',brokerProfile};const item:ETFItem={etfCode:symbol,name:symbol,currentPrice:price,liquidationTradeMode:mode,dividendFrequency:1,transactions:[tx],dividendRecords:[],brokerProfile};const summary=calculateETFSummary(item);return {amount:summary.currentMarketValue,calculatedFee:summary.estimatedSellCommission,calculatedTax:summary.estimatedSellTax};}
+const finiteNumber=(value:unknown):number|undefined=>{const n=Number(value);return Number.isFinite(n)?n:undefined;};
+const stripLegacySettlement=(raw:any)=>{const rest={...raw};delete rest.fee;delete rest.tax;return rest;};
+function migrateLedgerActualFees(raw:any,brokerProfiles:any[],defaultBrokerProfileId:string){
+ const base=stripLegacySettlement(raw);
+ if(raw.kind!=='buy'&&raw.kind!=='sell')return base;
+ const shares=Math.max(0,Number(raw.shares)||0),price=Math.max(0,Number(raw.price)||0),tradeMode=validMode(raw.tradeMode)?raw.tradeMode:inferMode(shares);
+ const inferredId=raw.brokerProfileId??(String(raw.broker??'').includes('華南永昌')?HUANAN_YONGCHANG_PROFILE_ID:defaultBrokerProfileId);
+ const profile=resolveBrokerProfile(inferredId,brokerProfiles,raw.broker);
+ const legacyFee=finiteNumber(raw.fee),legacyTax=finiteNumber(raw.tax);
+ if(raw.kind==='buy'){
+  const buy=calculatePurchaseCost({id:String(raw.id),etfCode:String(raw.symbol??''),type:'BUY',tradeMode,shares,price,date:String(raw.date??''),brokerProfile:profile});
+  const calculatedFee=finiteNumber(raw.calculatedFee)??buy.commission;
+  const actualFee=finiteNumber(raw.actualFee)??legacyFee??calculatedFee;
+  return {...base,broker:raw.broker??profile.name,brokerProfileId:profile.id,tradeMode,amount:finiteNumber(raw.amount)??buy.tradeAmount,calculatedFee,calculatedTax:0,actualFee,actualTax:0};
+ }
+ const sell=canonicalSellCharges(String(raw.symbol??''),shares,price,tradeMode,profile);
+ const calculatedFee=finiteNumber(raw.calculatedFee)??sell.calculatedFee;
+ const calculatedTax=finiteNumber(raw.calculatedTax)??sell.calculatedTax;
+ const actualFee=finiteNumber(raw.actualFee)??legacyFee??calculatedFee;
+ const actualTax=finiteNumber(raw.actualTax)??legacyTax??calculatedTax;
+ return {...base,broker:raw.broker??profile.name,brokerProfileId:profile.id,tradeMode,amount:finiteNumber(raw.amount)??sell.amount,calculatedFee,calculatedTax,actualFee,actualTax};
+}
+const sanitizeLedgerForStorage=(ledger:any[])=>ledger.map(stripLegacySettlement);
 
 function mergeState(p:Partial<V3State>):V3State{
  const sourceSchema=Number((p as any).schemaVersion??0);
@@ -109,7 +132,7 @@ function mergeState(p:Partial<V3State>):V3State{
  const brokerProfiles=normalizeBrokerProfiles((p as any).brokerProfiles);
  const defaultBrokerProfileId=String((p as any).defaultBrokerProfileId??DEFAULT_BROKER_PROFILE_ID);
  const normalizedHoldings=(Array.isArray(p.holdings)?p.holdings:[]).map((raw:any)=>{const rest=stripRemovedFinanceOverrides(raw);return {...rest,liquidationTradeMode:validMode(raw.liquidationTradeMode)?raw.liquidationTradeMode:inferMode(raw.shares),dividendFrequency:validFrequency(raw.dividendFrequency)?raw.dividendFrequency:1};});
- const rawLedger=(Array.isArray(p.ledger)&&p.ledger.length?p.ledger:seedLedgerFromHoldings(normalizedHoldings)).map((raw:any)=>{const rest=stripRemovedFinanceOverrides(raw);if(raw.kind!=='buy'&&raw.kind!=='sell')return rest;const shares=Math.max(0,Number(raw.shares)||0),price=Math.max(0,Number(raw.price)||0),tradeMode=validMode(raw.tradeMode)?raw.tradeMode:inferMode(shares);const inferredId=raw.brokerProfileId??(String(raw.broker??'').includes('華南永昌')?HUANAN_YONGCHANG_PROFILE_ID:defaultBrokerProfileId);const profile=resolveBrokerProfile(inferredId,brokerProfiles,raw.broker);if(raw.kind==='buy'){const buy=calculatePurchaseCost({id:String(raw.id),etfCode:String(raw.symbol??''),type:'BUY',tradeMode,shares,price,date:String(raw.date??''),brokerProfile:profile});return {...rest,broker:raw.broker??profile.name,brokerProfileId:profile.id,tradeMode,amount:buy.tradeAmount,fee:buy.commission,tax:0};}const sell=canonicalSellCharges(String(raw.symbol??''),shares,price,tradeMode,profile);return {...rest,broker:raw.broker??profile.name,brokerProfileId:profile.id,tradeMode,amount:sell.amount,fee:sell.fee,tax:sell.tax};});
+ const rawLedger=(Array.isArray(p.ledger)&&p.ledger.length?p.ledger:seedLedgerFromHoldings(normalizedHoldings)).map((raw:any)=>migrateLedgerActualFees(stripRemovedFinanceOverrides(raw),brokerProfiles,defaultBrokerProfileId));
  return {
   schemaVersion:SCHEMA,
   holdings:normalizedHoldings,
@@ -151,7 +174,8 @@ export async function loadV3State():Promise<V3State>{
 }
 
 export async function saveV3State(state:V3State){
- await AsyncStorage.setItem(KEY,JSON.stringify({...state,schemaVersion:SCHEMA,savedAt:Date.now()}));
+ const payload={...state,ledger:sanitizeLedgerForStorage(state.ledger as any[]),schemaVersion:SCHEMA,savedAt:Date.now()};
+ await AsyncStorage.setItem(KEY,JSON.stringify(payload));
 }
 
 export function normalizeImportedV3State(input:unknown):V3State{
