@@ -41,6 +41,7 @@ import { EffectSurface } from '../ui/EffectSurface';
 import { createBrokerProfile, normalizeBrokerProfiles, resolveBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
 import { DashboardScreen as ModernDashboardScreen } from './screens/DashboardScreen';
 import { PortfolioScreen as ModernPortfolioScreen } from './screens/PortfolioScreen';
+import { DividendScreen as ModernDividendScreen } from './screens/DividendScreen';
 
 const localDateKey=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 type QuoteLike={price?:number;change?:number;changePercent?:number;previousClose?:number;open?:number;high?:number;low?:number;volume?:number;nav?:number;quoteDate?:string;quoteTime?:string};
@@ -234,15 +235,93 @@ function DividendMonthCalendar({cursor,events,selectedDate,onSelect,onPrev,onNex
  })}</View>
  <View style={{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:10}}>{[[eventColor,'公告日'],['#F59E0B','最後買進日'],[prefs.negativeColor,'除息日'],[prefs.positiveColor,'發放日'],['#A78BFA','備註']].map(([c,l])=><View key={l} style={{flexDirection:'row',alignItems:'center',gap:4}}><View style={{width:7,height:7,borderRadius:4,backgroundColor:c}}/><Text style={{color:secondary,fontSize:9}}>{l}</Text></View>)}</View></Card>;
 }
-export function DividendScreenV3({common,onSettings,onSaveEvent,onDeleteEvent,onMarkPaid}:{common:ScreenCommon;onSettings:()=>void;onSaveEvent:(e:DividendEvent)=>void;onDeleteEvent:(id:string)=>void;onMarkPaid:(id:string,amount:number,date:string)=>void}){
- const now=new Date(); const [calendarCursor,setCalendarCursor]=useState(()=>new Date(now.getFullYear(),now.getMonth(),1)); const year=calendarCursor.getFullYear(),month=calendarCursor.getMonth()+1; const [selectedDay,setSelectedDay]=useState(fmtDate(now)); const m=calculatePortfolioView(common.holdings,common.quotes,common.cashBalance,common.ledger,common.dividends); const [editorOpen,setEditorOpen]=useState(false); const [editing,setEditing]=useState<DividendEvent|null>(null); const [paying,setPaying]=useState<DividendEvent|null>(null); const [payAmount,setPayAmount]=useState('');
- const events=common.dividends; const yearEvents=events.filter(e=>(e.payDate||e.exDate||'').startsWith(String(year))); const yearReceived=yearEvents.reduce((a,e)=>a+Number(e.actualAmount??0),0); const yearExpected=yearEvents.reduce((a,e)=>a+Number(e.actualAmount??e.estimatedAmount??0),0); const pending=events.filter(e=>Number(e.actualAmount??0)<=0).reduce((a,e)=>a+Number(e.estimatedAmount??0),0); const avg=yearExpected/12; const next=[...events].filter(e=>Number(e.actualAmount??0)<=0&&e.payDate>=fmtDate(now)).sort((a,b)=>a.payDate.localeCompare(b.payDate))[0]; const totalTradeCost=common.holdings.reduce((a,h)=>a+calculateHoldingView(h,common.quotes,common.ledger,common.dividends).pureCost,0); const costYield=totalTradeCost>0?m.cumulativeDividends/totalTradeCost*100:0; const nextEx=[...events].filter(e=>e.exDate>=fmtDate(now)).sort((a,b)=>String(a.exDate||'').localeCompare(String(b.exDate||'')))[0]; const latestEligible=[...events].filter(e=>Number(e.eligibleShares??0)>0).sort((a,b)=>String(b.exDate||b.payDate||'').localeCompare(String(a.exDate||a.payDate||'')))[0]; const sum:any={cumulativeDividends:money(m.cumulativeDividends),yearReceived:money(yearReceived),yearExpected:money(yearExpected),monthlyAverage:money(avg),pendingDividend:money(pending),nextPayDate:next?.payDate||'—',nextExDate:nextEx?.exDate||'—',eligibleShares:latestEligible?`${Number(latestEligible.eligibleShares??0).toLocaleString()} 股`:'—',costYield:pct(costYield),eventCount:`${events.length} 筆`};
- const months=Array.from({length:12},(_,i)=>{const k=`${year}-${String(i+1).padStart(2,'0')}`;const grouped=new Map<string,number>();events.filter(e=>(e.payDate||'').startsWith(k)).forEach(e=>grouped.set(e.symbol,(grouped.get(e.symbol)??0)+Number(e.actualAmount??e.estimatedAmount??0)));return {month:`${i+1}月`,parts:[...grouped.entries()].map(([symbol,amount])=>({symbol,amount}))};}); const monthKey=`${year}-${String(month).padStart(2,'0')}`; const monthEvents=events.filter(e=>[e.announcementDate,e.lastBuyDate,e.exDate,e.payDate].some(d=>d?.startsWith(monthKey))).sort((a,b)=>String(a.payDate||a.exDate||a.lastBuyDate||a.announcementDate||'').localeCompare(String(b.payDate||b.exDate||b.lastBuyDate||b.announcementDate||''))); const dayEvents=events.filter(e=>[e.announcementDate,e.lastBuyDate,e.exDate,e.payDate].includes(selectedDay));
- const life=common.prefs.lifestyleProgress,lifeTarget=life.targetMode==='custom'?life.customTarget:common.appSettings.goals.monthlyPassiveIncomeTarget;
- return <KeyboardAwareScrollView contentContainerStyle={s.page}><ScreenTitle title="股息日曆" subtitle="完整月曆 · 公告日 · 最後買進日 · 除息日 · 發放日" onSettings={onSettings} onAi={common.onAi} customizeEnabled={!!common.prefs.monitoring.pageCustomize.dividend} onToggleCustomize={()=>common.onTogglePageCustomize?.('dividend')}/><DividendMonthCalendar cursor={calendarCursor} events={events} selectedDate={selectedDay} prefs={common.prefs} onSelect={setSelectedDay} onPrev={()=>setCalendarCursor(c=>new Date(c.getFullYear(),c.getMonth()-1,1))} onNext={()=>setCalendarCursor(c=>new Date(c.getFullYear(),c.getMonth()+1,1))} onToday={()=>{const d=new Date();setCalendarCursor(new Date(d.getFullYear(),d.getMonth(),1));setSelectedDay(fmtDate(d))}}/><SelectedMetrics page="dividend" common={common} prefs={common.prefs} fields={common.prefs.pageCardFields.dividend} choices={pageFieldChoices.dividend} values={sum} spans={common.prefs.pageCardSpans.dividend} dailySnapshots={common.dailySnapshots} intradayPnlPoints={common.intradayPnlPoints}/><Card><SectionTitle title={`${selectedDay} 當日事件`} right={`${dayEvents.length} 筆`}/>{dayEvents.length?dayEvents.map(e=><DividendEventCard key={`day-${e.id}`} event={e} onEdit={()=>{setEditing(e);setEditorOpen(true)}} onDelete={()=>Alert.alert('刪除股息事件',`確定刪除 ${e.symbol} 這筆股息事件？`,[{text:'取消',style:'cancel'},{text:'刪除',style:'destructive',onPress:()=>onDeleteEvent(e.id)}])} onPay={()=>{setPaying(e);setPayAmount(String(e.actualAmount??e.estimatedAmount??''))}}/>):<Text style={s.empty}>這一天沒有股息事件。</Text>}<TouchableOpacity style={s.secondary} onPress={()=>{setEditing(null);setEditorOpen(true)}}><Text style={s.secondaryText}>＋ 新增股息日 / 配息事件</Text></TouchableOpacity></Card><Card><SectionTitle title="月月配息組合" right={`${year} 年`}/><StackedDividendBars months={months}/></Card><Card><SectionTitle title={`${year} 年 ${month} 月全部事件`} right={`${monthEvents.length} 筆`}/>{monthEvents.length?monthEvents.map(e=><DividendEventCard key={`month-${e.id}`} event={e} onEdit={()=>{setEditing(e);setEditorOpen(true)}} onDelete={()=>Alert.alert('刪除股息事件',`確定刪除 ${e.symbol} 這筆股息事件？`,[{text:'取消',style:'cancel'},{text:'刪除',style:'destructive',onPress:()=>onDeleteEvent(e.id)}])} onPay={()=>{setPaying(e);setPayAmount(String(e.actualAmount??e.estimatedAmount??''))}}/>):<Text style={s.empty}>本月尚無股息事件。</Text>}</Card>{life.enabled?<Card style={{opacity:Math.max(.3,Math.min(1,life.opacity/100)),borderRadius:life.radius}}><SectionTitle title={life.title||'生活感加薪進度'} right="依實際股息資料"/><LifestyleGauge label={life.title||'每月被動收入'} current={avg} target={Math.max(1,lifeTarget)} showPercent={life.showPercent} showAmounts={life.showAmounts} fontScale={life.fontScale} radius={life.radius} opacity={life.opacity} animation={life.animation} accentColor={life.followTheme?common.prefs.accentColor:life.accentColor} textColor={life.followTheme?common.prefs.primaryTextColor:life.textColor} trackColor={life.followTheme?'rgba(255,255,255,.12)':life.backgroundColor}/><Text style={s.note}>目前進度採本年度預估股息 ÷ 12；目標可在設定模式切換為全局月被動收入目標或自訂金額。</Text></Card>:null}
- <DividendEditor immersive={common.prefs.immersiveEditor!==false} visible={editorOpen} editing={editing} holdings={common.holdings} ledger={common.ledger} onClose={()=>setEditorOpen(false)} onSave={e=>{onSaveEvent(e);setEditorOpen(false)}}/>
- <Modal visible={!!paying} transparent animationType="slide" onRequestClose={()=>setPaying(null)}><View style={s.modalBackdrop}><SafeSheet><SectionTitle title="股息回填 / 確認入帳" right={paying?.symbol}/><Text style={s.note}>確認後會寫入現金、累積配息、首頁、Widget 與通知共用帳務層；同一事件只入帳一次。</Text><Field label="實際入帳股息" value={payAmount} onChange={setPayAmount} keyboard="decimal-pad" suffix="元"/><TouchableOpacity style={s.primary} onPress={()=>{if(!paying)return;const n=Number(payAmount);if(!(n>0))return Alert.alert('資料不足','請輸入實際入帳金額。');onMarkPaid(paying.id,n,fmtDate(new Date()));setPaying(null);}}><Text style={s.primaryText}>確認回填</Text></TouchableOpacity><TouchableOpacity style={s.secondary} onPress={()=>setPaying(null)}><Text style={s.secondaryText}>取消</Text></TouchableOpacity></SafeSheet></View></Modal>
- </KeyboardAwareScrollView>;
+export function DividendScreenV3({
+ common,
+ onSettings:_onSettings,
+ onSaveEvent,
+ onDeleteEvent:_onDeleteEvent,
+ onMarkPaid,
+}:{
+ common:ScreenCommon;
+ onSettings:()=>void;
+ onSaveEvent:(e:DividendEvent)=>void;
+ onDeleteEvent:(id:string)=>void;
+ onMarkPaid:(id:string,amount:number,date:string)=>void;
+}){
+ const [editorOpen,setEditorOpen]=useState(false);
+ const [editing,setEditing]=useState<DividendEvent|null>(null);
+ const [paying,setPaying]=useState<DividendEvent|null>(null);
+ const [payAmount,setPayAmount]=useState('');
+
+ const openEditor=(id:string)=>{
+  const event=common.dividends.find(item=>item.id===id)??null;
+  setEditing(event);
+  setEditorOpen(!!event);
+ };
+
+ const openPayment=(id:string)=>{
+  const event=common.dividends.find(item=>item.id===id)??null;
+  if(!event)return;
+  setPaying(event);
+  setPayAmount(String(event.actualAmount??event.estimatedAmount??''));
+ };
+
+ return <>
+  <ModernDividendScreen
+   common={common}
+   onEditEvent={openEditor}
+   onMarkPaid={openPayment}
+  />
+
+  <DividendEditor
+   immersive={common.prefs.immersiveEditor!==false}
+   visible={editorOpen}
+   editing={editing}
+   holdings={common.holdings}
+   ledger={common.ledger}
+   onClose={()=>setEditorOpen(false)}
+   onSave={event=>{
+    onSaveEvent(event);
+    setEditorOpen(false);
+   }}
+  />
+
+  <Modal
+   visible={!!paying}
+   transparent
+   animationType="slide"
+   onRequestClose={()=>setPaying(null)}
+  >
+   <View style={s.modalBackdrop}>
+    <SafeSheet>
+     <SectionTitle title="股息回填 / 確認入帳" right={paying?.symbol}/>
+     <Text style={s.note}>確認後會寫入現金、累積配息、首頁、Widget 與通知共用帳務層；同一事件只入帳一次。</Text>
+     <Field
+      label="實際入帳股息"
+      value={payAmount}
+      onChange={setPayAmount}
+      keyboard="decimal-pad"
+      suffix="元"
+     />
+     <TouchableOpacity
+      style={s.primary}
+      onPress={()=>{
+       if(!paying)return;
+       const amount=Number(payAmount);
+       if(!(amount>0))return Alert.alert('資料不足','請輸入實際入帳金額。');
+       onMarkPaid(paying.id,amount,fmtDate(new Date()));
+       setPaying(null);
+      }}
+     >
+      <Text style={s.primaryText}>確認回填</Text>
+     </TouchableOpacity>
+     <TouchableOpacity style={s.secondary} onPress={()=>setPaying(null)}>
+      <Text style={s.secondaryText}>取消</Text>
+     </TouchableOpacity>
+    </SafeSheet>
+   </View>
+  </Modal>
+ </>;
 }
 
 function DividendEventCard({event,onEdit,onDelete,onPay}:{event:DividendEvent;onEdit:()=>void;onDelete:()=>void;onPay:()=>void}){const paid=Number(event.actualAmount??0)>0;return <View style={s.eventCard}><View style={s.eventHead}><View><Text style={s.etfName}>{event.symbol} {event.name}</Text><Text style={s.muted}>{paid?'已入帳':'待入帳'} · {event.payDate||'未設定發放日'}</Text></View><Text style={[s.eventStatus,{color:paid?'#30d158':'#f3d675'}]}>{paid?'✓ 已領':'等待'}</Text></View><View style={s.metricGrid}><Mini scope="dividend-event" label="公告日" value={event.announcementDate||'—'}/><Mini scope="dividend-event" label="最後買進日" value={event.lastBuyDate||'—'}/><Mini scope="dividend-event" label="除息日" value={event.exDate||'—'}/><Mini scope="dividend-event" label="發放日" value={event.payDate||'—'}/><Mini scope="dividend-event" label="每股配息" value={event.dividend?Number(event.dividend).toFixed(2):'—'}/><Mini scope="dividend-event" label="資格股數快照" value={`${Number(event.eligibleShares??0).toLocaleString()} 股`}/><Mini scope="dividend-event" label={paid?'實際入帳':'預估股息'} value={money(Number(paid?event.actualAmount:event.estimatedAmount??0))}/></View><View style={s.manageRow}><TouchableOpacity style={s.secondarySmall} onPress={onEdit}><Text style={s.secondaryText}>修改</Text></TouchableOpacity>{!paid?<TouchableOpacity style={s.editAction} onPress={onPay}><Text style={s.editActionText}>股息回填</Text></TouchableOpacity>:null}<TouchableOpacity style={s.deleteAction} onPress={onDelete}><Text style={s.deleteActionText}>刪除</Text></TouchableOpacity></View></View>}
