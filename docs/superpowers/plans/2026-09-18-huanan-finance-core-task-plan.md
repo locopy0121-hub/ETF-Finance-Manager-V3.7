@@ -1,7 +1,14 @@
-# 華南永昌 Canonical Finance Core 實作任務計畫
+# 華南永昌完整運算公式 Canonical Finance Core 實作任務計畫
 
 日期：2026-09-18
 依據：docs/superpowers/specs/2026-09-17-huanan-finance-core-design.md
+
+## 核心定義（不可再變更）
+Canonical Finance Core 的基準就是前期已逐項確認的華南永昌完整運算公式。不是只採用其中的手續費，也不是券商中立演算法。
+
+固定不變的是：成交金額取整順序、買賣手續費套用順序、含費成本、移動平均成本釋放、賣出淨收入、淨清算價值、未實現損益、已實現損益、股息淨額、二代健保、匯費與 Portfolio 總損益聚合口徑。
+
+設定中心 / Broker Profile 只能調整公式允許的參數值（例如折扣率、最低手續費等），不得建立第二套公式或改變上述計算流程。
 
 ## Task 1 — 鎖定 Canonical 金融常數與 rounding
 - 成交金額、目前市值、手續費、證交稅、股息總額、二代健保補充費統一 Math.floor。
