@@ -1,4 +1,4 @@
-name: V3.7.8 Huanan Core Final APK
+name: V3.7.9 Huanan Core Final APK
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: v3.7.8-huanan-core-final
+  group: v3.7.9-huanan-core-final
   cancel-in-progress: true
 
 env:
@@ -18,7 +18,7 @@ env:
 
 jobs:
   verify-and-build:
-    name: Verify V3.7.8 and build signed APK
+    name: Verify V3.7.9 and build signed APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -60,19 +60,19 @@ jobs:
           npx --yes eas-cli@latest whoami --non-interactive
           npx --yes eas-cli@latest project:info
 
-      - name: Verify V3.7.8 version chain
+      - name: Verify V3.7.9 version chain
         shell: bash
         run: |
           set -euo pipefail
-          grep -F "APP_SEMVER='3.7.8'" src/v3/version.ts
-          grep -F 'APP_BUILD=46' src/v3/version.ts
-          grep -F '"version": "3.7.8"' app.json
-          grep -F '"runtimeVersion": "3.7.8"' app.json
+          grep -F "APP_SEMVER='3.7.9'" src/v3/version.ts
+          grep -F 'APP_BUILD=47' src/v3/version.ts
+          grep -F '"version": "3.7.9"' app.json
+          grep -F '"runtimeVersion": "3.7.9"' app.json
           grep -F '"versionCode": 46' app.json
-          grep -F 'versionCode 46' android/app/build.gradle
-          grep -F 'versionName "3.7.8"' android/app/build.gradle
-          grep -F '<string name="app_name">ETF財務管家 V3.7.8 NATIVE</string>' android/app/src/main/res/values/strings.xml
-          grep -F '<string name="expo_runtime_version">3.7.8</string>' android/app/src/main/res/values/strings.xml
+          grep -F 'versionCode 47' android/app/build.gradle
+          grep -F 'versionName "3.7.9"' android/app/build.gradle
+          grep -F '<string name="app_name">ETF財務管家 V3.7.9 NATIVE</string>' android/app/src/main/res/values/strings.xml
+          grep -F '<string name="expo_runtime_version">3.7.9</string>' android/app/src/main/res/values/strings.xml
 
       - name: Verify canonical Huanan finance core wiring
         shell: bash
@@ -124,7 +124,7 @@ jobs:
           p.write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
 
-      - name: Build V3.7.8 APK locally with EAS-managed signing credentials
+      - name: Build V3.7.9 APK locally with EAS-managed signing credentials
         shell: bash
         run: |
           set -euo pipefail
@@ -135,29 +135,29 @@ jobs:
             --local \
             --non-interactive \
             --freeze-credentials \
-            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.8-HUANAN-Core-Final-ARM64.apk"
+            --output "$PWD/artifacts/ETF-Finance-Manager-V3.7.9-HUANAN-Core-Final-ARM64.apk"
 
       - name: Verify signed APK and package metadata
         shell: bash
         run: |
           set -euo pipefail
-          OUT='artifacts/ETF-Finance-Manager-V3.7.8-HUANAN-Core-Final-ARM64.apk'
+          OUT='artifacts/ETF-Finance-Manager-V3.7.9-HUANAN-Core-Final-ARM64.apk'
           test -s "$OUT"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
           "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/SIGNING_CERT.txt
           "$AAPT" dump badging "$OUT" | grep -E "^package:|^application-label:" | tee artifacts/APK_BADGING.txt
           grep -F "name='com.etfpilot.twselive'" artifacts/APK_BADGING.txt
-          grep -F "versionName='3.7.8'" artifacts/APK_BADGING.txt
-          grep -F "versionCode='46'" artifacts/APK_BADGING.txt
+          grep -F "versionName='3.7.9'" artifacts/APK_BADGING.txt
+          grep -F "versionCode='47'" artifacts/APK_BADGING.txt
           sha256sum "$OUT" | tee artifacts/SHA256.txt
           stat -c 'apk_size_bytes=%s' "$OUT" | tee artifacts/BUILD_INFO.txt
           {
             echo 'source_commit='$(git rev-parse HEAD)
             echo 'package=com.etfpilot.twselive'
-            echo 'versionName=3.7.8'
-            echo 'versionCode=46'
-            echo 'tag=v3.7.8-huanan-core-final'
+            echo 'versionName=3.7.9'
+            echo 'versionCode=47'
+            echo 'tag=v3.7.9-huanan-core-final'
             echo 'finance_core=src/utils/etfCalculators.ts'
             echo 'architecture=arm64-v8a'
           } >> artifacts/BUILD_INFO.txt
@@ -166,7 +166,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG='v3.7.8-huanan-core-final'
+          TAG='v3.7.9-huanan-core-final'
           CURRENT="$(git rev-parse HEAD)"
           git fetch --tags --force
           git config user.name 'github-actions[bot]'
@@ -174,20 +174,20 @@ jobs:
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             EXISTING="$(git rev-list -n 1 "$TAG")"
             if [ "$EXISTING" != "$CURRENT" ]; then
-              git tag -fa "$TAG" HEAD -m 'ETF財務管家 V3.7.8 Huanan Core Final'
+              git tag -fa "$TAG" HEAD -m 'ETF財務管家 V3.7.9 Huanan Core Final'
               git push --force origin "refs/tags/$TAG"
             else
               echo "Tag already exists at release commit: $CURRENT"
             fi
           else
-            git tag -a "$TAG" HEAD -m 'ETF財務管家 V3.7.8 Huanan Core Final'
+            git tag -a "$TAG" HEAD -m 'ETF財務管家 V3.7.9 Huanan Core Final'
             git push origin "$TAG"
           fi
 
-      - name: Upload V3.7.8 signed APK
+      - name: Upload V3.7.9 signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: ETF-Finance-Manager-V3.7.8-HUANAN-Core-Final-ARM64
+          name: ETF-Finance-Manager-V3.7.9-HUANAN-Core-Final-ARM64
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
@@ -202,14 +202,14 @@ jobs:
             echo "status=${{ job.status }}"
             echo "run_id=$GITHUB_RUN_ID"
             echo "source_commit=$GITHUB_SHA"
-            echo "artifact_name=ETF-Finance-Manager-V3.7.8-HUANAN-Core-Final-ARM64"
-            echo "versionName=3.7.8"
-            echo "versionCode=46"
+            echo "artifact_name=ETF-Finance-Manager-V3.7.9-HUANAN-Core-Final-ARM64"
+            echo "versionName=3.7.9"
+            echo "versionCode=47"
           } > .build-results/latest-apk.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .build-results/latest-apk.txt
           if ! git diff --cached --quiet; then
-            git commit -m "build: record completed V3.7.8 APK [skip ci]"
+            git commit -m "build: record completed V3.7.9 APK [skip ci]"
             git push origin HEAD:main
           fi
