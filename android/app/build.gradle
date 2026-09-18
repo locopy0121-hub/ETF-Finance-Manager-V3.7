@@ -65,8 +65,8 @@ android {
         applicationId 'com.etfpilot.twselive'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 46
-        versionName "3.7.8"
+        versionCode 47
+        versionName "3.7.9"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
