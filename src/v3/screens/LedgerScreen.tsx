@@ -9,9 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import DateTimePicker, {
-  type DateTimePickerEvent,
-} from '@react-native-community/datetimepicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import type { TradeMode } from '../../types/etf';
 import type { CashReconciliation, LedgerEntry } from '../model';
@@ -234,10 +232,9 @@ export function LedgerScreen({
     [common.ledger, showAllRecords],
   );
 
-  const onDateChange = (
-    event: DateTimePickerEvent,
-    selectedDate?: Date,
-  ) => {
+  const onDateChange: NonNullable<
+    React.ComponentProps<typeof DateTimePicker>['onChange']
+  > = (event, selectedDate) => {
     if (Platform.OS === 'android') {
       setDatePickerOpen(false);
     }
