@@ -5,7 +5,7 @@
  *
  * BREAKING CHANGE:
  * - 不保留任何舊版 Broker Profile / FeeSettings / Legacy 型別。
- * - 全 App 金融運算唯一基準：Canonical Finance Core。
+ * - 全 App 金融運算唯一基準：已定版的華南永昌完整運算公式。
  */
 
 import type { BrokerProfile } from '../data/brokerProfiles';
@@ -34,8 +34,8 @@ export type DividendFrequency = 1 | 2 | 4 | 6 | 12;
 /**
  * 單筆 ETF 交易。
  *
- * 所有交易皆採同一套 Canonical Finance Core 計算流程。
- * 費率、折扣、最低手續費與稅率由 Broker Profile 提供。
+ * 所有交易皆採已定版的華南永昌完整運算公式與會計口徑。
+ * Broker Profile 只提供公式中的可調參數值，不得改變計算順序、成本口徑、floor 規則、淨清算或損益定義。
  */
 export interface Transaction {
   id: string;
@@ -191,8 +191,8 @@ export interface PortfolioSummary {
 }
 
 /**
- * Canonical Finance Core 的非券商型政策參數。
- * 券商相關費率、折扣、最低手續費與交易稅率由 Broker Profile 提供。
+ * 華南永昌公式基準中的政策參數。
+ * 這些規則屬於已定版核心公式；Broker Profile 僅提供其允許調整的券商參數值。
  */
 export const FINANCE_CORE_POLICY = Object.freeze({
   HEALTH_PREMIUM_THRESHOLD: 20_000,
