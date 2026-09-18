@@ -1228,6 +1228,7 @@ export function SettingsScreen({
   const editingCard =
     pageCards.find(card => card.id === editingCardId) ?? null;
   const monitor = prefs.monitoring[monitorTarget];
+  const gridMonitor = prefs.monitoring.gridMonitor;
   const selectedBroker =
     brokerProfiles.find(item => item.id === selectedBrokerId) ??
     brokerProfiles[0];
@@ -1241,6 +1242,21 @@ export function SettingsScreen({
         [monitorTarget]: {
           ...prefs.monitoring[monitorTarget],
           ...patch,
+        },
+      },
+    });
+  };
+
+  const patchGridMonitor = (
+    patch: Partial<typeof prefs.monitoring.gridMonitor>,
+  ) => {
+    onChange({
+      monitoring: {
+        ...prefs.monitoring,
+        gridMonitor: {
+          ...prefs.monitoring.gridMonitor,
+          ...patch,
+          columns: 2,
         },
       },
     });
@@ -1535,6 +1551,82 @@ export function SettingsScreen({
                   <ChoicePill active={monitorTarget === 'appBoard'} label="App 內" onPress={() => setMonitorTarget('appBoard')} />
                   <ChoicePill active={monitorTarget === 'floating'} label="跨 App 浮動" onPress={() => setMonitorTarget('floating')} />
                   <ChoicePill active={monitorTarget === 'widget'} label="Monitor Widget" onPress={() => setMonitorTarget('widget')} />
+                </View>
+
+                <View style={styles.gridMonitorPanel}>
+                  <View style={styles.gridMonitorHeader}>
+                    <View style={styles.gridMonitorIcon}>
+                      <Text style={styles.gridMonitorIconText}>📱</Text>
+                    </View>
+                    <View style={styles.settingRowText}>
+                      <Text style={styles.gridMonitorTitle}>雙欄宮格監控模組</Text>
+                      <Text style={styles.settingRowNote}>
+                        Grid Monitor · 固定 2 欄 · 首頁 / 浮動視窗共用設定
+                      </Text>
+                    </View>
+                  </View>
+
+                  <SettingToggle
+                    label="啟用雙欄宮格監控"
+                    value={gridMonitor.enabled}
+                    onChange={enabled => patchGridMonitor({ enabled })}
+                  />
+                  <SettingToggle
+                    label="釘選至首頁下方"
+                    note="首頁最下方顯示 Mini Grid Monitor"
+                    value={gridMonitor.showInHome}
+                    onChange={showInHome => patchGridMonitor({ showInHome })}
+                  />
+                  <SettingToggle
+                    label="脫離為獨立跨 App 浮動視窗"
+                    note="沿用既有 Floating Overlay 原生服務"
+                    value={gridMonitor.isFloating}
+                    onChange={isFloating => patchGridMonitor({ isFloating })}
+                  />
+
+                  <Text style={styles.groupTitle}>卡片排序依據</Text>
+                  <View style={styles.choiceWrap}>
+                    {([
+                      ['changePercent', '漲跌幅'],
+                      ['price', '現價'],
+                      ['volume', '成交量'],
+                      ['custom', '自訂'],
+                    ] as const).map(([key, label]) => (
+                      <ChoicePill
+                        key={key}
+                        active={gridMonitor.autoSortBy === key}
+                        label={label}
+                        onPress={() => patchGridMonitor({ autoSortBy: key })}
+                      />
+                    ))}
+                  </View>
+
+                  <SettingToggle
+                    label="顯示今日焦點 Chips"
+                    note="依目前行情標示短線大漲 / 急跌 / 今日高低"
+                    value={gridMonitor.showFocusChips}
+                    onChange={showFocusChips =>
+                      patchGridMonitor({ showFocusChips })
+                    }
+                  />
+                  <SettingToggle
+                    label="顯示強度走勢與呼吸提示"
+                    value={gridMonitor.showTrendLines}
+                    onChange={showTrendLines =>
+                      patchGridMonitor({ showTrendLines })
+                    }
+                  />
+                  <InlineNumber
+                    label="個股觸發警報門檻"
+                    value={gridMonitor.alertThreshold}
+                    min={0}
+                    max={20}
+                    step={0.5}
+                    suffix="%"
+                    onChange={alertThreshold =>
+                      patchGridMonitor({ alertThreshold })
+                    }
+                  />
                 </View>
 
                 <SettingToggle
@@ -2414,6 +2506,39 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: V3_THEME.colors.borderGlow,
   },
+  gridMonitorPanel: {
+    marginTop: V3_THEME.spacing.lg,
+    marginBottom: V3_THEME.spacing.md,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    backgroundColor: '#F8FBFF',
+    padding: V3_THEME.spacing.md,
+  },
+  gridMonitorHeader: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: V3_THEME.spacing.sm,
+    marginBottom: V3_THEME.spacing.sm,
+  },
+  gridMonitorIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: V3_THEME.colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridMonitorIconText: {
+    fontSize: 18,
+  },
+  gridMonitorTitle: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
   settingRow: {
     minHeight: 54,
     flexDirection: 'row',
