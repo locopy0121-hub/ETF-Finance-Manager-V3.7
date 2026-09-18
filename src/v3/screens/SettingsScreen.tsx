@@ -111,7 +111,7 @@ const MENU: Array<{
     key: 'theme',
     icon: '◐',
     title: '佈景主題',
-    subtitle: '科技未來 · #0D131A',
+    subtitle: '專業明亮 · #F8FAFC',
   },
   {
     key: 'cards',
@@ -227,7 +227,7 @@ function initialDraft(card: V3PageCard | null): PageFrameEditorDraft {
       24,
     ),
     align: card?.style.align ?? 'left',
-    backgroundColor: '#161F30',
+    backgroundColor: '#FFFFFF',
     radius: card?.style.radius ?? 16,
     opacity: card?.style.backgroundOpacity ?? 95,
     fields: cardFieldsToDraft(card),
@@ -2153,6 +2153,7 @@ const styles = StyleSheet.create({
     backgroundColor: V3_THEME.colors.surfaceGlass,
     padding: V3_THEME.spacing.lg,
     flexDirection: 'row',
+    ...V3_THEME.shadow,
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: V3_THEME.spacing.lg,
@@ -2507,7 +2508,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: V3_THEME.colors.borderGlow,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: '#F8FAFC',
     padding: V3_THEME.spacing.md,
   },
   noticeTitle: {
@@ -2554,7 +2555,7 @@ const styles = StyleSheet.create({
 
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
+    backgroundColor: 'rgba(15,23,42,0.28)',
     justifyContent: 'flex-end',
   },
   editorSheet: {
@@ -2564,8 +2565,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderWidth: 1,
     borderColor: V3_THEME.colors.borderGlow,
-    backgroundColor: '#101820',
+    backgroundColor: '#FFFFFF',
     overflow: 'hidden',
+    ...V3_THEME.shadow,
   },
   sheetHandle: {
     alignSelf: 'center',
@@ -2573,7 +2575,7 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     marginTop: 9,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: '#CBD5E1',
   },
   editorHeader: {
     paddingHorizontal: V3_THEME.spacing.lg,
@@ -2833,7 +2835,7 @@ const styles = StyleSheet.create({
   },
   visibilityPill: {
     borderRadius: V3_THEME.radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 8,
     paddingVertical: 5,
   },
@@ -2925,7 +2927,7 @@ const styles = StyleSheet.create({
     paddingVertical: V3_THEME.spacing.md,
     borderTopWidth: 1,
     borderTopColor: V3_THEME.colors.borderGlow,
-    backgroundColor: '#101820',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     gap: V3_THEME.spacing.sm,
   },
@@ -2943,7 +2945,7 @@ const styles = StyleSheet.create({
     backgroundColor: V3_THEME.colors.surfaceGlass,
   },
   footerButtonPrimary: {
-    backgroundColor: V3_THEME.colors.accent,
+    backgroundColor: V3_THEME.colors.primary,
   },
   footerSecondaryText: {
     color: V3_THEME.colors.textPrimary,
@@ -2951,7 +2953,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   footerPrimaryText: {
-    color: '#07130F',
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '900',
   },
