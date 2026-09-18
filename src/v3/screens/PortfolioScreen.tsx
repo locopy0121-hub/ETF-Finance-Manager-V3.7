@@ -138,7 +138,7 @@ export function PortfolioScreen({
             symbol: holding.symbol,
             name: holding.name,
             categories,
-            market: isUsSymbol(holding.symbol) ? 'US' : 'TW',
+            market: (isUsSymbol(holding.symbol) ? 'US' : 'TW') as 'TW' | 'US',
             view: calculateHoldingView(
               holding,
               common.quotes,
