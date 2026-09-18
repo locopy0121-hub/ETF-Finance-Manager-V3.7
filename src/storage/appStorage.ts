@@ -27,7 +27,7 @@ export type PersistedAppState = { schemaVersion:number; holdings:Holding[]; divi
 
 export const APP_STATE_KEY='@etf-finance-manager/app-state';
 const KEY=APP_STATE_KEY;
-export const STORAGE_SCHEMA_VERSION=15;
+export const STORAGE_SCHEMA_VERSION=16;
 export const APP_INITIALIZED_KEY='@etf-finance-manager/initialized';
 export const defaultAppSettings:AppSettings={
   widget:{enabled:true,startTime:'09:00',endTime:'13:30',weekdaysOnly:true,opacity:85,refreshMinutes:1,refreshSeconds:5,fontScale:100,align:'left',sortMode:'marketValue',displayFields:['totalPnl','totalPnlPct','todayPnl','totalAssets','historicalTradeCost','historicalBuyFees','historicalCashOutflow','etfPrice','etfShares','etfPricePnl','updatedAt','marketState'],selectedSymbols:[],showStatusLight:true,showTrendChart:true,trendMetric:'totalPnl',trendSource:'intraday',trendRange:120,trendChartType:'area',trendShowLastValue:true,trendShowPercent:true,trendHeight:64,trendLineWidth:3,trendShowGrid:true,trendShowAxis:false,trendShowUpdatedAt:true,compactChart:true},
@@ -37,14 +37,43 @@ export const defaultAppSettings:AppSettings={
   layout:{appTitle:'ETF財務管家',appSubtitle:'所有關鍵數值都可追溯來源',titleAlign:'left',titleScale:100,homeColumns:3,homeFields:['marketValue','costPnl','cost','monthlyCashflow'],homeFieldSpans:{marketValue:6,costPnl:3,cost:3,monthlyCashflow:6},homeSelectedSymbols:[],etfTemplateFields:['price','shares','marketValue','costPnl','costPnlPct','cumulativeDividend'],etfTemplateFieldSpans:{price:3,shares:3,marketValue:3,costPnl:3,costPnlPct:3,cumulativeDividend:3},etfTemplateSelectedSymbols:[],holdingColumns:3,holdingFields:['shares','avgCost','price','pnl','pnlPct','buyFee'],holdingFieldSpans:{shares:2,avgCost:2,price:2,pnl:3,pnlPct:3,buyFee:2},pageLayouts:{},fontScale:100,compactCards:false,wrapText:true,autoCardHeight:true,cardRadius:12,cardPadding:14,backgroundImageUri:'',backgroundImageOpacity:100,backgroundOverlay:8,themePreset:'clean',cardOpacity:92,cardTint:'#FFFFFF',cardBackgroundImageUri:'',cardBackgroundImageOpacity:22,primaryTextColor:'#0B2B4B',secondaryTextColor:'#6F8297',accentColor:'#12A875',positiveColor:'#E54A45',negativeColor:'#12A875',autoContrast:true,globalTextAlign:'left',moduleAppearance:{}},
 };
 
+const finiteOr=(value:unknown,fallback=0)=>{const n=Number(value);return Number.isFinite(n)?n:fallback;};
+function normalizeDailySnapshot(raw:any):DailySnapshot{
+ const marketValue=finiteOr(raw?.marketValue);
+ const cashBalance=raw?.cashBalance==null?undefined:finiteOr(raw.cashBalance);
+ const totalAssets=raw?.totalAssets==null?(cashBalance==null?undefined:marketValue+cashBalance):finiteOr(raw.totalAssets);
+ const currentCashBasis=raw?.currentCashBasis!=null?finiteOr(raw.currentCashBasis):finiteOr(raw?.totalCost);
+ const cashUnrealizedPnl=raw?.cashUnrealizedPnl!=null?finiteOr(raw.cashUnrealizedPnl):finiteOr(raw?.costPnl);
+ return {
+  id:String(raw?.id??('snapshot-'+String(raw?.date??''))),
+  date:String(raw?.date??''),
+  createdAt:finiteOr(raw?.createdAt,Date.now()),
+  marketValue,cashBalance,totalAssets,totalCost:currentCashBasis,
+  historicalTradeCost:raw?.historicalTradeCost==null?undefined:finiteOr(raw.historicalTradeCost),
+  historicalBuyFees:raw?.historicalBuyFees==null?undefined:finiteOr(raw.historicalBuyFees),
+  historicalCashOutflow:raw?.historicalCashOutflow==null?undefined:finiteOr(raw.historicalCashOutflow),
+  currentTradeCost:raw?.currentTradeCost==null?undefined:finiteOr(raw.currentTradeCost),
+  currentCashBasis,
+  pricePnl:raw?.pricePnl==null?undefined:finiteOr(raw.pricePnl),
+  cashUnrealizedPnl,
+  todayPnl:finiteOr(raw?.todayPnl),
+  todayPnlPct:finiteOr(raw?.todayPnlPct),
+  costPnl:cashUnrealizedPnl,
+  costPnlPct:finiteOr(raw?.costPnlPct),
+  totalPnl:finiteOr(raw?.totalPnl),
+  totalPnlPct:finiteOr(raw?.totalPnlPct),
+  cumulativeDividend:finiteOr(raw?.cumulativeDividend),
+  holdings:Array.isArray(raw?.holdings)?raw.holdings.map((h:any)=>({symbol:String(h?.symbol??''),shares:Math.max(0,finiteOr(h?.shares)),price:Math.max(0,finiteOr(h?.price)),marketValue:finiteOr(h?.marketValue),todayPnl:finiteOr(h?.todayPnl),totalPnl:finiteOr(h?.totalPnl)})).filter((h:any)=>h.symbol&&h.shares>0):[],
+ };
+}
 export async function loadAppState():Promise<PersistedAppState|null>{try{const raw=await AsyncStorage.getItem(KEY); if(!raw)return null; const parsed=JSON.parse(raw) as Partial<PersistedAppState>; if(!Array.isArray(parsed.holdings))return null; return migrate(parsed);}catch{return null;}}
 function migrate(input:Partial<PersistedAppState>):PersistedAppState{
  const oldSchema=Number(input.schemaVersion??0);
  const convertSpans=(raw:any, defaults:Record<string,LayoutSpan>)=>{const src={...defaults,...(raw??{})}; const out:Record<string,LayoutSpan>={}; for(const [k,v0] of Object.entries(src)){const v=Number(v0); out[k]=(oldSchema<9?(v===3?6:v===2?3:2):(v===6?6:v===3?3:2)) as LayoutSpan;} return out;};
  const settings:AppSettings={widget:{...defaultAppSettings.widget,...(input.settings?.widget??{}),displayFields:Array.isArray(input.settings?.widget?.displayFields)?input.settings!.widget!.displayFields!:defaultAppSettings.widget.displayFields,selectedSymbols:Array.isArray(input.settings?.widget?.selectedSymbols)?input.settings!.widget!.selectedSymbols!:[]},ota:{...defaultAppSettings.ota,...(input.settings?.ota??{})},goals:{...defaultAppSettings.goals,...(input.settings?.goals??{})},closeNotification:{...defaultAppSettings.closeNotification,...(input.settings?.closeNotification??{})},layout:{...defaultAppSettings.layout,...(input.settings?.layout??{}),homeFields:Array.isArray(input.settings?.layout?.homeFields)?input.settings!.layout!.homeFields!:defaultAppSettings.layout.homeFields,homeFieldSpans:convertSpans(input.settings?.layout?.homeFieldSpans,defaultAppSettings.layout.homeFieldSpans),homeSelectedSymbols:Array.isArray(input.settings?.layout?.homeSelectedSymbols)?input.settings!.layout!.homeSelectedSymbols!:[],etfTemplateFields:Array.isArray((input.settings?.layout as any)?.etfTemplateFields)?(input.settings!.layout as any).etfTemplateFields:defaultAppSettings.layout.etfTemplateFields,etfTemplateFieldSpans:convertSpans((input.settings?.layout as any)?.etfTemplateFieldSpans,defaultAppSettings.layout.etfTemplateFieldSpans),etfTemplateSelectedSymbols:Array.isArray((input.settings?.layout as any)?.etfTemplateSelectedSymbols)?(input.settings!.layout as any).etfTemplateSelectedSymbols:[],holdingFields:Array.isArray(input.settings?.layout?.holdingFields)?input.settings!.layout!.holdingFields!:defaultAppSettings.layout.holdingFields,holdingFieldSpans:convertSpans(input.settings?.layout?.holdingFieldSpans,defaultAppSettings.layout.holdingFieldSpans),pageLayouts:(input.settings?.layout?.pageLayouts&&typeof input.settings.layout.pageLayouts==='object')?input.settings.layout.pageLayouts:{}}};
- return {schemaVersion:STORAGE_SCHEMA_VERSION,holdings:input.holdings??[],dividendEvents:Array.isArray(input.dividendEvents)?input.dividendEvents:[],settings,dailySnapshots:Array.isArray(input.dailySnapshots)?input.dailySnapshots:[],savedAt:input.savedAt??Date.now()};
+ return {schemaVersion:STORAGE_SCHEMA_VERSION,holdings:input.holdings??[],dividendEvents:Array.isArray(input.dividendEvents)?input.dividendEvents:[],settings,dailySnapshots:Array.isArray(input.dailySnapshots)?input.dailySnapshots.map(normalizeDailySnapshot):[],savedAt:input.savedAt??Date.now()};
 }
-export async function saveAppState(state:Omit<PersistedAppState,'schemaVersion'|'savedAt'>){const payload:PersistedAppState={...state,schemaVersion:STORAGE_SCHEMA_VERSION,savedAt:Date.now()}; await AsyncStorage.setItem(KEY,JSON.stringify(payload)); await AsyncStorage.setItem(APP_INITIALIZED_KEY,'1');}
+export async function saveAppState(state:Omit<PersistedAppState,'schemaVersion'|'savedAt'>){const payload:PersistedAppState={...state,dailySnapshots:(state.dailySnapshots??[]).map(normalizeDailySnapshot),schemaVersion:STORAGE_SCHEMA_VERSION,savedAt:Date.now()}; await AsyncStorage.setItem(KEY,JSON.stringify(payload)); await AsyncStorage.setItem(APP_INITIALIZED_KEY,'1');}
 export async function hasInitializedApp(){return (await AsyncStorage.getItem(APP_INITIALIZED_KEY))==='1';}
 export async function hasStoredAppState(){return (await AsyncStorage.getItem(KEY))!==null;}
 export async function markInitializedApp(){await AsyncStorage.setItem(APP_INITIALIZED_KEY,'1');}
