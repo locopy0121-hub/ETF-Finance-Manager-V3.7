@@ -17,7 +17,7 @@ import type {
   V3CardAlign,
   V3PageCard,
   V3Preferences,
-  type ThemeId,
+  ThemeId,
 } from '../model';
 import {
   EFFECT_KINDS,
