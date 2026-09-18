@@ -5,7 +5,7 @@
  *
  * BREAKING CHANGE:
  * - 不保留任何舊版 Broker Profile / FeeSettings / Legacy 型別。
- * - 全 App 金融運算唯一基準：華南永昌證券。
+ * - 全 App 金融運算唯一基準：Canonical Finance Core。
  */
 
 import type { BrokerProfile } from '../data/brokerProfiles';
@@ -34,8 +34,8 @@ export type DividendFrequency = 1 | 2 | 4 | 6 | 12;
 /**
  * 單筆 ETF 交易。
  *
- * 所有交易皆固定採用華南永昌證券計費規則。
- * 不允許個別交易覆寫折扣、費率、最低手續費或稅率。
+ * 所有交易皆採同一套 Canonical Finance Core 計算流程。
+ * 費率、折扣、最低手續費與稅率由 Broker Profile 提供。
  */
 export interface Transaction {
   id: string;
@@ -93,7 +93,7 @@ export interface ETFItem {
 }
 
 /**
- * 單筆買進的完整華南永昌成本拆解。
+ * 單筆買進的完整 canonical 成本拆解。
  */
 export interface PurchaseCostResult {
   tradeAmount: number;
@@ -191,21 +191,10 @@ export interface PortfolioSummary {
 }
 
 /**
- * 華南永昌證券唯一全局運算常數。
- *
- * 禁止由 UI、Settings、Holding、Transaction
- * 或任何其他模組覆寫以下參數。
+ * Canonical Finance Core 的非券商型政策參數。
+ * 券商相關費率、折扣、最低手續費與交易稅率由 Broker Profile 提供。
  */
-export const HUANAN_CONFIG = Object.freeze({
-  COMMISSION_RATE: 0.001425,
-  COMMISSION_DISCOUNT: 0.65,
-
-  MIN_COMMISSION_ROUND_LOT: 20,
-  MIN_COMMISSION_ODD_LOT: 1,
-
-  ETF_SELL_TAX_RATE: 0.001,
-  STOCK_SELL_TAX_RATE: 0.003,
-
+export const FINANCE_CORE_POLICY = Object.freeze({
   HEALTH_PREMIUM_THRESHOLD: 20_000,
   HEALTH_PREMIUM_RATE: 0.0211,
   DIVIDEND_TRANSFER_FEE: 10,
