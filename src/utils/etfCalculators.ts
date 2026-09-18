@@ -7,7 +7,7 @@
  * --------------------------------------------------
  * 1. 全面廢除舊版金融計算邏輯。
  * 2. 不提供任何 Legacy Fallback / Compatibility Layer。
- * 3. 全 App 僅允許使用華南永昌證券規則。
+ * 3. 全 App 僅允許使用同一套 Canonical Finance Core 公式。
  * 4. UI / Settings / Holding / Transaction 不得覆寫：
  *    - 手續費率
  *    - 折扣
@@ -22,14 +22,14 @@ import {
   DividendRecord,
   ETFItem,
   ETFSummary,
-  HUANAN_CONFIG,
+  FINANCE_CORE_POLICY,
   NetDividendResult,
   PortfolioSummary,
   PurchaseCostResult,
   TradeMode,
   Transaction,
 } from '../types/etf';
-import { calculateBrokerCommission, calculateBrokerSellTax, huananYongchangBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
+import { calculateBrokerCommission, calculateBrokerSellTax, defaultBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
 
 const safeNumber = (value: number): number => {
   return Number.isFinite(value) ? value : 0;
@@ -48,7 +48,7 @@ const roundPercentage = (value: number): number => {
   return Math.round((safeValue + Number.EPSILON) * 100) / 100;
 };
 
-export const resolveTransactionBrokerProfile=(profile?:BrokerProfile)=>profile??huananYongchangBrokerProfile;
+export const resolveTransactionBrokerProfile=(profile?:BrokerProfile)=>profile??defaultBrokerProfile;
 
 const floorMoney = (value:number):number => Math.floor(nonNegative(value));
 
@@ -99,13 +99,13 @@ const calculateDividendDetail = (
   const grossDividend = Math.floor(shares * dividendPerShare);
 
   const supplementaryHealthPremium =
-    grossDividend >= HUANAN_CONFIG.HEALTH_PREMIUM_THRESHOLD
+    grossDividend >= FINANCE_CORE_POLICY.HEALTH_PREMIUM_THRESHOLD
       ? Math.floor(
-          grossDividend * HUANAN_CONFIG.HEALTH_PREMIUM_RATE,
+          grossDividend * FINANCE_CORE_POLICY.HEALTH_PREMIUM_RATE,
         )
       : 0;
 
-  const transferFee = grossDividend > 0 ? HUANAN_CONFIG.DIVIDEND_TRANSFER_FEE : 0;
+  const transferFee = grossDividend > 0 ? FINANCE_CORE_POLICY.DIVIDEND_TRANSFER_FEE : 0;
 
   return {
     grossDividend,
