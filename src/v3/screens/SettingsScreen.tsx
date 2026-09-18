@@ -67,6 +67,9 @@ export type PageFrameEditorModalProps = {
 export type SettingsScreenProps = {
   prefs: V3Preferences;
   onChange: (patch: Partial<V3Preferences>) => void;
+  onClearAccountingData?: () => Promise<unknown>;
+  accountingResetLabel?: string;
+  accountingResetFailSafe?: string;
 };
 
 const MENU: Array<{
@@ -936,6 +939,9 @@ export function PageFrameEditorModal({
 export function SettingsScreen({
   prefs,
   onChange,
+  onClearAccountingData,
+  accountingResetLabel = '清除全部帳務資料',
+  accountingResetFailSafe = '清除前會建立安全備份；備份失敗即停止清除。',
 }: SettingsScreenProps) {
   const [menu, setMenu] = useState<SettingsMenuKey>('theme');
   const [selectedPage, setSelectedPage] =
@@ -1047,6 +1053,45 @@ export function SettingsScreen({
           />
         ))}
       </View>
+
+      {onClearAccountingData ? (
+        <View style={styles.dataSafetyCard}>
+          <View style={styles.dataSafetyText}>
+            <Text style={styles.dataSafetyTitle}>資料安全管理</Text>
+            <Text style={styles.dataSafetySubtitle}>
+              {accountingResetFailSafe}
+            </Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              Alert.alert(
+                accountingResetLabel,
+                `${accountingResetFailSafe}\n\n確定要繼續嗎？`,
+                [
+                  { text: '取消', style: 'cancel' },
+                  {
+                    text: accountingResetLabel,
+                    style: 'destructive',
+                    onPress: () => {
+                      void onClearAccountingData();
+                    },
+                  },
+                ],
+              )
+            }
+            style={({ pressed }) => [
+              styles.dangerButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.dangerButtonText}>
+              {accountingResetLabel}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.frameSection}>
         <View style={styles.sectionHeader}>
@@ -1268,6 +1313,44 @@ const styles = StyleSheet.create({
     color: V3_THEME.colors.textSecondary,
     fontSize: 24,
     fontWeight: '400',
+  },
+
+  dataSafetyCard: {
+    marginTop: V3_THEME.spacing.xxl,
+    borderRadius: V3_THEME.radius.card,
+    borderWidth: 1,
+    borderColor: 'rgba(255,91,100,0.24)',
+    backgroundColor: 'rgba(255,91,100,0.06)',
+    padding: V3_THEME.spacing.lg,
+  },
+  dataSafetyText: {
+    marginBottom: V3_THEME.spacing.md,
+  },
+  dataSafetyTitle: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  dataSafetySubtitle: {
+    marginTop: 4,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+  dangerButton: {
+    minHeight: 42,
+    borderRadius: V3_THEME.radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255,91,100,0.30)',
+    backgroundColor: 'rgba(255,91,100,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  dangerButtonText: {
+    color: '#FF7580',
+    fontSize: 11,
+    fontWeight: '900',
   },
 
   frameSection: {
