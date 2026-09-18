@@ -151,6 +151,26 @@ export const calculatePurchaseCost = (
   };
 };
 
+const optionalFiniteNumber=(value:unknown):number|undefined=>{const n=Number(value);return Number.isFinite(n)?n:undefined;};
+
+export const resolveTransactionFee=(transaction:Transaction,tradeAmount:number):number=>{
+ const actual=optionalFiniteNumber(transaction.actualFee);
+ return actual!=null?Math.max(0,actual):calculateCommission(tradeAmount,transaction.tradeMode,transaction.brokerProfile);
+};
+
+export const resolveTransactionSellTax=(transaction:Transaction,tradeAmount:number):number=>{
+ const actual=optionalFiniteNumber(transaction.actualTax);
+ return actual!=null?Math.max(0,actual):calculateETFSellTax(tradeAmount,transaction.brokerProfile);
+};
+
+export const calculateActualPurchaseCost=(transaction:Transaction):PurchaseCostResult=>{
+ const shares=safeShares(transaction.shares),price=nonNegative(transaction.price);
+ if(transaction.type!=='BUY'||shares<=0||price<=0)return {tradeAmount:0,commission:0,settlementAmount:0};
+ const tradeAmount=Math.floor(shares*price);
+ const commission=resolveTransactionFee(transaction,tradeAmount);
+ return {tradeAmount,commission,settlementAmount:tradeAmount+commission};
+};
+
 export const calculateNetDividend = (
   record: DividendRecord,
 ): number => {
@@ -182,8 +202,7 @@ const calculateCurrentPositionCost = (
     }
 
     if (transaction.type === 'BUY') {
-      const purchase = calculatePurchaseCost(transaction);
-
+      const purchase = calculateActualPurchaseCost(transaction);
       totalShares += shares;
       totalInvestmentCost += purchase.settlementAmount;
       continue;
@@ -198,8 +217,8 @@ const calculateCurrentPositionCost = (
       const averageCostBeforeSell = totalInvestmentCost / totalShares;
       const releasedCost = averageCostBeforeSell * sellShares;
       const sellAmount = Math.floor(price * sellShares);
-      const sellCommission = calculateCommission(sellAmount, transaction.tradeMode, transaction.brokerProfile);
-      const sellTax = calculateETFSellTax(sellAmount, transaction.brokerProfile);
+      const sellCommission = resolveTransactionFee(transaction, sellAmount);
+      const sellTax = resolveTransactionSellTax(transaction, sellAmount);
       const netSellIncome = sellAmount - sellCommission - sellTax;
       realizedNetPnL += netSellIncome - releasedCost;
 
