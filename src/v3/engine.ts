@@ -150,6 +150,67 @@ export function calculateDividendIncome(ledger:LedgerEntry[],dividends:DividendE
  return eventNet+unlinkedLedger;
 }
 
+export function calculateDividendView(
+ holdings:Holding[],
+ ledger:LedgerEntry[],
+ dividends:DividendEvent[],
+ year:number,
+ month:number,
+){
+ const holdingMap=new Map(holdings.map(h=>[h.symbol,h] as const));
+ const monthKey=`${year}-${String(month).padStart(2,'0')}`;
+ const yearPrefix=String(year);
+
+ const rows=dividends.map(event=>{
+  const holding=holdingMap.get(event.symbol);
+  const frequency=holding?.dividendFrequency;
+  const frequencyLabel=frequency===12?'月配':frequency===4?'季配':frequency===2?'半年配':frequency===1?'年配':'配息';
+  const actualAmount=Math.max(0,Number(event.actualAmount??0));
+  const estimatedAmount=Math.max(0,Number(event.estimatedAmount??0));
+  const displayAmount=actualAmount>0?actualAmount:estimatedAmount;
+  const paid=actualAmount>0||event.status==='paid';
+  return {
+   id:event.id,
+   symbol:event.symbol,
+   name:event.name,
+   frequencyLabel,
+   dividendPerShare:Math.max(0,Number(event.dividend)||0),
+   eligibleShares:Math.max(0,Number(event.eligibleShares??0)),
+   estimatedAmount,
+   actualAmount,
+   displayAmount,
+   announcementDate:event.announcementDate,
+   lastBuyDate:event.lastBuyDate,
+   exDate:event.exDate,
+   payDate:event.payDate,
+   status:paid?'paid' as const:'pending' as const,
+  };
+ }).sort((a,b)=>String(a.payDate||a.exDate||'').localeCompare(String(b.payDate||b.exDate||'')));
+
+ const yearRows=rows.filter(row=>String(row.payDate||row.exDate||'').startsWith(yearPrefix));
+ const monthRows=rows.filter(row=>String(row.payDate||'').startsWith(monthKey));
+ const yearExpected=yearRows.reduce((sum,row)=>sum+row.displayAmount,0);
+ const averageMonthly=yearExpected/12;
+ const currentMonthExpected=monthRows.reduce((sum,row)=>sum+row.displayAmount,0);
+ const months=Array.from({length:12},(_,index)=>{
+  const key=`${year}-${String(index+1).padStart(2,'0')}`;
+  const value=rows.filter(row=>String(row.payDate||'').startsWith(key)).reduce((sum,row)=>sum+row.displayAmount,0);
+  return {month:index+1,key,value,hasDividend:value>0};
+ });
+
+ return {
+  year,
+  month,
+  yearExpected,
+  averageMonthly,
+  currentMonthExpected,
+  rows,
+  monthRows,
+  months,
+  cumulativeIncome:calculateDividendIncome(ledger,dividends),
+ };
+}
+
 export function calculateHoldingView(h:Holding,quotes:Record<string,QuoteLike>,ledger:LedgerEntry[]=[],dividends:DividendEvent[]=[]){
  const q=quotes[h.symbol]??{};
  const item=toETFItem(h,quotes,ledger,dividends);
