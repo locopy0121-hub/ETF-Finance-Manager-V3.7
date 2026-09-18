@@ -68,7 +68,7 @@ jobs:
           grep -F 'APP_BUILD=47' src/v3/version.ts
           grep -F '"version": "3.7.9"' app.json
           grep -F '"runtimeVersion": "3.7.9"' app.json
-          grep -F '"versionCode": 46' app.json
+          grep -F '"versionCode": 47' app.json
           grep -F 'versionCode 47' android/app/build.gradle
           grep -F 'versionName "3.7.9"' android/app/build.gradle
           grep -F '<string name="app_name">ETF財務管家 V3.7.9 NATIVE</string>' android/app/src/main/res/values/strings.xml
