@@ -25,8 +25,10 @@ export type LedgerEntry = {
   price?: number;
   tradeMode?: TradeMode;
   amount: number; // 成交金額或現金流原始金額，不混入手續費
-  fee?: number;
-  tax?: number;
+  calculatedFee?: number;
+  calculatedTax?: number;
+  actualFee?: number;
+  actualTax?: number;
   strategy?: StrategyKind;
   broker?: string;
   brokerProfileId?: string;
@@ -326,7 +328,7 @@ export function seedLedgerFromHoldings(holdings: Holding[]): LedgerEntry[] {
         id: `migrate-${h.symbol}-${r.id}`,
         kind: 'buy', symbol: h.symbol, name: h.name,
         date: r.date, shares: r.shares, price: r.tradePrice,
-        amount: r.purchaseCost, fee: r.fee, strategy: 'long', note: '由既有購入紀錄轉入',
+        amount: r.purchaseCost, calculatedFee: r.fee, calculatedTax: 0, actualFee: r.fee, actualTax: 0, strategy: 'long', note: '由既有購入紀錄轉入',
         tradeMode:h.liquidationTradeMode,broker:h.broker,account:h.account,
       });
     } else {
@@ -335,7 +337,7 @@ export function seedLedgerFromHoldings(holdings: Holding[]): LedgerEntry[] {
         id: `migrate-${h.symbol}`,
         kind: 'buy', symbol: h.symbol, name: h.name,
         date: '既有庫存', shares: h.shares, price: avg,
-        amount: h.shares * avg, fee: h.buyFee ?? 0,
+        amount: h.shares * avg, calculatedFee: h.buyFee ?? 0, calculatedTax: 0, actualFee: h.buyFee ?? 0, actualTax: 0,
         tradeMode:h.liquidationTradeMode,strategy: 'long', note: '由既有庫存轉入', broker:h.broker,account:h.account,
       });
     }
