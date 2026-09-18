@@ -39,6 +39,7 @@ import { FlowItem,FlowLayout } from '../ui/FlowLayout';
 import { UNIVERSAL_UI_REGISTRY } from '../ui/universalRegistry';
 import { EffectSurface } from '../ui/EffectSurface';
 import { createBrokerProfile, normalizeBrokerProfiles, resolveBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
+import { DashboardScreen as ModernDashboardScreen } from './screens/DashboardScreen';
 
 const localDateKey=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 type QuoteLike={price?:number;change?:number;changePercent?:number;previousClose?:number;open?:number;high?:number;low?:number;volume?:number;nav?:number;quoteDate?:string;quoteTime?:string};
@@ -116,22 +117,26 @@ function EtfRiskResearch({symbol,prefs}:{symbol:string;prefs:V3Preferences}){
  return <Card><SectionTitle title="風險指標｜TWSE 歷史行情" right={loading?'讀取中':`${r.observations} 日`}/>{error?<Text style={s.empty}>{error}</Text>:<View style={s.metricGrid}><Metric label="1 週報酬" value={fp(r.return1w)}/><Metric label="1 月報酬" value={fp(r.return1m)}/><Metric label="3 月報酬" value={fp(r.return3m)}/><Metric label="1 年報酬" value={fp(r.return1y)}/><Metric label="年化波動率" value={r.volatility==null?'資料不足':`${r.volatility.toFixed(2)}%`}/><Metric label="最大回撤" value={r.maxDrawdown==null?'資料不足':`${r.maxDrawdown.toFixed(2)}%`}/><Metric label="Sharpe（RF=0）" value={fn(r.sharpe)}/><Metric label="Beta" value="待基準指數資料"/></View>}<Text style={s.note}>風險值由 TWSE 歷史收盤價計算；Beta 必須有可靠追蹤指數/基準序列，因此目前不以 0050 或其他 ETF 假裝基準。</Text></Card>;
 }
 
-export function DashboardScreen({common,onSettings,onTogglePrivacy,onOpenPortfolio}:{common:ScreenCommon;onSettings:()=>void;onTogglePrivacy:()=>void;onOpenPortfolio:()=>void}){
- const {holdings,quotes,cashBalance,ledger,dividends,prefs,dailySnapshots}=common; const [pnlOpen,setPnlOpen]=useState(false); const m=calculatePortfolioView(holdings,quotes,cashBalance,ledger,dividends);
- const wealthData=useMemo(()=>dailySnapshots.length>=2?dailySnapshots.slice(-24).map(x=>({label:x.date.slice(5),invested:x.historicalCashOutflow??x.totalCost,value:x.totalAssets??x.marketValue,pnl:x.totalPnl})):[{label:'現在',invested:m.historicalCashOutflow,value:m.totalAssets,pnl:m.totalPnl}],[dailySnapshots,m.historicalCashOutflow,m.totalAssets,m.totalPnl]);
- const items=holdings.map(h=>({label:h.symbol,value:calculateHoldingView(h,quotes,ledger,dividends).marketValue})).sort((a,b)=>b.value-a.value);
- return <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false}>
-  <ScreenTitle title="資產總覽" subtitle="資產、成本、損益與現金流，一眼掌握" onSettings={onSettings} onPrivacy={onTogglePrivacy} privacy={prefs.privacyMode} onAi={common.onAi} customizeEnabled={!!prefs.monitoring.pageCustomize.dashboard} onToggleCustomize={()=>common.onTogglePageCustomize?.('dashboard')}/>
-  <PageCardDeck page="dashboard" common={common} prefs={prefs} dailySnapshots={dailySnapshots} intradayPnlPoints={common.intradayPnlPoints} choices={pageFieldChoices.dashboard} values={Object.fromEntries((Object.keys(metricLabels) as HomeMetricKey[]).map(k=>[k,prefs.privacyMode?'••••':homeMetricValue(k,m)]))} positiveKeys={new Set(['totalPnl','todayPnl','pricePnl','unrealizedPnl','cashUnrealizedPnl','realizedPnl'])} rawValues={m as any}/>
-  <MarketOverviewPanel common={common}/>
-  <TouchableOpacity onPress={()=>setPnlOpen(true)}><Card editTarget={{page:'dashboard',cardId:'dashboard-pnl-history'}}><SectionTitle title="累積損益紀錄" right="點擊查看 TOTAL"/><Text style={s.note}>即時未實現、已實現與累積股息分項彙總；點擊可查看完整 Total 與歷史快照來源。</Text></Card></TouchableOpacity>
-  <DailyPnLHistory snapshots={dailySnapshots} prefs={prefs} holdings={common.holdings} editTarget={{page:'dashboard',cardId:'dashboard-daily-pnl'}}/>
-  <Card editTarget={{page:'dashboard',cardId:'dashboard-wealth'}}><SectionTitle title="資產成長｜投入 vs 資產" right={wealthData.length<2?'等待每日快照累積':''}/><WealthAreaChart data={wealthData}/></Card>
-  <Card editTarget={{page:'dashboard',cardId:'dashboard-allocation'}}><SectionTitle title="資產配置" right={`${holdings.length} 檔 ETF`}/>{items.length?<DonutChart items={items.slice(0,6)} centerLabel="持股總市值" centerValue={prefs.privacyMode?'••••':`${money(m.marketValue)}`}/>:<Text style={s.empty}>尚無持倉資料</Text>}</Card>
-  <SectionTitle title="持倉焦點" right="單股 ETF 模板"/>
-  {(prefs.holdingFocusOnDashboard===false?[]:sortFocusHoldings(prefs.selectedEtfSymbols.length?holdings.filter(h=>prefs.selectedEtfSymbols.includes(h.symbol)):holdings,prefs,quotes,ledger,dividends)).slice(0,prefs.holdingFocusMax||8).map(h=>{const x=calculateHoldingView(h,quotes,ledger,dividends);const totalMv=holdings.reduce((a,z)=>a+calculateHoldingView(z,quotes,ledger,dividends).marketValue,0);const vals:any={shares:`${h.shares.toLocaleString()} 股`,avgCost:`${x.avgCost.toFixed(2)}`,pureCost:`${money(x.pureCost)}`,totalFees:`${money(x.totalFees)}`,totalCost:`${money(x.totalCost)}`,historicalTradeCost:`${money(x.historicalTradeCost)}`,historicalBuyFees:`${money(x.historicalBuyFees)}`,historicalCashOutflow:`${money(x.historicalCashOutflow)}`,price:`${x.price.toFixed(2)}`,marketValue:`${money(x.marketValue)}`,todayPnl:`${money(x.todayPnl)}`,todayPnlPct:pct(x.todayPnlPct),pnl:`${money(x.pnl)}`,roi:pct(x.roi),cashPnl:`${money(x.cashPnl)}`,cashRoi:pct(x.cashRoi),weight:`${(totalMv?x.marketValue/totalMv*100:0).toFixed(2)}%`,cumulativeDividend:`${money(x.cumulativeDividend)}`,lastBuyDate:lastBuyDate(h),broker:h.broker||'—',account:h.account||'—'};return <TouchableOpacity key={h.symbol} onPress={onOpenPortfolio}><Card><View style={s.etfRow}><SymbolBadge symbol={h.symbol}/><View style={{flex:1}}><Text style={s.etfName}>{h.name}</Text><Text style={s.muted}>{h.tag||'ETF'}</Text></View><Text style={[s.etfPnl,{color:x.pnl>=0?prefs.positiveColor:prefs.negativeColor}]}>{prefs.privacyMode?'••':pct(x.roi)}</Text></View><FieldMetricGrid fields={prefs.selectedEtfFields} choices={pageFieldChoices.portfolio} spans={prefs.selectedEtfFieldSpans} template={portfolioListTemplate(prefs)} prefs={prefs} rawValues={{todayPnl:x.todayPnl,todayPnlPct:x.todayPnlPct,pnl:x.pnl,roi:x.roi,cashPnl:x.cashPnl,cashRoi:x.cashRoi}} values={Object.fromEntries(Object.entries(vals).map(([k,v])=>[k,prefs.privacyMode&&!["lastBuyDate","broker","account"].includes(k)?'••••':String(v)]))}/></Card></TouchableOpacity>})}
- <CumulativePnlModal visible={pnlOpen} onClose={()=>setPnlOpen(false)} metrics={m} snapshots={dailySnapshots} prefs={prefs}/>
- </ScrollView>;
+export function DashboardScreen({
+ common,
+ onOpenPortfolio,
+ onOpenDividend,
+ onOpenLedger,
+ onOpenCalculator,
+}:{
+ common:ScreenCommon;
+ onOpenPortfolio:()=>void;
+ onOpenDividend:()=>void;
+ onOpenLedger:()=>void;
+ onOpenCalculator:()=>void;
+}){
+ return <ModernDashboardScreen
+  common={common}
+  onOpenPortfolio={onOpenPortfolio}
+  onOpenDividend={onOpenDividend}
+  onOpenLedger={onOpenLedger}
+  onOpenCalculator={onOpenCalculator}
+ />;
 }
 
 export function LedgerScreen({common,cashReconciliation,onReconcile,onBuy,onSell,onCash,onDividend,onUpdateLedger,onDeleteLedger,onSettings}:{common:ScreenCommon;cashReconciliation:CashReconciliation;onReconcile:(x:CashReconciliation)=>void;onBuy:(x:{symbol:string;name:string;date:string;shares:number;price:number;tradeMode:TradeMode;strategy:'long'|'swing';account:string;brokerProfileId:string;calculatedFee:number;actualFee:number})=>void;onSell:(x:{symbol:string;date:string;shares:number;price:number;tradeMode:TradeMode;brokerProfileId:string;calculatedFee:number;calculatedTax:number;actualFee:number;actualTax:number})=>void;onCash:(x:{amount:number;date:string;account:string;note?:string})=>void;onDividend:(symbol:string,amount:number,date:string)=>void;onUpdateLedger:(x:LedgerEntry)=>void;onDeleteLedger:(id:string)=>void;onSettings:()=>void}){
