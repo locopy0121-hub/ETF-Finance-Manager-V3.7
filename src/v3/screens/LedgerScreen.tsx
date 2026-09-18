@@ -232,9 +232,10 @@ export function LedgerScreen({
     [common.ledger, showAllRecords],
   );
 
-  const onDateChange: NonNullable<
-    React.ComponentProps<typeof DateTimePicker>['onChange']
-  > = (event, selectedDate) => {
+  const onDateChange = (
+    event: { type?: string },
+    selectedDate?: Date,
+  ) => {
     if (Platform.OS === 'android') {
       setDatePickerOpen(false);
     }
