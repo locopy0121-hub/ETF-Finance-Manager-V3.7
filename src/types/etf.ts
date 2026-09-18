@@ -45,6 +45,14 @@ export interface Transaction {
   shares: number;
   price: number;
   date: string;
+  /** Formula reference captured at entry time; never authoritative after settlement. */
+  calculatedFee?: number;
+  calculatedTax?: number;
+
+  /** Immutable executed settlement truth. */
+  actualFee?: number;
+  actualTax?: number;
+
   /** Resolved runtime brokerage parameters; supplied by Broker Profile Resolver. */
   brokerProfile?: BrokerProfile;
 }
