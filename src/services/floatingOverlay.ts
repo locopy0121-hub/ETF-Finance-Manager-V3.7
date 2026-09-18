@@ -24,7 +24,7 @@ export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holdin
   ...prefs.monitoring?.floating,
   enabled:true,
   displayMode:'cardMatrix' as const,
-  symbolSource:(prefs.watchlistSymbols.length?'watchlist':'holdings') as const,
+  symbolSource:prefs.watchlistSymbols.length?'watchlist' as const:'holdings' as const,
   title:'雙欄宮格監控',
   showBreathingLight:grid.showTrendLines,
   alertChangePct:grid.alertThreshold,
