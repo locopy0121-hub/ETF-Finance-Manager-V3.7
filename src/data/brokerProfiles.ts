@@ -23,10 +23,10 @@ export const DEFAULT_BROKER_PROFILE_ID='default';
 export const HUANAN_YONGCHANG_PROFILE_ID='huanan-yongchang';
 
 export const defaultBrokerProfile:BrokerProfile={
-  id:DEFAULT_BROKER_PROFILE_ID,name:'App 預設',commissionRate:0.001425,commissionDiscount:1,
+  id:DEFAULT_BROKER_PROFILE_ID,name:'App 預設',commissionRate:0.001425,commissionDiscount:0.65,
   minimumCommissionRoundLot:20,minimumCommissionOddLot:1,etfSellTaxRate:0.001,stockSellTaxRate:0.003,
-  tradeAmountRounding:'floor',commissionRounding:'floor',taxRounding:'floor',unrealizedPLMode:'GROSS',
-  includeEstimatedSellFee:false,includeEstimatedSellTax:false,
+  tradeAmountRounding:'floor',commissionRounding:'floor',taxRounding:'floor',unrealizedPLMode:'NET',
+  includeEstimatedSellFee:true,includeEstimatedSellTax:true,
 };
 
 // 華南永昌先恢復為正式 Profile；參數可從設定頁查看/調整，後續再用實際成交單校正。
