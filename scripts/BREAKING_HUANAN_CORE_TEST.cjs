@@ -12,13 +12,13 @@ const types=fs.readFileSync(typesPath,'utf8');
 const calc=fs.readFileSync(calcPath,'utf8');
 const broker=fs.readFileSync(brokerPath,'utf8');
 
-assert.match(types,/COMMISSION_RATE:\s*0\.001425/,'commission rate must be 0.001425');
-assert.match(types,/COMMISSION_DISCOUNT:\s*0\.65/,'commission discount must be 0.65');
-assert.match(types,/MIN_COMMISSION_ROUND_LOT:\s*20/,'ROUND_LOT minimum must be 20');
-assert.match(types,/MIN_COMMISSION_ODD_LOT:\s*1/,'ODD_LOT minimum must be 1');
-assert.match(types,/ETF_SELL_TAX_RATE:\s*0\.001/,'ETF sell tax must be 0.001');
-assert.match(types,/STOCK_SELL_TAX_RATE:\s*0\.003/,'stock sell tax must be 0.003');
-assert.match(types,/HEALTH_PREMIUM_THRESHOLD:\s*20_000/,'health premium threshold must be 20,000');
+assert.match(broker,/commissionRate:\s*0\.001425/,'default commission rate must be 0.001425');
+assert.match(broker,/commissionDiscount:\s*0\.65/,'default commission discount must be 0.65');
+assert.match(broker,/minimumCommissionRoundLot:\s*20/,'ROUND_LOT minimum must be 20');
+assert.match(broker,/minimumCommissionOddLot:\s*1/,'ODD_LOT minimum must be 1');
+assert.match(broker,/etfSellTaxRate:\s*0\.001/,'ETF sell tax must be 0.001');
+assert.match(broker,/stockSellTaxRate:\s*0\.003/,'stock sell tax must be 0.003');
+assert.match(types,/FINANCE_CORE_POLICY[\s\S]*HEALTH_PREMIUM_THRESHOLD:\s*20_000/,'health premium threshold must be 20,000');
 assert.match(types,/HEALTH_PREMIUM_RATE:\s*0\.0211/,'health premium rate must be 0.0211');
 assert.match(types,/DIVIDEND_TRANSFER_FEE:\s*10/,'dividend transfer fee must be 10');
 
@@ -40,7 +40,8 @@ assert.match(broker,/HUANAN_YONGCHANG_PROFILE_ID/,'Huanan broker profile must ex
 assert.match(broker,/commissionDiscount:0\.65/,'default broker profile must start from Huanan 0.65 baseline');
 assert.match(calc,/calculateBrokerCommission\(/,'canonical calculator must delegate commission to broker profile');
 assert.match(calc,/calculateBrokerSellTax\(/,'canonical calculator must delegate sell tax to broker profile');
-assert.match(calc,/huananYongchangBrokerProfile/,'missing profile must fall back to Huanan baseline');
+assert.match(calc,/defaultBrokerProfile/,'missing profile must fall back to the configured app default profile');
+assert.ok(!/huananYongchangBrokerProfile/.test(calc),'canonical core must not bind directly to a named broker profile');
 assert.match(calc,/Math\.floor\(shares \* price\)/,'buy trade amount must floor before commission');
 assert.match(calc,/Math\.floor\(totalShares \* currentPrice\)/,'current market value must floor before liquidation charges');
 assert.match(calc,/DIVIDEND_TRANSFER_FEE/,'net dividend must deduct the canonical transfer fee');
