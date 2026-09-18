@@ -29,7 +29,7 @@ import {
   TradeMode,
   Transaction,
 } from '../types/etf';
-import { defaultBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
+import { calculateBrokerCommission, calculateBrokerSellTax, huananYongchangBrokerProfile, type BrokerProfile } from '../data/brokerProfiles';
 
 const safeNumber = (value: number): number => {
   return Number.isFinite(value) ? value : 0;
@@ -48,20 +48,20 @@ const roundPercentage = (value: number): number => {
   return Math.round((safeValue + Number.EPSILON) * 100) / 100;
 };
 
-export const resolveTransactionBrokerProfile=(profile?:BrokerProfile)=>profile??defaultBrokerProfile;
+export const resolveTransactionBrokerProfile=(profile?:BrokerProfile)=>profile??huananYongchangBrokerProfile;
 
 const floorMoney = (value:number):number => Math.floor(nonNegative(value));
 
-const calculateCommission = (tradeAmount:number,tradeMode:TradeMode,_profile?:BrokerProfile):number => {
+const calculateCommission = (tradeAmount:number,tradeMode:TradeMode,profile?:BrokerProfile):number => {
   const amount=floorMoney(tradeAmount);
   if(amount<=0)return 0;
-  const minimum=tradeMode==='ROUND_LOT'?HUANAN_CONFIG.MIN_COMMISSION_ROUND_LOT:HUANAN_CONFIG.MIN_COMMISSION_ODD_LOT;
-  return Math.max(minimum,Math.floor(amount*HUANAN_CONFIG.COMMISSION_RATE*HUANAN_CONFIG.COMMISSION_DISCOUNT));
+  return calculateBrokerCommission(amount,tradeMode,resolveTransactionBrokerProfile(profile));
 };
 
-const calculateETFSellTax = (tradeAmount:number,_profile?:BrokerProfile):number => {
+const calculateETFSellTax = (tradeAmount:number,profile?:BrokerProfile):number => {
   const amount=floorMoney(tradeAmount);
-  return amount>0?Math.floor(amount*HUANAN_CONFIG.ETF_SELL_TAX_RATE):0;
+  if(amount<=0)return 0;
+  return calculateBrokerSellTax(amount,resolveTransactionBrokerProfile(profile),'etf');
 };
 
 const sortTransactions = (
