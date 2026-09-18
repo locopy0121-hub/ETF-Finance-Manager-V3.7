@@ -1,42 +1,53 @@
 import type { TextStyle, ViewStyle } from 'react-native';
 
 /**
- * V3.7.9 visual design system.
+ * Blueprint B — Professional Light Dashboard
  *
- * Visual-only tokens. This module must never contain accounting formulas,
- * brokerage rules, tax rules, or portfolio calculations.
+ * Visual-only tokens. No accounting, brokerage, tax, portfolio or settlement
+ * logic is allowed in this module.
  */
 export const V3_THEME = {
   colors: {
-    background: '#0D131A',
-    surfaceGlass: 'rgba(255, 255, 255, 0.05)',
-    borderGlow: 'rgba(255, 255, 255, 0.12)',
-    textPrimary: '#F7FAFC',
-    textSecondary: '#8E9BAE',
-    accent: '#4FD1A5',
-    accentSoft: 'rgba(79, 209, 165, 0.15)',
-    heroGradientStart: '#122820',
-    heroGradientEnd: '#0D131A',
+    background: '#F8FAFC',
+    surfaceGlass: '#FFFFFF',
+    surfaceMuted: '#F1F5F9',
+    borderGlow: '#E2E8F0',
+    textPrimary: '#0F172A',
+    textSecondary: '#64748B',
+    accent: '#0066FF',
+    primary: '#0066FF',
+    accentSoft: '#EFF6FF',
+    heroGradientStart: '#0066FF',
+    heroGradientEnd: '#0044B3',
 
-    taiwanUp: '#FF5B64',
-    taiwanDown: '#35C987',
-    usUp: '#35C987',
-    usDown: '#FF5B64',
+    taiwanUp: '#EF4444',
+    taiwanDown: '#10B981',
+    usUp: '#10B981',
+    usDown: '#EF4444',
 
-    positiveSoft: 'rgba(53, 201, 135, 0.15)',
-    negativeSoft: 'rgba(255, 91, 100, 0.15)',
-    neutralSoft: 'rgba(142, 155, 174, 0.15)',
+    positiveSoft: '#ECFDF5',
+    negativeSoft: '#FEF2F2',
+    neutralSoft: '#F1F5F9',
+    shadow: 'rgba(15, 23, 42, 0.08)',
   },
 
   radius: {
     card: 16,
-    pill: 20,
+    pill: 999,
   },
 
   border: {
     width: 1,
-    color: 'rgba(255, 255, 255, 0.12)',
+    color: '#E2E8F0',
   },
+
+  shadow: {
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
+  } satisfies ViewStyle,
 
   spacing: {
     xs: 4,
@@ -49,20 +60,26 @@ export const V3_THEME = {
 
   typography: {
     heroValue: {
-      fontSize: 28,
-      fontWeight: '700',
-      color: '#F7FAFC',
-      letterSpacing: -0.5,
+      fontSize: 30,
+      fontWeight: '800',
+      color: '#FFFFFF',
+      letterSpacing: -0.6,
+    } satisfies TextStyle,
+    pageTitle: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: '#0F172A',
+      letterSpacing: -0.3,
     } satisfies TextStyle,
     cardTitle: {
       fontSize: 16,
-      fontWeight: '600',
-      color: '#F7FAFC',
+      fontWeight: '700',
+      color: '#0F172A',
     } satisfies TextStyle,
     helper: {
       fontSize: 12,
       fontWeight: '500',
-      color: '#8E9BAE',
+      color: '#64748B',
     } satisfies TextStyle,
   },
 } as const;
@@ -74,12 +91,10 @@ export type PnlTone = {
   background: string;
 };
 
-/**
- * Presentation-only color resolver.
- * Taiwan: red up / green down.
- * US: green up / red down.
- */
-export function resolvePnlTone(value: number, market: MarketColorMode = 'TW'): PnlTone {
+export function resolvePnlTone(
+  value: number,
+  market: MarketColorMode = 'TW',
+): PnlTone {
   if (!Number.isFinite(value) || value === 0) {
     return {
       foreground: V3_THEME.colors.textSecondary,
@@ -92,13 +107,17 @@ export function resolvePnlTone(value: number, market: MarketColorMode = 'TW'): P
   if (market === 'US') {
     return {
       foreground: isUp ? V3_THEME.colors.usUp : V3_THEME.colors.usDown,
-      background: isUp ? V3_THEME.colors.positiveSoft : V3_THEME.colors.negativeSoft,
+      background: isUp
+        ? V3_THEME.colors.positiveSoft
+        : V3_THEME.colors.negativeSoft,
     };
   }
 
   return {
     foreground: isUp ? V3_THEME.colors.taiwanUp : V3_THEME.colors.taiwanDown,
-    background: isUp ? V3_THEME.colors.negativeSoft : V3_THEME.colors.positiveSoft,
+    background: isUp
+      ? V3_THEME.colors.negativeSoft
+      : V3_THEME.colors.positiveSoft,
   };
 }
 
@@ -107,4 +126,5 @@ export const glassCardStyle: ViewStyle = {
   borderWidth: V3_THEME.border.width,
   borderColor: V3_THEME.border.color,
   borderRadius: V3_THEME.radius.card,
+  ...V3_THEME.shadow,
 };
