@@ -193,13 +193,13 @@ jobs:
           retention-days: 14
 
       - name: Publish build completion marker
-        if: success()
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .build-results
           {
-            echo "status=success"
+            echo "status=${{ job.status }}"
             echo "run_id=$GITHUB_RUN_ID"
             echo "source_commit=$GITHUB_SHA"
             echo "artifact_name=ETF-Finance-Manager-V3.7.8-HUANAN-Core-Final-ARM64"
