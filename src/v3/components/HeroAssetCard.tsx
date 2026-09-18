@@ -106,7 +106,7 @@ export function HeroAssetCard({
           </LinearGradient>
 
           <LinearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={V3_THEME.colors.accent} stopOpacity={0.26} />
+            <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.22} />
             <Stop offset="1" stopColor={V3_THEME.colors.accent} stopOpacity={0.01} />
           </LinearGradient>
         </Defs>
@@ -123,7 +123,7 @@ export function HeroAssetCard({
           d={chartPath}
           transform="translate(82 78)"
           fill="none"
-          stroke={V3_THEME.colors.accent}
+          stroke="#FFFFFF"
           strokeWidth={2.4}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -180,13 +180,12 @@ export function HeroAssetCard({
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 210,
+    minHeight: 220,
     overflow: 'hidden',
     borderRadius: V3_THEME.radius.card,
-    borderWidth: V3_THEME.border.width,
-    borderColor: V3_THEME.border.color,
     padding: V3_THEME.spacing.xl,
-    backgroundColor: V3_THEME.colors.background,
+    backgroundColor: V3_THEME.colors.heroGradientStart,
+    ...V3_THEME.shadow,
   },
   headerRow: {
     flexDirection: 'row',
@@ -196,6 +195,7 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...V3_THEME.typography.helper,
+    color: 'rgba(255,255,255,0.78)',
     marginBottom: V3_THEME.spacing.sm,
   },
   valueRow: {
@@ -214,8 +214,8 @@ const styles = StyleSheet.create({
     marginLeft: V3_THEME.spacing.sm,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: V3_THEME.colors.borderGlow,
-    backgroundColor: V3_THEME.colors.surfaceGlass,
+    borderColor: 'rgba(255,255,255,0.26)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     opacity: 0.68,
   },
   eyeIcon: {
-    color: V3_THEME.colors.textSecondary,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -245,10 +245,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
   badgeLabel: {
     ...V3_THEME.typography.helper,
-    color: V3_THEME.colors.textSecondary,
+    color: 'rgba(255,255,255,0.78)',
   },
   badgeValue: {
     fontSize: 13,
