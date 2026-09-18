@@ -1,0 +1,2 @@
+GOGO 2026-09-18
+Build main with the locked Huanan-formula Canonical Finance Core.
