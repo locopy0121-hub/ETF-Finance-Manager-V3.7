@@ -18,8 +18,21 @@ export function setFloatingOverlayLayoutSize(width:number,height:number){try{ret
 
 export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holding[];quotes:Record<string,any>;ledger:LedgerEntry[];dividends:DividendEvent[];cashBalance:number;lastSuccessAt?:number;marketState:string}){
  const {prefs,holdings,quotes,ledger,dividends,cashBalance,lastSuccessAt,marketState}=args;
- const profile=prefs.monitoring?.floating,m=calculatePortfolioView(holdings,quotes,cashBalance,ledger,dividends);
- const selectedSymbols=profile?.selectedSymbols??[];const sourceSymbols=profile?.symbolSource==='watchlist'?prefs.watchlistSymbols:profile?.symbolSource==='all'?Array.from(new Set([...Object.keys(quotes),...prefs.watchlistSymbols,...holdings.map(h=>h.symbol)])):holdings.map(h=>h.symbol);const wanted=selectedSymbols.length?sourceSymbols.filter(x=>selectedSymbols.includes(x)):sourceSymbols;const selected=Array.from(new Set(wanted));
+ const grid=prefs.monitoring?.gridMonitor;
+ const gridFloating=grid?.enabled===true&&grid?.isFloating===true;
+ const profile=gridFloating?{
+  ...prefs.monitoring?.floating,
+  enabled:true,
+  displayMode:'cardMatrix' as const,
+  symbolSource:(prefs.watchlistSymbols.length?'watchlist':'holdings') as const,
+  title:'雙欄宮格監控',
+  showBreathingLight:grid.showTrendLines,
+  alertChangePct:grid.alertThreshold,
+  fields:['symbol','price','changePct','volume'] as MonitorField[],
+  fieldsCustomized:true,
+ }:prefs.monitoring?.floating;
+ const m=calculatePortfolioView(holdings,quotes,cashBalance,ledger,dividends);
+ const selectedSymbols=gridFloating?[]:(profile?.selectedSymbols??[]);const sourceSymbols=profile?.symbolSource==='watchlist'?prefs.watchlistSymbols:profile?.symbolSource==='all'?Array.from(new Set([...Object.keys(quotes),...prefs.watchlistSymbols,...holdings.map(h=>h.symbol)])):holdings.map(h=>h.symbol);const wanted=selectedSymbols.length?sourceSymbols.filter(x=>selectedSymbols.includes(x)):sourceSymbols;const selected=Array.from(new Set(wanted));
  const rowLimit=Math.max(1,Math.min(30,profile?.maxSymbols??6)); const allPositions=selected.map(symbol=>{const h=holdings.find(x=>x.symbol===symbol);const q=quotes[symbol]??{};if(!h)return {symbol,name:String(q.name??symbol),shares:0,price:Number(q.price??0),previousClose:Number(q.previousClose??q.price??0),open:Number(q.open??0),high:Number(q.high??0),low:Number(q.low??0),volume:Number(q.volume??0),limitUp:Number(q.limitUp??0),limitDown:Number(q.limitDown??0),pureCost:0,marketValue:0,instantPnl:0,instantRoi:0,nav:Number(q.nav??0),premium:Number(q.nav??0)>0?(Number(q.price??0)/Number(q.nav)-1)*100:0,todayPnl:0,todayPnlPct:Number(q.changePercent??0),change:Number(q.change??Number(q.price??0)-Number(q.previousClose??q.price??0)),changePct:Number(q.changePercent??0)};
   const hm=calculateHoldingView(h,quotes,ledger,dividends);
   return {
@@ -32,9 +45,14 @@ export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holdin
   };
  });
  const positions=[...allPositions];
- if(profile?.sortMode==='changePct')positions.sort((a,b)=>b.changePct-a.changePct);
+ if(gridFloating){
+  if(grid.autoSortBy==='changePercent')positions.sort((a,b)=>b.changePct-a.changePct);
+  else if(grid.autoSortBy==='price')positions.sort((a,b)=>b.price-a.price);
+  else if(grid.autoSortBy==='volume')positions.sort((a,b)=>b.volume-a.volume);
+  else {const rank=new Map<string,number>((prefs.watchlistSymbols.length?prefs.watchlistSymbols:holdings.map(h=>h.symbol)).map((symbol,index)=>[symbol,index] as [string,number]));positions.sort((a,b)=>(rank.get(a.symbol)??999)-(rank.get(b.symbol)??999));}
+ }else if(profile?.sortMode==='changePct')positions.sort((a,b)=>b.changePct-a.changePct);
  else if(profile?.sortMode==='premium')positions.sort((a,b)=>b.premium-a.premium);
- else if(selectedSymbols?.length){const rank=new Map<string,number>(selectedSymbols.map((s,i)=>[s,i] as [string,number]));positions.sort((a,b)=>(rank.get(a.symbol)??999)-(rank.get(b.symbol)??999));}
+ else if(selectedSymbols?.length){const rank=new Map<string,number>(selectedSymbols.map((symbol,index)=>[symbol,index] as [string,number]));positions.sort((a,b)=>(rank.get(a.symbol)??999)-(rank.get(b.symbol)??999));}
  positions.splice(rowLimit);
  const d0=new Date(),today=`${d0.getFullYear()}-${String(d0.getMonth()+1).padStart(2,'0')}-${String(d0.getDate()).padStart(2,'0')}`;
  const upcoming=dividends.filter(d=>d.payDate&&d.payDate>=today).sort((a,b)=>String(a.payDate).localeCompare(String(b.payDate)))[0];
@@ -43,7 +61,7 @@ export function floatingOverlayPayload(args:{prefs:V3Preferences;holdings:Holdin
  fields.sort((a,b)=>(profile?.fieldStyles?.[a]?.order??999)-(profile?.fieldStyles?.[b]?.order??999));
  return JSON.stringify({
   enabled:profile?.enabled??false,
-  mode:template.nativeMode,displayMode:profile?.displayMode??'holdingList',template:template.id,templateFields:template.fields,title:profile?.title??'即時監控器',statusTitle:profile?.statusTitle??'市場狀態',showBreathingLight:profile?.showBreathingLight!==false,density:profile?.density??'auto',symbolSource:profile?.symbolSource??'holdings',resizeMode:profile?.resizeMode??'fluid',opacity:(profile?.activeOpacity??92)/100,idleOpacity:(profile?.idleOpacity??36)/100,scale:1,fontScale:(profile?.fontScale??100)/100,
+  mode:template.nativeMode,displayMode:profile?.displayMode??'holdingList',template:template.id,templateFields:template.fields,title:profile?.title??'即時監控器',statusTitle:profile?.statusTitle??'市場狀態',showBreathingLight:profile?.showBreathingLight!==false,density:profile?.density??'auto',symbolSource:profile?.symbolSource??'holdings',resizeMode:profile?.resizeMode??'fluid',opacity:(profile?.activeOpacity??92)/100,idleOpacity:(profile?.idleOpacity??36)/100,scale:1,fontScale:(profile?.fontScale??100)/100,gridColumns:gridFloating?2:undefined,gridFocusChips:gridFloating?grid.showFocusChips:undefined,gridTrendLines:gridFloating?grid.showTrendLines:undefined,
   snap:profile?.snap??true,gridSnap:profile?.gridSnap??8,refreshSeconds:Math.max(0,Number(profile?.refreshSeconds??5)),rotateSeconds:Math.max(.5,4),
   width:profile?.width??390,height:profile?.height??240,minWidth:profile?.minWidth??120,minHeight:profile?.minHeight??48,maxHeightRatio:profile?.maxHeightRatio??.72,autoHeight:template.compact===true,
   fontMin:8,fontMax:22,autoFont:profile?.resizeMode==='scale',dragHotspot:profile?.dragHotspot??'handle',dockMode:profile?.dockMode??'peek',locked:profile?.locked??false,haptics:profile?.haptics??true,doubleTapLayout:profile?.doubleTapLayout??true,tapAction:'none',scrollAfterRows:profile?.scrollAfterRows??5,
