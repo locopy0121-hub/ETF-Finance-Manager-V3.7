@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -17,6 +17,7 @@ import type {
   V3CardAlign,
   V3PageCard,
   V3Preferences,
+  type ThemeId,
 } from '../model';
 import {
   EFFECT_KINDS,
@@ -25,6 +26,14 @@ import {
   type VisualEffect,
 } from '../../ui/editorSchema';
 import { V3_THEME } from '../theme';
+import type { AppSettings, CloseNotificationSettings, WidgetSettings } from '../../storage/appStorage';
+import type { BrokerProfile } from '../../data/brokerProfiles';
+import { createBrokerProfile } from '../../data/brokerProfiles';
+import {
+  deleteSafetyBackup,
+  listSafetyBackups,
+  type SafetyBackup,
+} from '../safetyBackup';
 
 type SettingsMenuKey =
   | 'theme'
@@ -66,8 +75,28 @@ export type PageFrameEditorModalProps = {
 
 export type SettingsScreenProps = {
   prefs: V3Preferences;
+  appSettings: AppSettings;
+  availableSymbols: string[];
+  brokerProfiles: BrokerProfile[];
+  defaultBrokerProfileId: string;
   onChange: (patch: Partial<V3Preferences>) => void;
-  onClearAccountingData?: () => Promise<unknown>;
+  onWidgetChange: (patch: Partial<WidgetSettings>) => void;
+  onNotifyChange: (patch: Partial<CloseNotificationSettings>) => void;
+  onOtaChange: (patch: Partial<AppSettings['ota']>) => void;
+  onCheckOta: () => void | Promise<void>;
+  onRefreshQuotes: () => void | boolean | Promise<void | boolean>;
+  onBrokerProfilesChange: (profiles: BrokerProfile[]) => void;
+  onDefaultBrokerProfileChange: (id: string) => void;
+  onPickImage: () => void | Promise<string | undefined>;
+  onPickCardImage: () => void | Promise<string | undefined>;
+  onClearCardImage: () => void;
+  onExportBackup: () => void | Promise<void>;
+  onImportBackup: () => void | Promise<void>;
+  onClearPnl: () => Promise<unknown>;
+  onClearCash: () => Promise<unknown>;
+  onClearAccountingData: () => Promise<unknown>;
+  onRecalculate: () => Promise<unknown>;
+  onRestoreSafety: (id: string) => Promise<boolean>;
   accountingResetLabel?: string;
   accountingResetFailSafe?: string;
 };
@@ -936,59 +965,380 @@ export function PageFrameEditorModal({
   );
 }
 
+type ToolboxGroup =
+  | 'layout'
+  | 'monitor'
+  | 'visual'
+  | 'system'
+  | 'data'
+  | 'safety';
+
+const TOOLBOX_GROUPS: Array<{
+  key: ToolboxGroup;
+  icon: string;
+  title: string;
+  subtitle: string;
+}> = [
+  { key: 'layout', icon: '🖥️', title: '全局版面修改編輯', subtitle: 'Layout · 頁面卡片順序 · 組件顯示' },
+  { key: 'monitor', icon: '📹', title: '監視器與觀察清單', subtitle: 'Monitor · Watchlist · 警報與刷新' },
+  { key: 'visual', icon: '🎨', title: '視覺與主題', subtitle: '主題 · 卡片 · 圖表 · Widget' },
+  { key: 'system', icon: '🤖', title: '系統與 AI', subtitle: 'AI · 通知 · 行情更新 · OTA' },
+  { key: 'data', icon: '💾', title: '資料管理與備份', subtitle: 'JSON 備份 · 重建 · 歷史紀錄' },
+  { key: 'safety', icon: '🛡️', title: '帳務安全與重置', subtitle: '安全備份鎖 · 券商 Profile · 全帳務重置' },
+];
+
+const THEME_CHOICES: Array<[ThemeId, string]> = [
+  ['obsidianGold', '黑曜金'],
+  ['deepSeaTech', '深海科技'],
+  ['classicFinance', '經典金融'],
+  ['forestEye', '森林之眼'],
+  ['amethystNight', '紫晶夜'],
+  ['neonNight', '霓虹夜'],
+];
+
+function AccordionCard({
+  icon,
+  title,
+  subtitle,
+  open,
+  onPress,
+  children,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  open: boolean;
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.toolboxCard}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.toolboxHeader,
+          pressed && styles.pressed,
+        ]}
+      >
+        <View style={styles.toolboxIcon}>
+          <Text style={styles.toolboxIconText}>{icon}</Text>
+        </View>
+        <View style={styles.toolboxHeaderText}>
+          <Text style={styles.toolboxTitle}>{title}</Text>
+          <Text style={styles.toolboxSubtitle}>{subtitle}</Text>
+        </View>
+        <Text style={styles.toolboxChevron}>{open ? '⌃' : '⌄'}</Text>
+      </Pressable>
+      {open ? <View style={styles.toolboxBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function SettingToggle({
+  label,
+  note,
+  value,
+  onChange,
+}: {
+  label: string;
+  note?: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <View style={styles.settingRow}>
+      <View style={styles.settingRowText}>
+        <Text style={styles.settingRowLabel}>{label}</Text>
+        {note ? <Text style={styles.settingRowNote}>{note}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{
+          false: 'rgba(255,255,255,0.12)',
+          true: 'rgba(79,209,165,0.35)',
+        }}
+        thumbColor={value ? V3_THEME.colors.accent : V3_THEME.colors.textSecondary}
+      />
+    </View>
+  );
+}
+
+function ChoicePill({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.choicePill,
+        active && styles.choicePillActive,
+      ]}
+    >
+      <Text
+        style={[
+          styles.choicePillText,
+          active && styles.choicePillTextActive,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function SmallAction({
+  label,
+  danger = false,
+  onPress,
+}: {
+  label: string;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.smallAction,
+        danger && styles.smallActionDanger,
+      ]}
+    >
+      <Text
+        style={[
+          styles.smallActionText,
+          danger && styles.smallActionDangerText,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function InlineNumber({
+  label,
+  value,
+  min,
+  max,
+  step,
+  suffix = '',
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  suffix?: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <View style={styles.settingRow}>
+      <View style={styles.settingRowText}>
+        <Text style={styles.settingRowLabel}>{label}</Text>
+        <Text style={styles.settingRowNote}>
+          {value}{suffix}
+        </Text>
+      </View>
+      <View style={styles.inlineStepper}>
+        <Pressable
+          onPress={() => onChange(clamp(value - step, min, max))}
+          style={styles.stepButton}
+        >
+          <Text style={styles.stepButtonText}>−</Text>
+        </Pressable>
+        <Text style={styles.inlineStepperValue}>{value}</Text>
+        <Pressable
+          onPress={() => onChange(clamp(value + step, min, max))}
+          style={styles.stepButton}
+        >
+          <Text style={styles.stepButtonText}>＋</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export function SettingsScreen({
   prefs,
+  appSettings,
+  availableSymbols,
+  brokerProfiles,
+  defaultBrokerProfileId,
   onChange,
+  onWidgetChange,
+  onNotifyChange,
+  onOtaChange,
+  onCheckOta,
+  onRefreshQuotes,
+  onBrokerProfilesChange,
+  onDefaultBrokerProfileChange,
+  onPickImage,
+  onPickCardImage,
+  onClearCardImage,
+  onExportBackup,
+  onImportBackup,
+  onClearPnl,
+  onClearCash,
   onClearAccountingData,
+  onRecalculate,
+  onRestoreSafety,
   accountingResetLabel = '清除全部帳務資料',
-  accountingResetFailSafe = '清除前會建立安全備份；備份失敗即停止清除。',
+  accountingResetFailSafe = '清除前會建立完整安全備份；備份失敗即停止清除。',
 }: SettingsScreenProps) {
-  const [menu, setMenu] = useState<SettingsMenuKey>('theme');
-  const [selectedPage, setSelectedPage] =
-    useState<PageFieldKey>('dashboard');
+  const [openGroups, setOpenGroups] = useState<Record<ToolboxGroup, boolean>>({
+    layout: true,
+    monitor: false,
+    visual: false,
+    system: false,
+    data: false,
+    safety: false,
+  });
+  const [selectedPage, setSelectedPage] = useState<PageFieldKey>('dashboard');
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [monitorTarget, setMonitorTarget] =
+    useState<'appBoard' | 'floating' | 'widget'>('floating');
+  const [safetyBackups, setSafetyBackups] = useState<SafetyBackup[]>([]);
+  const [selectedBrokerId, setSelectedBrokerId] = useState(
+    defaultBrokerProfileId,
+  );
+
+  useEffect(() => {
+    if (!openGroups.data && !openGroups.safety) return;
+    let active = true;
+    void listSafetyBackups().then(rows => {
+      if (active) setSafetyBackups(rows);
+    });
+    return () => {
+      active = false;
+    };
+  }, [openGroups.data, openGroups.safety]);
 
   const isEditModeActive = prefs.globalEditMode;
-
-  const pageCards = prefs.pageLayouts[selectedPage]?.cards ?? [];
+  const pageLayout = prefs.pageLayouts[selectedPage];
+  const pageCards = pageLayout?.cards ?? [];
   const editingCard =
     pageCards.find(card => card.id === editingCardId) ?? null;
+  const monitor = prefs.monitoring[monitorTarget];
+  const selectedBroker =
+    brokerProfiles.find(item => item.id === selectedBrokerId) ??
+    brokerProfiles[0];
 
-  const setEditMode = (value: boolean) => {
-    onChange({ globalEditMode: value });
+  const patchMonitor = (
+    patch: Partial<typeof prefs.monitoring.floating>,
+  ) => {
+    onChange({
+      monitoring: {
+        ...prefs.monitoring,
+        [monitorTarget]: {
+          ...prefs.monitoring[monitorTarget],
+          ...patch,
+        },
+      },
+    });
+  };
+
+  const patchPageCustomize = (page: PageFieldKey, value: boolean) => {
+    onChange({
+      monitoring: {
+        ...prefs.monitoring,
+        pageCustomize: {
+          ...prefs.monitoring.pageCustomize,
+          [page]: value,
+        },
+      },
+    });
+  };
+
+  const toggleWatchSymbol = (symbol: string) => {
+    const next = prefs.watchlistSymbols.includes(symbol)
+      ? prefs.watchlistSymbols.filter(item => item !== symbol)
+      : [...prefs.watchlistSymbols, symbol];
+    onChange({ watchlistSymbols: next });
+  };
+
+  const toggleMonitorSymbol = (symbol: string) => {
+    const selected = monitor.selectedSymbols.includes(symbol);
+    patchMonitor({
+      selectedSymbols: selected
+        ? monitor.selectedSymbols.filter(item => item !== symbol)
+        : [...monitor.selectedSymbols, symbol],
+    });
+  };
+
+  const moveCard = (index: number, by: number) => {
+    if (!pageLayout) return;
+    const to = clamp(index + by, 0, pageCards.length - 1);
+    if (to === index) return;
+    const cards = [...pageCards];
+    const [item] = cards.splice(index, 1);
+    cards.splice(to, 0, item);
+    onChange({
+      pageLayouts: {
+        ...prefs.pageLayouts,
+        [selectedPage]: {
+          ...pageLayout,
+          cards,
+        },
+      },
+    });
+  };
+
+  const toggleCardHidden = (id: string) => {
+    if (!pageLayout) return;
+    onChange({
+      pageLayouts: {
+        ...prefs.pageLayouts,
+        [selectedPage]: {
+          ...pageLayout,
+          cards: pageCards.map(card =>
+            card.id === id ? { ...card, hidden: !card.hidden } : card,
+          ),
+        },
+      },
+    });
   };
 
   const saveFrame = (
     nextCard: V3PageCard,
     _draft: PageFrameEditorDraft,
   ) => {
-    const layout = prefs.pageLayouts[selectedPage];
-    if (!layout) return;
-
+    if (!pageLayout) return;
     onChange({
       pageLayouts: {
         ...prefs.pageLayouts,
         [selectedPage]: {
-          ...layout,
-          cards: layout.cards.map(card =>
+          ...pageLayout,
+          cards: pageCards.map(card =>
             card.id === nextCard.id ? nextCard : card,
           ),
         },
       },
     });
-
     setEditingCardId(null);
   };
 
-  const menuAction = (key: SettingsMenuKey) => {
-    setMenu(key);
-
-    if (key === 'cards') return;
-
-    Alert.alert(
-      MENU.find(item => item.key === key)?.title ?? '設定',
-      '此新版 SettingsScreen 已建立對應入口；詳細子頁可在下一階段逐模組接入現有設定資料。',
+  const patchBroker = (patch: Partial<BrokerProfile>) => {
+    if (!selectedBroker) return;
+    onBrokerProfilesChange(
+      brokerProfiles.map(profile =>
+        profile.id === selectedBroker.id
+          ? { ...profile, ...patch }
+          : profile,
+      ),
     );
+  };
+
+  const refreshSafety = async () => {
+    setSafetyBackups(await listSafetyBackups());
   };
 
   return (
@@ -1001,7 +1351,7 @@ export function SettingsScreen({
         <Text style={styles.eyebrow}>SETTINGS / PAGE FRAME EDITOR 2.0</Text>
         <Text style={styles.pageTitle}>設定與頁面編輯器</Text>
         <Text style={styles.pageSubtitle}>
-          外觀、卡片、圖表、Widget、通知與 AI 集中管理
+          Page Frame Editor 2.0 與舊版百寶箱功能統一收納；只改 UI、監控、通知與系統設定，不改金融計算。
         </Text>
       </View>
 
@@ -1012,10 +1362,9 @@ export function SettingsScreen({
             開啟後，全 App 卡片可顯示 ⚙️ 編輯入口
           </Text>
         </View>
-
         <Switch
           value={isEditModeActive}
-          onValueChange={setEditMode}
+          onValueChange={globalEditMode => onChange({ globalEditMode })}
           trackColor={{
             false: 'rgba(255,255,255,0.12)',
             true: 'rgba(79,209,165,0.35)',
@@ -1036,143 +1385,722 @@ export function SettingsScreen({
           ]}
         />
         <Text style={styles.statusText}>
-          {isEditModeActive
-            ? '編輯模式已開啟'
-            : '編輯模式已關閉'}
+          {isEditModeActive ? 'Page Frame Editor 已啟用' : '一般瀏覽模式'}
         </Text>
       </View>
 
-      <View style={styles.menuCard}>
-        {MENU.map(item => (
-          <MenuRow
-            key={item.key}
-            icon={item.icon}
-            title={item.title}
-            subtitle={item.subtitle}
-            onPress={() => menuAction(item.key)}
-          />
-        ))}
-      </View>
-
-      {onClearAccountingData ? (
-        <View style={styles.dataSafetyCard}>
-          <View style={styles.dataSafetyText}>
-            <Text style={styles.dataSafetyTitle}>資料安全管理</Text>
-            <Text style={styles.dataSafetySubtitle}>
-              {accountingResetFailSafe}
-            </Text>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
+      <View style={styles.toolboxList}>
+        {TOOLBOX_GROUPS.map(group => (
+          <AccordionCard
+            key={group.key}
+            icon={group.icon}
+            title={group.title}
+            subtitle={group.subtitle}
+            open={openGroups[group.key]}
             onPress={() =>
-              Alert.alert(
-                accountingResetLabel,
-                `${accountingResetFailSafe}\n\n確定要繼續嗎？`,
-                [
-                  { text: '取消', style: 'cancel' },
-                  {
-                    text: accountingResetLabel,
-                    style: 'destructive',
-                    onPress: () => {
-                      void onClearAccountingData();
-                    },
-                  },
-                ],
-              )
+              setOpenGroups(current => ({
+                ...current,
+                [group.key]: !current[group.key],
+              }))
             }
-            style={({ pressed }) => [
-              styles.dangerButton,
-              pressed && styles.pressed,
-            ]}
           >
-            <Text style={styles.dangerButtonText}>
-              {accountingResetLabel}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
+            {group.key === 'layout' ? (
+              <>
+                <Text style={styles.groupTitle}>全局顯示控制</Text>
+                <SettingToggle
+                  label="底部導航列"
+                  value={prefs.visibility.nav}
+                  onChange={nav =>
+                    onChange({
+                      visibility: { ...prefs.visibility, nav },
+                    })
+                  }
+                />
+                <SettingToggle
+                  label="即時行情"
+                  value={prefs.visibility.liveQuote}
+                  onChange={liveQuote =>
+                    onChange({
+                      visibility: { ...prefs.visibility, liveQuote },
+                    })
+                  }
+                />
+                <SettingToggle
+                  label="今日損益"
+                  value={prefs.visibility.todayPnl}
+                  onChange={todayPnl =>
+                    onChange({
+                      visibility: { ...prefs.visibility, todayPnl },
+                    })
+                  }
+                />
+                <SettingToggle
+                  label="總損益"
+                  value={prefs.visibility.totalPnl}
+                  onChange={totalPnl =>
+                    onChange({
+                      visibility: { ...prefs.visibility, totalPnl },
+                    })
+                  }
+                />
+                <SettingToggle
+                  label="股息資訊"
+                  value={prefs.visibility.dividends}
+                  onChange={dividends =>
+                    onChange({
+                      visibility: { ...prefs.visibility, dividends },
+                    })
+                  }
+                />
 
-      <View style={styles.frameSection}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>頁面框架編輯</Text>
-            <Text style={styles.sectionSubtitle}>
-              選擇頁面與卡片後開啟 Page Frame Editor
-            </Text>
-          </View>
-        </View>
+                <Text style={styles.groupTitle}>各頁面設定模式</Text>
+                <View style={styles.choiceWrap}>
+                  {(Object.keys(prefs.monitoring.pageCustomize) as PageFieldKey[]).map(page => (
+                    <ChoicePill
+                      key={page}
+                      active={!!prefs.monitoring.pageCustomize[page]}
+                      label={page}
+                      onPress={() =>
+                        patchPageCustomize(
+                          page,
+                          !prefs.monitoring.pageCustomize[page],
+                        )
+                      }
+                    />
+                  ))}
+                </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.pageSelector}
-        >
-          {(
-            [
-              ['dashboard', '首頁'],
-              ['ledger', '智慧記帳'],
-              ['portfolio', '庫存'],
-              ['dividend', '股息'],
-              ['calculator', '試算'],
-              ['detail', 'ETF 詳情'],
-            ] as const
-          ).map(([key, label]) => {
-            const active = selectedPage === key;
-
-            return (
-              <Pressable
-                key={key}
-                onPress={() => setSelectedPage(key)}
-                style={[
-                  styles.pagePill,
-                  active && styles.pagePillActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.pagePillText,
-                    active && styles.pagePillTextActive,
-                  ]}
+                <Text style={styles.groupTitle}>Page Layout / 卡片順序</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pageSelector}
                 >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                  {(
+                    [
+                      ['dashboard', '首頁'],
+                      ['ledger', '記帳'],
+                      ['portfolio', '庫存'],
+                      ['dividend', '股息'],
+                      ['calculator', '試算'],
+                      ['detail', 'ETF 詳情'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <ChoicePill
+                      key={key}
+                      active={selectedPage === key}
+                      label={label}
+                      onPress={() => setSelectedPage(key)}
+                    />
+                  ))}
+                </ScrollView>
 
-        <View style={styles.cardList}>
-          {pageCards.length > 0 ? (
-            pageCards.map(card => (
-              <View key={card.id} style={styles.frameCard}>
-                <View style={styles.frameCardInfo}>
-                  <Text style={styles.frameCardTitle}>{card.title}</Text>
-                  <Text style={styles.frameCardMeta}>
-                    {card.kind} · {card.fields.length} 欄位 ·{' '}
-                    {card.hidden ? '已隱藏' : '顯示中'}
+                <View style={styles.cardList}>
+                  {pageCards.map((card, index) => (
+                    <View key={card.id} style={styles.frameCard}>
+                      <View style={styles.frameCardInfo}>
+                        <Text style={styles.frameCardTitle}>{card.title}</Text>
+                        <Text style={styles.frameCardMeta}>
+                          {index + 1} · {card.kind} · {card.fields.length} 欄位 · {card.hidden ? '隱藏' : '顯示'}
+                        </Text>
+                      </View>
+                      <SmallAction
+                        label="↑"
+                        onPress={() => moveCard(index, -1)}
+                      />
+                      <SmallAction
+                        label="↓"
+                        onPress={() => moveCard(index, 1)}
+                      />
+                      <SmallAction
+                        label={card.hidden ? '顯示' : '隱藏'}
+                        onPress={() => toggleCardHidden(card.id)}
+                      />
+                      <Pressable
+                        onPress={() => setEditingCardId(card.id)}
+                        style={styles.gearButton}
+                      >
+                        <Text style={styles.gearText}>⚙️</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : null}
+
+            {group.key === 'monitor' ? (
+              <>
+                <Text style={styles.groupTitle}>監視器目標</Text>
+                <View style={styles.choiceWrap}>
+                  <ChoicePill active={monitorTarget === 'appBoard'} label="App 內" onPress={() => setMonitorTarget('appBoard')} />
+                  <ChoicePill active={monitorTarget === 'floating'} label="跨 App 浮動" onPress={() => setMonitorTarget('floating')} />
+                  <ChoicePill active={monitorTarget === 'widget'} label="Monitor Widget" onPress={() => setMonitorTarget('widget')} />
+                </View>
+
+                <SettingToggle
+                  label="啟用監視器"
+                  note={monitor.title}
+                  value={monitor.enabled}
+                  onChange={enabled => patchMonitor({ enabled })}
+                />
+                <SettingToggle
+                  label="狀態呼吸燈"
+                  value={monitor.showBreathingLight}
+                  onChange={showBreathingLight =>
+                    patchMonitor({ showBreathingLight })
+                  }
+                />
+                <SettingToggle
+                  label="鎖定位置"
+                  value={monitor.locked}
+                  onChange={locked => patchMonitor({ locked })}
+                />
+                <SettingToggle
+                  label="放開後磁吸"
+                  value={monitor.snap}
+                  onChange={snap => patchMonitor({ snap })}
+                />
+                <InlineNumber
+                  label="更新頻率"
+                  value={monitor.refreshSeconds}
+                  min={0}
+                  max={3600}
+                  step={1}
+                  suffix=" 秒"
+                  onChange={refreshSeconds => patchMonitor({ refreshSeconds })}
+                />
+                <InlineNumber
+                  label="漲跌幅警報門檻"
+                  value={monitor.alertChangePct}
+                  min={0}
+                  max={20}
+                  step={1}
+                  suffix="%"
+                  onChange={alertChangePct => patchMonitor({ alertChangePct })}
+                />
+                <InlineNumber
+                  label="折溢價警報門檻"
+                  value={monitor.alertPremiumPct}
+                  min={0}
+                  max={10}
+                  step={1}
+                  suffix="%"
+                  onChange={alertPremiumPct => patchMonitor({ alertPremiumPct })}
+                />
+                <SettingToggle
+                  label="警報通知"
+                  value={monitor.alertNotification}
+                  onChange={alertNotification =>
+                    patchMonitor({ alertNotification })
+                  }
+                />
+                <SettingToggle
+                  label="警報閃爍"
+                  value={monitor.alertFlash}
+                  onChange={alertFlash => patchMonitor({ alertFlash })}
+                />
+                <SettingToggle
+                  label="排程顯示"
+                  value={monitor.schedule.enabled}
+                  onChange={enabled =>
+                    patchMonitor({
+                      schedule: { ...monitor.schedule, enabled },
+                    })
+                  }
+                />
+
+                <Text style={styles.groupTitle}>觀察清單</Text>
+                <View style={styles.choiceWrap}>
+                  {availableSymbols.map(symbol => (
+                    <ChoicePill
+                      key={symbol}
+                      active={prefs.watchlistSymbols.includes(symbol)}
+                      label={symbol}
+                      onPress={() => toggleWatchSymbol(symbol)}
+                    />
+                  ))}
+                </View>
+
+                <Text style={styles.groupTitle}>監視器指定 ETF</Text>
+                <View style={styles.choiceWrap}>
+                  {availableSymbols.map(symbol => (
+                    <ChoicePill
+                      key={symbol}
+                      active={monitor.selectedSymbols.includes(symbol)}
+                      label={symbol}
+                      onPress={() => toggleMonitorSymbol(symbol)}
+                    />
+                  ))}
+                </View>
+
+                <SmallAction
+                  label="立即刷新行情 / 同步監視器"
+                  onPress={() => {
+                    void onRefreshQuotes();
+                  }}
+                />
+              </>
+            ) : null}
+
+            {group.key === 'visual' ? (
+              <>
+                <Text style={styles.groupTitle}>佈景主題</Text>
+                <View style={styles.choiceWrap}>
+                  {THEME_CHOICES.map(([id, label]) => (
+                    <ChoicePill
+                      key={id}
+                      active={prefs.themeId === id}
+                      label={label}
+                      onPress={() => onChange({ themeId: id })}
+                    />
+                  ))}
+                </View>
+
+                <InlineNumber
+                  label="全局卡片透明度"
+                  value={prefs.cardOpacity}
+                  min={35}
+                  max={100}
+                  step={5}
+                  suffix="%"
+                  onChange={cardOpacity => onChange({ cardOpacity })}
+                />
+                <InlineNumber
+                  label="全局卡片圓角"
+                  value={prefs.cardRadius}
+                  min={0}
+                  max={32}
+                  step={2}
+                  suffix="px"
+                  onChange={cardRadius => onChange({ cardRadius })}
+                />
+                <InlineNumber
+                  label="全局字體"
+                  value={prefs.fontScale}
+                  min={80}
+                  max={160}
+                  step={5}
+                  suffix="%"
+                  onChange={fontScale => onChange({ fontScale })}
+                />
+
+                <Text style={styles.groupTitle}>頁面 / 卡片背景</Text>
+                <View style={styles.actionWrap}>
+                  <SmallAction
+                    label="選擇頁面背景"
+                    onPress={() => {
+                      void Promise.resolve(onPickImage()).then(uri => {
+                        if (uri) onChange({ backgroundPreset: 'custom', backgroundImageUri: uri });
+                      });
+                    }}
+                  />
+                  <SmallAction
+                    label="選擇卡片背景"
+                    onPress={() => {
+                      void Promise.resolve(onPickCardImage()).then(uri => {
+                        if (uri) onChange({ cardBackgroundImageUri: uri });
+                      });
+                    }}
+                  />
+                  <SmallAction label="清除卡片背景" onPress={onClearCardImage} />
+                </View>
+
+                <Text style={styles.groupTitle}>圖表互動</Text>
+                <SettingToggle
+                  label="單擊切換圖表樣式"
+                  value={prefs.chartInteraction.singleTapCycle}
+                  onChange={singleTapCycle =>
+                    onChange({
+                      chartInteraction: {
+                        ...prefs.chartInteraction,
+                        singleTapCycle,
+                      },
+                    })
+                  }
+                />
+                <SettingToggle
+                  label="雙擊放大"
+                  value={prefs.chartInteraction.doubleTapZoom}
+                  onChange={doubleTapZoom =>
+                    onChange({
+                      chartInteraction: {
+                        ...prefs.chartInteraction,
+                        doubleTapZoom,
+                      },
+                    })
+                  }
+                />
+                <SettingToggle
+                  label="記住圖表樣式"
+                  value={prefs.chartInteraction.rememberStyle}
+                  onChange={rememberStyle =>
+                    onChange({
+                      chartInteraction: {
+                        ...prefs.chartInteraction,
+                        rememberStyle,
+                      },
+                    })
+                  }
+                />
+
+                <Text style={styles.groupTitle}>Android Widget</Text>
+                <SettingToggle
+                  label="啟用 Widget"
+                  value={appSettings.widget.enabled}
+                  onChange={enabled => onWidgetChange({ enabled })}
+                />
+                <SettingToggle
+                  label="Widget 呼吸燈"
+                  value={appSettings.widget.showStatusLight}
+                  onChange={showStatusLight => onWidgetChange({ showStatusLight })}
+                />
+                <SettingToggle
+                  label="Widget 走勢圖"
+                  value={appSettings.widget.showTrendChart}
+                  onChange={showTrendChart => onWidgetChange({ showTrendChart })}
+                />
+                <InlineNumber
+                  label="Widget 字體"
+                  value={appSettings.widget.fontScale}
+                  min={80}
+                  max={160}
+                  step={5}
+                  suffix="%"
+                  onChange={fontScale => onWidgetChange({ fontScale })}
+                />
+                <InlineNumber
+                  label="Widget 背景透明度"
+                  value={appSettings.widget.opacity}
+                  min={20}
+                  max={100}
+                  step={5}
+                  suffix="%"
+                  onChange={opacity => onWidgetChange({ opacity })}
+                />
+              </>
+            ) : null}
+
+            {group.key === 'system' ? (
+              <>
+                <Text style={styles.groupTitle}>AI 財務助理</Text>
+                <SettingToggle
+                  label="啟用 AI"
+                  value={prefs.ai.enabled}
+                  onChange={enabled =>
+                    onChange({ ai: { ...prefs.ai, enabled } })
+                  }
+                />
+                <SettingToggle
+                  label="各頁標題顯示 AI 入口"
+                  value={prefs.ai.showHeaderButton}
+                  onChange={showHeaderButton =>
+                    onChange({ ai: { ...prefs.ai, showHeaderButton } })
+                  }
+                />
+                <InlineNumber
+                  label="AI 文字大小"
+                  value={prefs.ai.fontScale}
+                  min={80}
+                  max={180}
+                  step={5}
+                  suffix="%"
+                  onChange={fontScale =>
+                    onChange({ ai: { ...prefs.ai, fontScale } })
+                  }
+                />
+
+                <Text style={styles.groupTitle}>盤後通知</Text>
+                <SettingToggle
+                  label="啟用盤後通知"
+                  value={appSettings.closeNotification.enabled}
+                  onChange={enabled => onNotifyChange({ enabled })}
+                />
+                <SettingToggle
+                  label="僅工作日"
+                  value={appSettings.closeNotification.weekdaysOnly}
+                  onChange={weekdaysOnly => onNotifyChange({ weekdaysOnly })}
+                />
+                <TextInput
+                  value={appSettings.closeNotification.title}
+                  onChangeText={title => onNotifyChange({ title })}
+                  style={styles.input}
+                  placeholder="通知標題"
+                  placeholderTextColor="rgba(255,255,255,0.28)"
+                />
+
+                <Text style={styles.groupTitle}>市場數據</Text>
+                <SettingToggle
+                  label="自動更新行情"
+                  value={prefs.market.scheduleEnabled}
+                  onChange={scheduleEnabled =>
+                    onChange({
+                      market: {
+                        ...prefs.market,
+                        scheduleEnabled,
+                        autoRefresh: scheduleEnabled,
+                      },
+                    })
+                  }
+                />
+                <SettingToggle
+                  label="回到前景立即刷新"
+                  value={prefs.market.refreshOnForeground}
+                  onChange={refreshOnForeground =>
+                    onChange({
+                      market: { ...prefs.market, refreshOnForeground },
+                    })
+                  }
+                />
+                <SettingToggle
+                  label="停止全部自動更新"
+                  value={prefs.market.stopAll}
+                  onChange={stopAll =>
+                    onChange({ market: { ...prefs.market, stopAll } })
+                  }
+                />
+                <InlineNumber
+                  label="盤中更新頻率"
+                  value={prefs.market.live.refreshSeconds}
+                  min={1}
+                  max={60}
+                  step={1}
+                  suffix=" 秒"
+                  onChange={refreshSeconds =>
+                    onChange({
+                      market: {
+                        ...prefs.market,
+                        refreshSeconds,
+                        live: { ...prefs.market.live, refreshSeconds },
+                      },
+                    })
+                  }
+                />
+
+                <Text style={styles.groupTitle}>OTA 線上更新</Text>
+                <SettingToggle
+                  label="自動檢查 OTA"
+                  value={appSettings.ota.autoCheck}
+                  onChange={autoCheck => onOtaChange({ autoCheck })}
+                />
+                <InlineNumber
+                  label="進入 App 後延遲檢查"
+                  value={appSettings.ota.delayMinutes}
+                  min={1}
+                  max={60}
+                  step={1}
+                  suffix=" 分"
+                  onChange={delayMinutes => onOtaChange({ delayMinutes })}
+                />
+                <SmallAction
+                  label="立即檢查線上更新"
+                  onPress={() => {
+                    void onCheckOta();
+                  }}
+                />
+              </>
+            ) : null}
+
+            {group.key === 'data' ? (
+              <>
+                <Text style={styles.groupTitle}>完整備份</Text>
+                <View style={styles.actionWrap}>
+                  <SmallAction
+                    label="匯出 JSON 完整備份"
+                    onPress={() => {
+                      void onExportBackup();
+                    }}
+                  />
+                  <SmallAction
+                    label="匯入 / 還原 JSON"
+                    onPress={() => {
+                      void onImportBackup();
+                    }}
+                  />
+                </View>
+                <View style={styles.noticeCard}>
+                  <Text style={styles.noticeTitle}>CSV</Text>
+                  <Text style={styles.noticeText}>
+                    目前 App 沒有 canonical CSV 匯入/匯出 callback；為避免用 JSON 假冒 CSV 或破壞 Ledger，本入口暫不執行資料寫入。
                   </Text>
                 </View>
 
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`編輯 ${card.title}`}
-                  onPress={() => setEditingCardId(card.id)}
-                  style={styles.gearButton}
+                <Text style={styles.groupTitle}>歷史紀錄 / 衍生資料</Text>
+                <View style={styles.actionWrap}>
+                  <SmallAction
+                    label="重新計算衍生資料"
+                    onPress={() => {
+                      void onRecalculate();
+                    }}
+                  />
+                  <SmallAction
+                    label="清除損益快照"
+                    danger
+                    onPress={() =>
+                      Alert.alert(
+                        '清除損益快照',
+                        '系統會先建立安全備份，再清除每日 / 盤中損益快照。',
+                        [
+                          { text: '取消', style: 'cancel' },
+                          { text: '清除', style: 'destructive', onPress: () => void onClearPnl() },
+                        ],
+                      )
+                    }
+                  />
+                  <SmallAction
+                    label="清除現金進出紀錄"
+                    danger
+                    onPress={() =>
+                      Alert.alert(
+                        '清除現金進出紀錄',
+                        '系統會先建立安全備份，再移除入金 / 出金紀錄。',
+                        [
+                          { text: '取消', style: 'cancel' },
+                          { text: '清除', style: 'destructive', onPress: () => void onClearCash() },
+                        ],
+                      )
+                    }
+                  />
+                </View>
+
+                <Text style={styles.groupTitle}>安全備份歷史</Text>
+                {safetyBackups.length ? (
+                  safetyBackups.map(backup => (
+                    <View key={backup.id} style={styles.backupRow}>
+                      <View style={styles.backupInfo}>
+                        <Text style={styles.backupTitle}>
+                          {new Date(backup.createdAt).toLocaleString('zh-TW')}
+                        </Text>
+                        <Text style={styles.backupMeta}>
+                          {backup.kind.toUpperCase()} · {backup.reason} · {backup.count} 筆
+                        </Text>
+                      </View>
+                      <SmallAction
+                        label="還原"
+                        onPress={() => {
+                          void onRestoreSafety(backup.id).then(ok => {
+                            if (ok) {
+                              Alert.alert('還原完成', '已恢復安全備份。');
+                              void refreshSafety();
+                            }
+                          });
+                        }}
+                      />
+                      <SmallAction
+                        label="刪除"
+                        danger
+                        onPress={() => {
+                          void deleteSafetyBackup(backup.id).then(refreshSafety);
+                        }}
+                      />
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.helperText}>目前沒有安全備份。</Text>
+                )}
+              </>
+            ) : null}
+
+            {group.key === 'safety' ? (
+              <>
+                <Text style={styles.groupTitle}>券商 Profile</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pageSelector}
                 >
-                  <Text style={styles.gearText}>⚙️</Text>
-                </Pressable>
-              </View>
-            ))
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>目前沒有卡片設定</Text>
-              <Text style={styles.emptyText}>
-                可由既有 Page Layout 系統建立卡片後，再使用新版 Frame Editor 調整。
-              </Text>
-            </View>
-          )}
-        </View>
+                  {brokerProfiles.map(profile => (
+                    <ChoicePill
+                      key={profile.id}
+                      active={selectedBroker?.id === profile.id}
+                      label={profile.name}
+                      onPress={() => setSelectedBrokerId(profile.id)}
+                    />
+                  ))}
+                  <SmallAction
+                    label="＋ 新增券商"
+                    onPress={() => {
+                      const profile = createBrokerProfile();
+                      onBrokerProfilesChange([...brokerProfiles, profile]);
+                      setSelectedBrokerId(profile.id);
+                    }}
+                  />
+                </ScrollView>
+
+                {selectedBroker ? (
+                  <View style={styles.brokerPanel}>
+                    <TextInput
+                      value={selectedBroker.name}
+                      onChangeText={name => patchBroker({ name })}
+                      style={styles.input}
+                      placeholder="券商名稱"
+                      placeholderTextColor="rgba(255,255,255,0.28)"
+                    />
+                    <TextInput
+                      value={String(selectedBroker.commissionRate)}
+                      onChangeText={value =>
+                        patchBroker({ commissionRate: Math.max(0, Number(value) || 0) })
+                      }
+                      keyboardType="decimal-pad"
+                      style={styles.input}
+                      placeholder="手續費率"
+                      placeholderTextColor="rgba(255,255,255,0.28)"
+                    />
+                    <TextInput
+                      value={String(selectedBroker.commissionDiscount)}
+                      onChangeText={value =>
+                        patchBroker({ commissionDiscount: Math.max(0, Number(value) || 0) })
+                      }
+                      keyboardType="decimal-pad"
+                      style={styles.input}
+                      placeholder="手續費折扣"
+                      placeholderTextColor="rgba(255,255,255,0.28)"
+                    />
+                    <View style={styles.actionWrap}>
+                      <SmallAction
+                        label={defaultBrokerProfileId === selectedBroker.id ? '✓ App 預設' : '設為 App 預設'}
+                        onPress={() => onDefaultBrokerProfileChange(selectedBroker.id)}
+                      />
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={styles.dataSafetyCard}>
+                  <View style={styles.dataSafetyText}>
+                    <Text style={styles.dataSafetyTitle}>
+                      {accountingResetLabel}
+                    </Text>
+                    <Text style={styles.dataSafetySubtitle}>
+                      {accountingResetFailSafe}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() =>
+                      Alert.alert(
+                        accountingResetLabel,
+                        `${accountingResetFailSafe}\n\n此動作會清除買賣、現金、配息入帳、庫存與損益快照，但保留 App 設定與版面。確定繼續？`,
+                        [
+                          { text: '取消', style: 'cancel' },
+                          {
+                            text: accountingResetLabel,
+                            style: 'destructive',
+                            onPress: () => {
+                              void onClearAccountingData();
+                            },
+                          },
+                        ],
+                      )
+                    }
+                    style={styles.dangerButton}
+                  >
+                    <Text style={styles.dangerButtonText}>
+                      {accountingResetLabel}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </AccordionCard>
+        ))}
       </View>
 
       <PageFrameEditorModal
@@ -1430,6 +2358,198 @@ const styles = StyleSheet.create({
   },
   gearText: {
     fontSize: 18,
+  },
+
+  toolboxList: {
+    gap: V3_THEME.spacing.md,
+  },
+  toolboxCard: {
+    borderRadius: V3_THEME.radius.card,
+    borderWidth: V3_THEME.border.width,
+    borderColor: V3_THEME.border.color,
+    backgroundColor: V3_THEME.colors.surfaceGlass,
+    overflow: 'hidden',
+  },
+  toolboxHeader: {
+    minHeight: 76,
+    paddingHorizontal: V3_THEME.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  toolboxIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: V3_THEME.colors.accentSoft,
+  },
+  toolboxIconText: {
+    fontSize: 20,
+  },
+  toolboxHeaderText: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: V3_THEME.spacing.md,
+  },
+  toolboxTitle: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  toolboxSubtitle: {
+    marginTop: 4,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 10,
+  },
+  toolboxChevron: {
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  toolboxBody: {
+    paddingHorizontal: V3_THEME.spacing.lg,
+    paddingBottom: V3_THEME.spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: V3_THEME.colors.borderGlow,
+  },
+  settingRow: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: V3_THEME.spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  settingRowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  settingRowLabel: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  settingRowNote: {
+    marginTop: 3,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 9,
+  },
+  choiceWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: V3_THEME.spacing.sm,
+  },
+  choicePill: {
+    minHeight: 34,
+    borderRadius: V3_THEME.radius.pill,
+    borderWidth: 1,
+    borderColor: V3_THEME.colors.borderGlow,
+    backgroundColor: V3_THEME.colors.surfaceGlass,
+    paddingHorizontal: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  choicePillActive: {
+    backgroundColor: V3_THEME.colors.accentSoft,
+    borderColor: 'rgba(79,209,165,0.32)',
+  },
+  choicePillText: {
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  choicePillTextActive: {
+    color: V3_THEME.colors.accent,
+  },
+  actionWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: V3_THEME.spacing.sm,
+  },
+  smallAction: {
+    minHeight: 34,
+    borderRadius: V3_THEME.radius.pill,
+    borderWidth: 1,
+    borderColor: V3_THEME.colors.borderGlow,
+    backgroundColor: V3_THEME.colors.surfaceGlass,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smallActionDanger: {
+    borderColor: 'rgba(255,91,100,0.30)',
+    backgroundColor: 'rgba(255,91,100,0.10)',
+  },
+  smallActionText: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  smallActionDangerText: {
+    color: '#FF7580',
+  },
+  inlineStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  inlineStepperValue: {
+    minWidth: 34,
+    textAlign: 'center',
+    color: V3_THEME.colors.accent,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  noticeCard: {
+    marginTop: V3_THEME.spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: V3_THEME.colors.borderGlow,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    padding: V3_THEME.spacing.md,
+  },
+  noticeTitle: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  noticeText: {
+    marginTop: 4,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 9,
+    lineHeight: 14,
+  },
+  backupRow: {
+    minHeight: 62,
+    marginTop: V3_THEME.spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: V3_THEME.colors.borderGlow,
+    backgroundColor: V3_THEME.colors.surfaceGlass,
+    padding: V3_THEME.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: V3_THEME.spacing.sm,
+  },
+  backupInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  backupTitle: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  backupMeta: {
+    marginTop: 3,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 8,
+  },
+  brokerPanel: {
+    marginTop: V3_THEME.spacing.md,
+    gap: V3_THEME.spacing.sm,
   },
 
   modalBackdrop: {
