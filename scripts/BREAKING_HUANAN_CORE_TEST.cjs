@@ -33,13 +33,14 @@ for(const forbidden of [
   assert.ok(!calc.includes(forbidden),`forbidden legacy calculation symbol remains: ${forbidden}`);
 }
 
-// Broker profiles may exist for metadata/settings, but canonical Huanan math must not delegate
-// to mutable per-profile commission/tax implementations.
+// Broker Profile is the single parameter source. Formula structure stays canonical,
+ // while commission/tax parameters remain editable through settings.
 assert.match(broker,/export type BrokerProfile/,'shared BrokerProfile definition must exist');
 assert.match(broker,/HUANAN_YONGCHANG_PROFILE_ID/,'Huanan broker profile must exist');
-assert.ok(!/calculateBrokerCommission\(/.test(calc),'canonical calculator must not delegate commission to mutable broker profile math');
-assert.ok(!/calculateBrokerSellTax\(/.test(calc),'canonical calculator must not delegate sell tax to mutable broker profile math');
-assert.match(calc,/HUANAN_CONFIG\.COMMISSION_DISCOUNT/,'canonical calculator must use locked Huanan discount');
+assert.match(broker,/commissionDiscount:0\.65/,'default broker profile must start from Huanan 0.65 baseline');
+assert.match(calc,/calculateBrokerCommission\(/,'canonical calculator must delegate commission to broker profile');
+assert.match(calc,/calculateBrokerSellTax\(/,'canonical calculator must delegate sell tax to broker profile');
+assert.match(calc,/huananYongchangBrokerProfile/,'missing profile must fall back to Huanan baseline');
 assert.match(calc,/Math\.floor\(shares \* price\)/,'buy trade amount must floor before commission');
 assert.match(calc,/Math\.floor\(totalShares \* currentPrice\)/,'current market value must floor before liquidation charges');
 assert.match(calc,/DIVIDEND_TRANSFER_FEE/,'net dividend must deduct the canonical transfer fee');
