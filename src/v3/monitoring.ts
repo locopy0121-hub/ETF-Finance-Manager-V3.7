@@ -20,8 +20,33 @@ export type MonitorProfile={
  alertChangePct:number; alertPremiumPct:number; alertFlash:boolean; alertHaptic:boolean; alertNotification:boolean; alertCooldownMinutes:number;
  puzzleTiles:PuzzleTile[]; fieldStyles:Partial<Record<MonitorField,MonitorFieldStyle>>; schedule:MonitorSchedule;
 };
+export type GridMonitorSort='changePercent'|'price'|'volume'|'custom';
+export type GridMonitorPreferences={
+ enabled:boolean;
+ showInHome:boolean;
+ isFloating:boolean;
+ columns:2;
+ autoSortBy:GridMonitorSort;
+ showFocusChips:boolean;
+ showTrendLines:boolean;
+ alertThreshold:number;
+};
+export const defaultGridMonitorPreferences:GridMonitorPreferences={
+ enabled:false,
+ showInHome:false,
+ isFloating:false,
+ columns:2,
+ autoSortBy:'changePercent',
+ showFocusChips:true,
+ showTrendLines:true,
+ alertThreshold:3,
+};
+
 export type UnifiedMonitorPreferences={
- appBoard:MonitorProfile; floating:MonitorProfile; widget:MonitorProfile;
+ appBoard:MonitorProfile;
+ floating:MonitorProfile;
+ widget:MonitorProfile;
+ gridMonitor:GridMonitorPreferences;
  pageCustomize:Record<'dashboard'|'ledger'|'portfolio'|'dividend'|'calculator'|'detail',boolean>;
 };
 export const defaultMonitorFields:MonitorField[]=['symbol','price','changePct','todayPnl'];
@@ -34,8 +59,23 @@ export const makeMonitorProfile=(kind:'app'|'floating'|'widget'):MonitorProfile=
  puzzleTiles:[{id:'pnl',kind:'portfolio',x:0,y:0,w:2,h:1,fields:['todayPnl','instantPnl']},{id:'etf-1',kind:'etf',x:2,y:0,w:2,h:1,fields:['symbol','price','changePct']},{id:'dividend',kind:'dividend',x:0,y:1,w:2,h:1,fields:['dividend']},{id:'market',kind:'market',x:2,y:1,w:2,h:1,fields:['updatedAt']}]
 });
 export const defaultUnifiedMonitorPreferences:UnifiedMonitorPreferences={
- appBoard:makeMonitorProfile('app'),floating:{...makeMonitorProfile('floating'),enabled:false},widget:{...makeMonitorProfile('widget'),enabled:true,width:320,height:180,dockMode:'none',dragHotspot:'all'},
+ appBoard:makeMonitorProfile('app'),
+ floating:{...makeMonitorProfile('floating'),enabled:false},
+ widget:{...makeMonitorProfile('widget'),enabled:true,width:320,height:180,dockMode:'none',dragHotspot:'all'},
+ gridMonitor:{...defaultGridMonitorPreferences},
  pageCustomize:{dashboard:false,ledger:false,portfolio:false,dividend:false,calculator:false,detail:false}
 };
 export function mergeMonitorProfile(base:MonitorProfile,raw:any):MonitorProfile{const legacyMode:Record<string,MonitorDisplayMode>={smart:'holdingList',list:'holdingList',puzzle:'cardMatrix'};const merged={...base,...(raw??{}),displayMode:legacyMode[raw?.displayMode]??raw?.displayMode??base.displayMode,selectedSymbols:Array.isArray(raw?.selectedSymbols)?raw.selectedSymbols:base.selectedSymbols,fields:Array.isArray(raw?.fields)?raw.fields:base.fields,fieldsCustomized:raw?.fieldsCustomized===true,puzzleTiles:Array.isArray(raw?.puzzleTiles)?raw.puzzleTiles:base.puzzleTiles,fieldStyles:{...base.fieldStyles,...(raw?.fieldStyles??{})},schedule:{...base.schedule,...(raw?.schedule??{})}};if(merged.tapAction==='openApp')merged.tapAction='none';return merged;}
-export function mergeUnifiedMonitorPreferences(raw:any):UnifiedMonitorPreferences{return {appBoard:mergeMonitorProfile(defaultUnifiedMonitorPreferences.appBoard,raw?.appBoard),floating:mergeMonitorProfile(defaultUnifiedMonitorPreferences.floating,raw?.floating),widget:mergeMonitorProfile(defaultUnifiedMonitorPreferences.widget,raw?.widget),pageCustomize:{...defaultUnifiedMonitorPreferences.pageCustomize,...(raw?.pageCustomize??{})}};}
+export function mergeUnifiedMonitorPreferences(raw:any):UnifiedMonitorPreferences{return {
+ appBoard:mergeMonitorProfile(defaultUnifiedMonitorPreferences.appBoard,raw?.appBoard),
+ floating:mergeMonitorProfile(defaultUnifiedMonitorPreferences.floating,raw?.floating),
+ widget:mergeMonitorProfile(defaultUnifiedMonitorPreferences.widget,raw?.widget),
+ gridMonitor:{
+  ...defaultGridMonitorPreferences,
+  ...(raw?.gridMonitor??{}),
+  columns:2,
+  autoSortBy:['changePercent','price','volume','custom'].includes(raw?.gridMonitor?.autoSortBy)?raw.gridMonitor.autoSortBy:defaultGridMonitorPreferences.autoSortBy,
+  alertThreshold:Math.max(0,Number(raw?.gridMonitor?.alertThreshold??defaultGridMonitorPreferences.alertThreshold)||0),
+ },
+ pageCustomize:{...defaultUnifiedMonitorPreferences.pageCustomize,...(raw?.pageCustomize??{})}
+};}
