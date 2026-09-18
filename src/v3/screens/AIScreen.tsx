@@ -66,7 +66,10 @@ export function AIScreen({ common }: AIScreenProps) {
   ]);
 
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
+    const unsubscribe = NetInfo.addEventListener((state: {
+      isConnected?: boolean | null;
+      isInternetReachable?: boolean | null;
+    }) => {
       setConnected(state.isConnected !== false && state.isInternetReachable !== false);
     });
     return unsubscribe;
