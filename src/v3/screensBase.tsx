@@ -29,7 +29,7 @@ import AppIconCenter from './AppIconCenter';
 import { setImmersiveEditor } from '../services/nativeUi';
 import { setFloatingOverlayLayoutSize } from '../services/floatingOverlay';
 import { deleteSafetyBackup, listSafetyBackups, type SafetyBackup } from './safetyBackup';
-import type { MonitorDisplayMode, MonitorField, MonitorProfile } from './monitoring';
+import type { MonitorDisplayMode, MonitorField, MonitorProfile, UnifiedMonitorPreferences } from './monitoring';
 import { previousTradingDay, previousTwseTradingDay } from '../services/twseDividends';
 import { MONITOR_TEMPLATES, monitorTemplate, templateDefaultFields } from './monitorTemplates';
 import { UniversalEditor } from '../ui/UniversalEditor';
@@ -47,7 +47,7 @@ import { SettingsScreen as ModernSettingsScreen } from './screens/SettingsScreen
 
 const localDateKey=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 type QuoteLike={price?:number;change?:number;changePercent?:number;previousClose?:number;open?:number;high?:number;low?:number;volume?:number;nav?:number;quoteDate?:string;quoteTime?:string};
-export type ScreenCommon={holdings:Holding[];quotes:Record<string,QuoteLike>;ledger:LedgerEntry[];cashBalance:number;dividends:DividendEvent[];prefs:V3Preferences;dailySnapshots:DailySnapshot[];intradayPnlPoints:IntradayPnlPoint[];brokerProfiles:BrokerProfile[];defaultBrokerProfileId:string;appSettings:AppSettings;onAi?:()=>void;onTogglePageCustomize?:(page:PageFieldKey)=>void;onSetSelectedEtfSymbols?:(symbols:string[])=>void;onSetWatchlistSymbols?:(symbols:string[])=>void};
+export type ScreenCommon={holdings:Holding[];quotes:Record<string,QuoteLike>;ledger:LedgerEntry[];cashBalance:number;dividends:DividendEvent[];prefs:V3Preferences;dailySnapshots:DailySnapshot[];intradayPnlPoints:IntradayPnlPoint[];brokerProfiles:BrokerProfile[];defaultBrokerProfileId:string;appSettings:AppSettings;onAi?:()=>void;onTogglePageCustomize?:(page:PageFieldKey)=>void;onSetSelectedEtfSymbols?:(symbols:string[])=>void;onSetWatchlistSymbols?:(symbols:string[])=>void;onMonitoringChange?:(monitoring:UnifiedMonitorPreferences)=>void};
 
 const metricLabels:Record<HomeMetricKey,string>={historicalTradeCost:'累積成交成本',historicalBuyFees:'累積買進手續費',historicalCashOutflow:'累積現金支出',currentTradeCost:'目前持有成交成本',currentCashBasis:'目前持有含費成本',totalAssets:'目前總資產',totalPnl:'累積總損益',totalRoi:'總 ROI',pricePnl:'累積價格損益',marketValue:'持股總市值',cashBalance:'現金部位',cumulativeDividends:'累積配息',todayPnl:'今日損益',todayPnlPct:'今日損益 %',unrealizedPnl:'未實現價格損益',cashUnrealizedPnl:'含費未實現損益',realizedPnl:'已實現含費損益',holdingCount:'持有 ETF',pendingDividends:'待入帳股息'};
 const pageLabels:Record<PageFieldKey,string>={dashboard:'資產總覽',ledger:'智慧記帳',portfolio:'庫存清單',dividend:'股息日曆',calculator:'時空試算',detail:'ETF 詳情'};
