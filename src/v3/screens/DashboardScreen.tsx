@@ -1,5 +1,13 @@
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import {
+  Animated,
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import {
   calculateDividendView,
@@ -16,6 +24,17 @@ type DashboardScreenProps = {
   onOpenDividend: () => void;
   onOpenLedger: () => void;
   onOpenCalculator: () => void;
+};
+
+type GridRow = {
+  symbol: string;
+  name: string;
+  price: number;
+  changePercent: number;
+  volume: number;
+  high: number;
+  low: number;
+  order: number;
 };
 
 const money = (value: number) =>
@@ -38,6 +57,64 @@ function StatCard({
       </Text>
     </View>
   );
+}
+
+function GridPulse({
+  active,
+  positive,
+}: {
+  active: boolean;
+  positive: boolean;
+}) {
+  const opacity = useRef(new Animated.Value(active ? 0.35 : 1)).current;
+
+  useEffect(() => {
+    if (!active) {
+      opacity.stopAnimation();
+      opacity.setValue(1);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.35,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, opacity]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.gridPulse,
+        {
+          opacity,
+          backgroundColor: positive
+            ? V3_THEME.colors.taiwanUp
+            : V3_THEME.colors.taiwanDown,
+        },
+      ]}
+    />
+  );
+}
+
+function focusChips(row: GridRow, threshold: number) {
+  const chips: string[] = [];
+  if (row.changePercent >= threshold) chips.push('短線大漲');
+  if (row.changePercent <= -threshold) chips.push('短線急跌');
+  if (row.high > 0 && row.price >= row.high * 0.995) chips.push('今日高');
+  if (row.low > 0 && row.price <= row.low * 1.005) chips.push('今日低');
+  return chips.slice(0, 2);
 }
 
 export function DashboardScreen({
@@ -99,7 +176,78 @@ export function DashboardScreen({
     [holdings, quotes, ledger, dividends],
   );
 
+  const gridMonitor = prefs.monitoring.gridMonitor;
+
+  const gridRows = useMemo<GridRow[]>(() => {
+    const sourceSymbols = prefs.watchlistSymbols.length
+      ? prefs.watchlistSymbols
+      : holdings.map(item => item.symbol);
+
+    const unique = Array.from(new Set(sourceSymbols));
+
+    const rows = unique.map((symbol, order) => {
+      const holding = holdings.find(item => item.symbol === symbol);
+      const quote = quotes[symbol] ?? {};
+      const holdingView = holding
+        ? calculateHoldingView(holding, quotes, ledger, dividends)
+        : undefined;
+
+      const price = Number(holdingView?.price ?? quote.price ?? 0);
+      const previousClose = Number(
+        holdingView?.previousClose ?? quote.previousClose ?? price,
+      );
+      const changePercent = Number(
+        quote.changePercent ??
+          (previousClose > 0
+            ? ((price - previousClose) / previousClose) * 100
+            : 0),
+      );
+
+      return {
+        symbol,
+        name: holding?.name ?? symbol,
+        price,
+        changePercent: Number.isFinite(changePercent) ? changePercent : 0,
+        volume: Number(holdingView?.volume ?? quote.volume ?? 0),
+        high: Number(holdingView?.high ?? quote.high ?? 0),
+        low: Number(holdingView?.low ?? quote.low ?? 0),
+        order,
+      };
+    });
+
+    if (gridMonitor.autoSortBy === 'changePercent') {
+      rows.sort((a, b) => b.changePercent - a.changePercent);
+    } else if (gridMonitor.autoSortBy === 'price') {
+      rows.sort((a, b) => b.price - a.price);
+    } else if (gridMonitor.autoSortBy === 'volume') {
+      rows.sort((a, b) => b.volume - a.volume);
+    } else {
+      rows.sort((a, b) => a.order - b.order);
+    }
+
+    return rows;
+  }, [
+    prefs.watchlistSymbols,
+    holdings,
+    quotes,
+    ledger,
+    dividends,
+    gridMonitor.autoSortBy,
+  ]);
+
   const hidden = prefs.privacyMode;
+
+  const detachGridMonitor = () => {
+    common.onMonitoringChange?.({
+      ...prefs.monitoring,
+      gridMonitor: {
+        ...prefs.monitoring.gridMonitor,
+        enabled: true,
+        isFloating: true,
+        columns: 2,
+      },
+    });
+  };
 
   return (
     <ScrollView
@@ -208,6 +356,111 @@ export function DashboardScreen({
           );
         })}
       </View>
+
+      {gridMonitor.enabled && gridMonitor.showInHome ? (
+        <View style={styles.gridMonitorSection}>
+          <View style={styles.gridMonitorHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>雙欄宮格監控</Text>
+              <Text style={styles.sectionSubtitle}>
+                {prefs.watchlistSymbols.length
+                  ? '來源：觀察清單'
+                  : '來源：目前持股'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={detachGridMonitor}
+              style={styles.detachButton}
+            >
+              <Text style={styles.detachButtonText}>
+                {gridMonitor.isFloating ? '📌 已脫離' : '📌 脫離'}
+              </Text>
+            </Pressable>
+          </View>
+
+          <FlatList
+            data={gridRows}
+            keyExtractor={item => item.symbol}
+            numColumns={2}
+            scrollEnabled={false}
+            columnWrapperStyle={styles.gridColumn}
+            contentContainerStyle={styles.gridList}
+            renderItem={({ item }) => {
+              const positive = item.changePercent >= 0;
+              const alert =
+                Math.abs(item.changePercent) >= gridMonitor.alertThreshold;
+              const tone = resolvePnlTone(item.changePercent, 'TW');
+              const chips = gridMonitor.showFocusChips
+                ? focusChips(item, gridMonitor.alertThreshold)
+                : [];
+              const strength = Math.min(
+                100,
+                (Math.abs(item.changePercent) /
+                  Math.max(1, gridMonitor.alertThreshold)) *
+                  100,
+              );
+
+              return (
+                <View style={styles.gridTile}>
+                  <View style={styles.gridTileHeader}>
+                    <View style={styles.gridSymbolRow}>
+                      {gridMonitor.showTrendLines ? (
+                        <GridPulse active={alert} positive={positive} />
+                      ) : null}
+                      <Text style={styles.gridSymbol}>{item.symbol}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.gridChange,
+                        { color: tone.foreground },
+                      ]}
+                    >
+                      {item.changePercent > 0 ? '+' : ''}
+                      {item.changePercent.toFixed(2)}%
+                    </Text>
+                  </View>
+
+                  <Text style={styles.gridName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.gridPrice}>
+                    {item.price > 0 ? item.price.toFixed(2) : '—'}
+                  </Text>
+
+                  {gridMonitor.showTrendLines ? (
+                    <View style={styles.strengthTrack}>
+                      <View
+                        style={[
+                          styles.strengthFill,
+                          {
+                            width: `${strength}%`,
+                            backgroundColor: tone.foreground,
+                          },
+                        ]}
+                      />
+                    </View>
+                  ) : null}
+
+                  {chips.length ? (
+                    <View style={styles.focusChipRow}>
+                      {chips.map(chip => (
+                        <View key={chip} style={styles.focusChip}>
+                          <Text style={styles.focusChipText}>{chip}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  <Text style={styles.gridVolume}>
+                    成交量 {item.volume > 0 ? item.volume.toLocaleString() : '—'}
+                  </Text>
+                </View>
+              );
+            }}
+          />
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -415,6 +668,121 @@ const styles = StyleSheet.create({
   pnlText: {
     fontSize: 10,
     fontWeight: '800',
+  },
+
+  gridMonitorSection: {
+    marginTop: 28,
+  },
+  gridMonitorHeader: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  detachButton: {
+    minHeight: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: V3_THEME.colors.accentSoft,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detachButtonText: {
+    color: V3_THEME.colors.primary,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  gridList: {
+    gap: 10,
+  },
+  gridColumn: {
+    gap: 10,
+  },
+  gridTile: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 150,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: V3_THEME.colors.borderGlow,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    ...V3_THEME.shadow,
+  },
+  gridTileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  gridSymbolRow: {
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  gridPulse: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  gridSymbol: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  gridChange: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  gridName: {
+    marginTop: 6,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  gridPrice: {
+    marginTop: 8,
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  strengthTrack: {
+    marginTop: 10,
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    backgroundColor: '#E2E8F0',
+  },
+  strengthFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  focusChipRow: {
+    marginTop: 9,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  focusChip: {
+    borderRadius: 999,
+    backgroundColor: V3_THEME.colors.accentSoft,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  focusChipText: {
+    color: V3_THEME.colors.primary,
+    fontSize: 8,
+    fontWeight: '800',
+  },
+  gridVolume: {
+    marginTop: 8,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 8,
+    fontWeight: '600',
   },
 });
 
