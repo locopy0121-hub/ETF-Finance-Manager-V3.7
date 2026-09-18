@@ -1,6 +1,6 @@
-status=failure
-run_id=35354155150
-source_commit=e9e924ff24eb0dead575745a85312f4202df7084
+status=success
+run_id=35354281851
+source_commit=f1f2baa9ccbab769c7621a4637db9b8521f12f00
 artifact_name=ETF-Finance-Manager-V3.7.9-HUANAN-Core-Final-ARM64
 versionName=3.7.9
 versionCode=47
