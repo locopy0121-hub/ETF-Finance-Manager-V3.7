@@ -143,7 +143,7 @@ export function DashboardScreen({
  />;
 }
 
-export function LedgerScreen(props:{common:ScreenCommon;cashReconciliation:CashReconciliation;onReconcile:(x:CashReconciliation)=>void;onBuy:(x:{symbol:string;name:string;date:string;shares:number;price:number;tradeMode:TradeMode;strategy:'long'|'swing';account:string;brokerProfileId:string;calculatedFee:number;actualFee:number})=>void;onSell:(x:{symbol:string;date:string;shares:number;price:number;tradeMode:TradeMode;brokerProfileId:string;calculatedFee:number;calculatedTax:number;actualFee:number;actualTax:number})=>void;onCash:(x:{amount:number;date:string;account:string;note?:string})=>void;onDividend:(symbol:string,amount:number,date:string)=>void;onUpdateLedger:(x:LedgerEntry)=>void;onDeleteLedger:(id:string)=>void;onSettings:()=>void}){
+export function LedgerScreen(props:{common:ScreenCommon;cashReconciliation:CashReconciliation;onReconcile:(x:CashReconciliation)=>void;onBuy:(x:{symbol:string;name:string;date:string;shares:number;price:number;tradeMode:TradeMode;strategy:'long'|'swing';account:string;brokerProfileId:string;calculatedFee:number;actualFee:number;note?:string})=>void;onSell:(x:{symbol:string;date:string;shares:number;price:number;tradeMode:TradeMode;brokerProfileId:string;calculatedFee:number;calculatedTax:number;actualFee:number;actualTax:number;note?:string})=>void;onCash:(x:{amount:number;date:string;account:string;note?:string})=>void;onDividend:(symbol:string,amount:number,date:string)=>void;onUpdateLedger:(x:LedgerEntry)=>void;onDeleteLedger:(id:string)=>void;onSettings:()=>void}){
  return <ModernLedgerScreen {...props}/>;
 }
 
@@ -153,13 +153,15 @@ export function PortfolioScreenV3({
  onSettings:_onSettings,
  onSaveHolding:_onSaveHolding,
  onDeleteHolding:_onDeleteHolding,
+ onAdd,
 }:{
  common:ScreenCommon;
  onSettings:()=>void;
  onSaveHolding:(x:HoldingEditPayload)=>void;
  onDeleteHolding:(symbol:string)=>void;
+ onAdd:()=>void;
 }){
- return <ModernPortfolioScreen common={common}/>;
+ return <ModernPortfolioScreen common={common} onAdd={onAdd}/>;
 }
 
 function HoldingEditorModal({holding,soldShares,onCancel,onDelete,onSave,immersive}:{holding:Holding;soldShares:number;onCancel:()=>void;onDelete:()=>void;onSave:(x:HoldingEditPayload)=>void;immersive?:boolean}){

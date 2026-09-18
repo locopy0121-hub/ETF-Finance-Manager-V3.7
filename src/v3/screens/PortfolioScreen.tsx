@@ -18,6 +18,7 @@ type PortfolioTab = 'all' | 'tw' | 'us';
 type PortfolioScreenProps = {
   common: ScreenCommon;
   onOpenHolding?: (symbol: string) => void;
+  onAdd?: () => void;
 };
 
 type HoldingRow = {
@@ -108,6 +109,7 @@ function AllocationDonut({
 export function PortfolioScreen({
   common,
   onOpenHolding,
+  onAdd,
 }: PortfolioScreenProps) {
   const [tab, setTab] = useState<PortfolioTab>('all');
 
@@ -191,9 +193,18 @@ export function PortfolioScreen({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>PORTFOLIO</Text>
-        <Text style={styles.title}>庫存持股</Text>
-        <Text style={styles.subtitle}>資產配置與持股表現一目了然</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.eyebrow}>PORTFOLIO</Text>
+          <Text style={styles.title}>庫存持股</Text>
+          <Text style={styles.subtitle}>資產配置與持股表現一目了然</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAdd}
+          style={styles.addButton}
+        >
+          <Text style={styles.addButtonText}>+ 新增</Text>
+        </Pressable>
       </View>
 
       <View style={styles.allocationCard}>
@@ -326,7 +337,27 @@ export function PortfolioScreen({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: V3_THEME.colors.background },
   content: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 120 },
-  header: { marginBottom: 16 },
+  header: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  headerText: { flex: 1, minWidth: 0 },
+  addButton: {
+    minHeight: 40,
+    borderRadius: 999,
+    backgroundColor: '#0066FF',
+    paddingHorizontal: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+  },
   eyebrow: { color: V3_THEME.colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   title: { marginTop: 4, ...V3_THEME.typography.pageTitle },
   subtitle: { marginTop: 5, color: V3_THEME.colors.textSecondary, fontSize: 12 },

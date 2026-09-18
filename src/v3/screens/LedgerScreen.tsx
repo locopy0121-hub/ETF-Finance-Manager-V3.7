@@ -22,7 +22,6 @@ import {
 } from '../../data/brokerProfiles';
 import { useEtfCatalog } from '../../services/useEtfCatalog';
 import { searchEtfCatalog } from '../../services/etfCatalog';
-import { V3_THEME } from '../theme';
 
 type LedgerKind = 'buy' | 'sell' | 'dividend' | 'other';
 
@@ -42,6 +41,7 @@ type LedgerScreenProps = {
     brokerProfileId: string;
     calculatedFee: number;
     actualFee: number;
+    note?: string;
   }) => void;
   onSell: (value: {
     symbol: string;
@@ -54,6 +54,7 @@ type LedgerScreenProps = {
     calculatedTax: number;
     actualFee: number;
     actualTax: number;
+    note?: string;
   }) => void;
   onCash: (value: {
     amount: number;
@@ -170,6 +171,7 @@ export function LedgerScreen({
   const [account, setAccount] = useState(first?.account ?? '');
   const [cashAmount, setCashAmount] = useState('');
   const [cashNote, setCashNote] = useState('');
+  const [tradeNote, setTradeNote] = useState('');
   const [showAllRecords, setShowAllRecords] = useState(false);
 
   const selectedBroker = resolveBrokerProfile(
@@ -265,7 +267,9 @@ export function LedgerScreen({
         brokerProfileId,
         calculatedFee: preview.calculatedFee,
         actualFee,
+        note: tradeNote.trim() || undefined,
       });
+      setTradeNote('');
     }
 
     if (kind === 'sell') {
@@ -285,7 +289,9 @@ export function LedgerScreen({
         calculatedTax: preview.calculatedTax,
         actualFee,
         actualTax,
+        note: tradeNote.trim() || undefined,
       });
+      setTradeNote('');
     }
 
     if (kind === 'dividend') {
@@ -607,6 +613,12 @@ export function LedgerScreen({
               value={account}
               onChangeText={setAccount}
               placeholder="選填"
+            />
+            <InputField
+              label="備註"
+              value={tradeNote}
+              onChangeText={setTradeNote}
+              placeholder="例如：定期定額、加碼、策略原因"
             />
           </>
         ) : null}

@@ -30,7 +30,7 @@ async function optionalGateway(query:string,symbol:string,name:string,news:Resea
 }
 
 export async function researchEtf(symbol:string,name:string,rawQuery:string):Promise<AiResearchResult>{
- const terms=unique([`${symbol} ${name}`,`${symbol} ETF`,`${symbol} 募集 掛牌 配息`,`${name} 投資策略`,`${symbol} 投信 公開說明書`,`${symbol} TWSE 掛牌 上市`,`${symbol} site:capitalfund.com.tw OR site:twse.com.tw`,`${symbol} site:ctee.com.tw OR site:money.udn.com OR site:tw.stock.yahoo.com`]);
+ const terms=unique([rawQuery,`${symbol} ${name}`,`${symbol} ETF`,`${symbol} 募集 掛牌 配息`,`${name} 投資策略`,`${symbol} 投信 公開說明書`,`${symbol} TWSE 掛牌 上市`,`${symbol} site:capitalfund.com.tw OR site:twse.com.tw`,`${symbol} site:ctee.com.tw OR site:money.udn.com OR site:tw.stock.yahoo.com`]);
  const jobs=terms.flatMap(q=>[fetchGoogleNews(q),fetchBingNews(q)]); const batches=await Promise.allSettled(jobs);
  const map=new Map<string,ResearchNewsItem>(); for(const b of batches)if(b.status==='fulfilled')for(const n of b.value)if(!map.has(n.title))map.set(n.title,n); const news=[...map.values()].sort((a,b)=>new Date(b.publishedAt).getTime()-new Date(a.publishedAt).getTime()).slice(0,24);
  const gw=await optionalGateway(rawQuery,symbol,name,news); if(gw)return {symbol,name,query:rawQuery,searchedAt:Date.now(),sections:gw,news,gatewayUsed:true};

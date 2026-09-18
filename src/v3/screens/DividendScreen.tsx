@@ -205,25 +205,30 @@ export function DividendScreen({
       </View>
 
       <View style={styles.summaryCard}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>年度預估</Text>
-          <Text style={styles.summaryValue}>
-            {privacy ? '••••••' : money(dividendView.yearExpected)}
+        <View style={styles.monthDividendHero}>
+          <Text style={styles.monthDividendLabel}>
+            {selectedMonth} 月預估股息
           </Text>
+          <Text style={styles.monthDividendValue}>
+            {privacy ? '••••••' : money(dividendView.currentMonthExpected)}
+          </Text>
+          <Text style={styles.monthDividendUnit}>TWD</Text>
         </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>平均月領</Text>
-          <Text style={styles.summaryValue}>
-            {privacy ? '••••' : money(dividendView.averageMonthly)}
-          </Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>本月預估</Text>
-          <Text style={styles.summaryValue}>
-            {privacy ? '••••' : money(dividendView.currentMonthExpected)}
-          </Text>
+
+        <View style={styles.summaryMetaRow}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>年度預估</Text>
+            <Text style={styles.summaryValue}>
+              {privacy ? '••••••' : money(dividendView.yearExpected)}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>平均月領</Text>
+            <Text style={styles.summaryValue}>
+              {privacy ? '••••' : money(dividendView.averageMonthly)}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -569,15 +574,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
+    padding: 16,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
+  },
+  monthDividendHero: {
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+  },
+  monthDividendLabel: {
+    color: '#0066FF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  monthDividendValue: {
+    marginTop: 6,
+    color: '#0F172A',
+    fontSize: 28,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  monthDividendUnit: {
+    marginTop: 2,
+    color: '#94A3B8',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  summaryMetaRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   summaryItem: {
     flex: 1,
