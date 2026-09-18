@@ -147,6 +147,21 @@ export function LedgerScreen(props:{common:ScreenCommon;cashReconciliation:CashR
  return <ModernLedgerScreen {...props}/>;
 }
 
+export type HoldingEditPayload={symbol:string;records:PurchaseRecord[];targetWeight:number;annualDividendPerShare:number;tag:string;broker:string;account:string};
+export function PortfolioScreenV3({
+ common,
+ onSettings:_onSettings,
+ onSaveHolding:_onSaveHolding,
+ onDeleteHolding:_onDeleteHolding,
+}:{
+ common:ScreenCommon;
+ onSettings:()=>void;
+ onSaveHolding:(x:HoldingEditPayload)=>void;
+ onDeleteHolding:(symbol:string)=>void;
+}){
+ return <ModernPortfolioScreen common={common}/>;
+}
+
 function HoldingEditorModal({holding,soldShares,onCancel,onDelete,onSave,immersive}:{holding:Holding;soldShares:number;onCancel:()=>void;onDelete:()=>void;onSave:(x:HoldingEditPayload)=>void;immersive?:boolean}){
  useEffect(()=>{if(immersive)setImmersiveEditor(true);return()=>{if(immersive)setImmersiveEditor(false)}},[immersive]);
  const insets=useSafeAreaInsets(); const fallbackRecord=():PurchaseRecord=>{const price=holding.tradeAvgPrice??holding.avgCost;const purchaseCost=(holding.shares+soldShares)*price;const fee=holding.buyFee??0;return {id:`legacy-${holding.symbol}`,date:'既有庫存',shares:holding.shares+soldShares,tradePrice:price,purchaseCost,fee,totalCost:purchaseCost+fee,tradeMode:holding.liquidationTradeMode};}; const source=holding.purchaseRecords?.length?holding.purchaseRecords:[fallbackRecord()];
