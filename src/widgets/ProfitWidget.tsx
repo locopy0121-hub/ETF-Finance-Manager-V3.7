@@ -40,7 +40,7 @@ function sparklineSvg(values:number[],color:string,type:'line'|'area'|'bar'|'spa
   return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${grid}${axis}${body}</svg>`;
 }
 
-const emptyPortfolioSummary:PortfolioSummary={totalMarketValue:0,totalInvestmentCost:0,totalNetLiquidationValue:0,totalEstimatedSellCommission:0,totalEstimatedSellTax:0,totalUnrealizedProfit:0,totalUnrealizedROI:0,totalDividendsReceived:0,nextEstimatedDividendTotal:0,etfSummaries:[]};
+const emptyPortfolioSummary:PortfolioSummary={totalMarketValue:0,totalInvestmentCost:0,totalNetLiquidationValue:0,totalEstimatedSellCommission:0,totalEstimatedSellTax:0,totalUnrealizedProfit:0,totalUnrealizedROI:0,realizedNetPnL:0,comprehensivePnL:0,totalPnl:0,totalDividendsReceived:0,nextEstimatedDividendTotal:0,etfSummaries:[]};
 function pickSummary(summary:PortfolioSummary,selectedSymbols:string[]):PortfolioSummary|ETFSummary{if(selectedSymbols.length===1){const single=summary.etfSummaries.find(x=>x.etfCode===selectedSymbols[0]);if(single)return single;}return summary;}
 
 export function ProfitWidget({holdings: _holdings,opacity=85,width=320,height=140,isActive=true,updatedAt,fontScale=100,align='left',displayFields=['totalPnl','totalPnlPct','todayPnl','totalAssets','marketValue','updatedAt','marketState'],selectedSymbols=[],extras={},showStatusLight=true,showTrendChart=true,trendChartType='area',trendShowLastValue=true,trendShowPercent=true,trendHeight=64,trendLineWidth=3,trendShowGrid=true,trendShowAxis=false,trendShowUpdatedAt=true,compactChart=true,status='live'}:Props){
