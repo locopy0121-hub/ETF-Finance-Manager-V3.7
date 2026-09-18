@@ -396,11 +396,16 @@ function BrokerProfileManager({profiles,defaultId,onProfilesChange,onDefaultChan
 }
 
 export function SettingsModal(props:{visible:boolean;embedded?:boolean;prefs:V3Preferences;appSettings:AppSettings;marketMeta:MarketMeta;holdings:Holding[];quotes:Record<string,QuoteLike>;ledger:LedgerEntry[];dividends:DividendEvent[];cashBalance:number;lastSuccessAt?:number;brokerProfiles:BrokerProfile[];defaultBrokerProfileId:string;onBrokerProfilesChange:(x:BrokerProfile[])=>void;onDefaultBrokerProfileChange:(id:string)=>void;onChange:(p:Partial<V3Preferences>)=>void;onWidgetChange:(p:Partial<WidgetSettings>)=>void;onNotifyChange:(p:Partial<CloseNotificationSettings>)=>void;onOtaChange:(p:Partial<AppSettings['ota']>)=>void;onCheckOta:()=>void|Promise<void>;onRefreshQuotes:()=>void|boolean|Promise<void|boolean>;onClose:()=>void;onPickImage:()=>void|Promise<string|undefined>;onPickCardImage:()=>void|Promise<string|undefined>;onClearCardImage:()=>void;onExportBackup:()=>void|Promise<void>;onImportBackup:()=>void|Promise<void>;onClearPnl:()=>Promise<any>;onClearCash:()=>Promise<any>;onClearLedger:()=>Promise<any>;onRecalculate:()=>Promise<any>;onRestoreSafety:(id:string)=>Promise<boolean>}){
- const {visible,embedded=false,prefs,onChange,onClose}=props;
+ const {visible,embedded=false,prefs,onChange,onClose,onClearLedger}=props;
+ const accountingResetLabel='清除全部帳務資料';
+ const accountingResetFailSafe='清除前會建立完整安全備份；備份失敗即停止清除。';
 
  const content=<ModernSettingsScreen
   prefs={prefs}
   onChange={onChange}
+  onClearAccountingData={onClearLedger}
+  accountingResetLabel={accountingResetLabel}
+  accountingResetFailSafe={accountingResetFailSafe}
  />;
 
  if(embedded)return content;
