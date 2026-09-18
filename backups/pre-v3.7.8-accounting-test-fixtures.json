@@ -1,0 +1,89 @@
+{
+  "kind": "repository-accounting-test-fixture-snapshot",
+  "note": "Repository-derived test fixtures only. This is not device AsyncStorage export.",
+  "source_commit": "d77878e3aaed928c611dc50bddb962ecbfbae82e",
+  "backup_branch": "backup-pre-v3.7.8",
+  "captured_for": "Pre V3.7.8 Canonical Finance Core refactor",
+  "fixtures": {
+    "accounting_contract": {
+      "buys": [
+        {
+          "shares": 100,
+          "price": 100,
+          "fee": 10
+        },
+        {
+          "shares": 50,
+          "price": 120,
+          "fee": 5
+        }
+      ],
+      "sell": {
+        "shares": 30,
+        "price": 130,
+        "fee": 6,
+        "tax": 12
+      },
+      "dividend": 240,
+      "livePrice": 125,
+      "cashBalance": 50000,
+      "expected": {
+        "tradeCost": 16000,
+        "buyFees": 15,
+        "cashOutflow": 16015,
+        "currentShares": 120,
+        "currentTradeCost": 12800,
+        "currentCashBasis": 12812,
+        "marketValue": 15000,
+        "realizedPrice": 700,
+        "realizedCash": 679,
+        "priceUnrealized": 2200,
+        "cashUnrealized": 2188,
+        "totalPnl": 3107,
+        "totalAssets": 65000
+      }
+    },
+    "cash_ledger_smoke": {
+      "initialCash": 100000,
+      "buy": {
+        "amount": 10000,
+        "fee": 20
+      },
+      "sell": {
+        "amount": 11000,
+        "fee": 20,
+        "tax": 11
+      },
+      "expectedCash": 100949
+    },
+    "multi_buy_rounding": {
+      "buys": [
+        {
+          "price": 104.4,
+          "shares": 23
+        },
+        {
+          "price": 103.95,
+          "shares": 9
+        }
+      ],
+      "expectedRows": [
+        {
+          "amount": 2401,
+          "fee": 3,
+          "cost": 2404
+        },
+        {
+          "amount": 935,
+          "fee": 1,
+          "cost": 936
+        }
+      ],
+      "expectedTotals": {
+        "amount": 3336,
+        "fee": 4,
+        "cost": 3340
+      }
+    }
+  }
+}
