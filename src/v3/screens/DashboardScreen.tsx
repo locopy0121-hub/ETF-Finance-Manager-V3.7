@@ -1,14 +1,11 @@
 import React, { useMemo } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { calculateHoldingView, calculatePortfolioView } from '../engine';
+import {
+  calculateDividendView,
+  calculateHoldingView,
+  calculatePortfolioView,
+} from '../engine';
 import { HeroAssetCard } from '../components/HeroAssetCard';
 import { V3_THEME, resolvePnlTone } from '../theme';
 import type { ScreenCommon } from '../screensBase';
@@ -21,101 +18,28 @@ type DashboardScreenProps = {
   onOpenCalculator: () => void;
 };
 
-type QuickActionProps = {
-  icon: string;
-  label: string;
-  onPress: () => void;
-};
-
-type PnlBadgeProps = {
-  label: string;
-  value: number;
-  valueText: string;
-};
-
-const formatMoney = (value: number) =>
+const money = (value: number) =>
   Math.round(Number.isFinite(value) ? value : 0).toLocaleString('zh-TW');
 
-const formatPrice = (value: number) =>
-  Number.isFinite(value) ? value.toFixed(2) : '—';
-
-const formatPercent = (value: number) => {
-  if (!Number.isFinite(value)) return '—';
-  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
-};
-
-function QuickAction({ icon, label, onPress }: QuickActionProps) {
+function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: string;
+}) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.quickAction,
-        pressed && styles.quickActionPressed,
-      ]}
-    >
-      <View style={styles.quickIconWrap}>
-        <Text style={styles.quickIcon}>{icon}</Text>
-      </View>
-      <Text style={styles.quickLabel} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function PnlBadge({ label, value, valueText }: PnlBadgeProps) {
-  const tone = resolvePnlTone(value, 'TW');
-
-  return (
-    <View style={[styles.pnlBadge, { backgroundColor: tone.background }]}>
-      <Text style={styles.pnlBadgeLabel}>{label}</Text>
-      <Text style={[styles.pnlBadgeValue, { color: tone.foreground }]}>
-        {valueText}
+    <View style={styles.statCard}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, accent ? { color: accent } : null]}>
+        {value}
       </Text>
     </View>
   );
 }
 
-function MiniTrend({
-  positive,
-}: {
-  positive: boolean;
-}) {
-  const d = positive
-    ? 'M2 28 C12 27 17 21 25 23 C34 25 39 16 48 18 C58 20 62 9 72 12 C82 15 88 5 98 7'
-    : 'M2 7 C13 9 18 17 27 14 C36 11 42 22 51 19 C61 16 67 27 76 24 C86 21 91 30 98 28';
-
-  return (
-    <Svg
-      width={100}
-      height={34}
-      viewBox="0 0 100 34"
-      pointerEvents="none"
-    >
-      <Path
-        d={d}
-        fill="none"
-        stroke={positive ? V3_THEME.colors.taiwanUp : V3_THEME.colors.taiwanDown}
-        strokeWidth={2.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity={0.9}
-      />
-    </Svg>
-  );
-}
-
-/**
- * V3.7.9 Dashboard
- *
- * Data boundary:
- * - Portfolio totals come from calculatePortfolioView().
- * - Per-holding rows come from calculateHoldingView().
- * - This screen never reads Ledger settlement fields directly.
- * - This screen never calculates commission, tax, cost basis, or accounting P/L.
- */
 export function DashboardScreen({
   common,
   onOpenPortfolio,
@@ -144,36 +68,38 @@ export function DashboardScreen({
     [holdings, quotes, cashBalance, ledger, dividends],
   );
 
-  const focusRows = useMemo(() => {
-    const selected =
-      prefs.selectedEtfSymbols.length > 0
-        ? holdings.filter(holding =>
-            prefs.selectedEtfSymbols.includes(holding.symbol),
-          )
-        : holdings;
+  const today = new Date();
+  const dividendView = useMemo(
+    () =>
+      calculateDividendView(
+        holdings,
+        ledger,
+        dividends,
+        today.getFullYear(),
+        today.getMonth() + 1,
+      ),
+    [holdings, ledger, dividends],
+  );
 
-    return selected
-      .map(holding => ({
-        holding,
-        view: calculateHoldingView(
+  const focusRows = useMemo(
+    () =>
+      holdings
+        .map(holding => ({
           holding,
-          quotes,
-          ledger,
-          dividends,
-        ),
-      }))
-      .filter(row => row.view.shares > 0)
-      .sort((a, b) => b.view.marketValue - a.view.marketValue)
-      .slice(0, 6);
-  }, [
-    holdings,
-    quotes,
-    ledger,
-    dividends,
-    prefs.selectedEtfSymbols,
-  ]);
+          view: calculateHoldingView(
+            holding,
+            quotes,
+            ledger,
+            dividends,
+          ),
+        }))
+        .filter(row => row.view.shares > 0)
+        .sort((a, b) => b.view.marketValue - a.view.marketValue)
+        .slice(0, 4),
+    [holdings, quotes, ledger, dividends],
+  );
 
-  const privateText = prefs.privacyMode ? '••••' : null;
+  const hidden = prefs.privacyMode;
 
   return (
     <ScrollView
@@ -181,136 +107,106 @@ export function DashboardScreen({
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <HeroAssetCard
-        portfolio={portfolio}
-        market="TW"
-      />
+      <View style={styles.welcome}>
+        <Text style={styles.eyebrow}>ETF 財務管家</Text>
+        <Text style={styles.title}>歡迎回來</Text>
+        <Text style={styles.subtitle}>
+          今天也用清楚的數據，穩定累積你的資產。
+        </Text>
+      </View>
 
-      <View style={styles.quickSection}>
-        <QuickAction
-          icon="📦"
-          label="庫存持倉"
-          onPress={onOpenPortfolio}
+      <HeroAssetCard portfolio={portfolio} market="TW" />
+
+      <View style={styles.doubleColumn}>
+        <StatCard
+          label="年領股息"
+          value={hidden ? '••••' : money(dividendView.yearExpected)}
+          accent={V3_THEME.colors.primary}
         />
-        <QuickAction
-          icon="📅"
-          label="股息月曆"
-          onPress={onOpenDividend}
+        <StatCard
+          label="本月預估股息"
+          value={hidden ? '••••' : money(dividendView.currentMonthExpected)}
+          accent={V3_THEME.colors.primary}
         />
-        <QuickAction
-          icon="📝"
-          label="智慧記帳"
-          onPress={onOpenLedger}
-        />
-        <QuickAction
-          icon="📈"
-          label="情境模擬"
-          onPress={onOpenCalculator}
-        />
+      </View>
+
+      <View style={styles.disciplineCard}>
+        <View style={styles.disciplineIcon}>
+          <Text style={styles.disciplineIconText}>✓</Text>
+        </View>
+        <View style={styles.disciplineText}>
+          <Text style={styles.disciplineTitle}>紀律投資</Text>
+          <Text style={styles.disciplineBody}>
+            維持既定投入節奏，避免因短期波動改變長期配置。
+          </Text>
+        </View>
+        <Pressable onPress={onOpenCalculator}>
+          <Text style={styles.link}>查看試算 ›</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.quickRow}>
+        {[
+          ['庫存持倉', onOpenPortfolio],
+          ['股息月曆', onOpenDividend],
+          ['智慧記帳', onOpenLedger],
+          ['情境模擬', onOpenCalculator],
+        ].map(([label, onPress]) => (
+          <Pressable
+            key={label as string}
+            onPress={onPress as () => void}
+            style={styles.quickButton}
+          >
+            <Text style={styles.quickButtonText}>{label as string}</Text>
+          </Pressable>
+        ))}
       </View>
 
       <View style={styles.sectionHeader}>
         <View>
-          <Text style={styles.sectionTitle}>
-            我的焦點持倉 / 熱門 ETF
-          </Text>
-          <Text style={styles.sectionSubtitle}>
-            即時行情與持倉表現
-          </Text>
+          <Text style={styles.sectionTitle}>主要持倉</Text>
+          <Text style={styles.sectionSubtitle}>依目前市值排序</Text>
         </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="查看全部持倉"
-          onPress={onOpenPortfolio}
-          hitSlop={8}
-          style={({ pressed }) => pressed && styles.linkPressed}
-        >
-          <Text style={styles.sectionLink}>
-            查看全部 ›
-          </Text>
+        <Pressable onPress={onOpenPortfolio}>
+          <Text style={styles.link}>查看全部 ›</Text>
         </Pressable>
       </View>
 
       <View style={styles.list}>
-        {focusRows.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>
-              尚無持倉資料
-            </Text>
-            <Text style={styles.emptyText}>
-              完成第一筆交易後，焦點 ETF 會顯示在這裡。
-            </Text>
-          </View>
-        ) : (
-          focusRows.map(({ holding, view }) => {
-            const positive = view.todayPnl >= 0;
-
-            return (
-              <Pressable
-                key={holding.symbol}
-                accessibilityRole="button"
-                accessibilityLabel={`${holding.symbol} ${holding.name}`}
-                onPress={onOpenPortfolio}
-                style={({ pressed }) => [
-                  styles.etfCard,
-                  pressed && styles.etfCardPressed,
-                ]}
-              >
-                <View style={styles.etfTopRow}>
-                  <View style={styles.etfIdentity}>
-                    <View style={styles.symbolPill}>
-                      <Text style={styles.symbolText}>
-                        {holding.symbol}
-                      </Text>
-                    </View>
-
-                    <View style={styles.nameWrap}>
-                      <Text style={styles.etfName} numberOfLines={1}>
-                        {holding.name}
-                      </Text>
-                      <Text style={styles.etfMeta} numberOfLines={1}>
-                        {view.shares.toLocaleString()} 股 · 市值{' '}
-                        {privateText ?? formatMoney(view.marketValue)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.priceBlock}>
-                    <Text style={styles.priceLabel}>
-                      現價
-                    </Text>
-                    <Text style={styles.priceValue}>
-                      {formatPrice(view.price)}
-                    </Text>
-                  </View>
+        {focusRows.map(({ holding, view }) => {
+          const tone = resolvePnlTone(view.cashPnl, 'TW');
+          return (
+            <Pressable
+              key={holding.symbol}
+              onPress={onOpenPortfolio}
+              style={styles.holdingCard}
+            >
+              <View style={styles.holdingLeft}>
+                <View style={styles.symbolPill}>
+                  <Text style={styles.symbolText}>{holding.symbol}</Text>
                 </View>
-
-                <View style={styles.etfBottomRow}>
-                  <View style={styles.trendWrap}>
-                    <MiniTrend positive={positive} />
-                  </View>
-
-                  <View style={styles.badgesWrap}>
-                    <PnlBadge
-                      label="今日"
-                      value={view.todayPnlPct}
-                      valueText={formatPercent(view.todayPnlPct)}
-                    />
-                    <PnlBadge
-                      label="損益"
-                      value={view.cashPnl}
-                      valueText={
-                        privateText ??
-                        `${view.cashPnl > 0 ? '+' : ''}${formatMoney(view.cashPnl)}`
-                      }
-                    />
-                  </View>
+                <View style={styles.nameWrap}>
+                  <Text style={styles.holdingName}>{holding.name}</Text>
+                  <Text style={styles.holdingMeta}>
+                    {view.shares.toLocaleString()} 股 · 現價 {view.price.toFixed(2)}
+                  </Text>
                 </View>
-              </Pressable>
-            );
-          })
-        )}
+              </View>
+              <View style={styles.holdingRight}>
+                <Text style={styles.marketValue}>
+                  {hidden ? '••••' : money(view.marketValue)}
+                </Text>
+                <View style={[styles.pnlPill, { backgroundColor: tone.background }]}>
+                  <Text style={[styles.pnlText, { color: tone.foreground }]}>
+                    {hidden
+                      ? '••••'
+                      : `${view.cashPnl > 0 ? '+' : ''}${money(view.cashPnl)}`}
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
     </ScrollView>
   );
@@ -322,205 +218,203 @@ const styles = StyleSheet.create({
     backgroundColor: V3_THEME.colors.background,
   },
   content: {
-    paddingHorizontal: V3_THEME.spacing.lg,
-    paddingTop: V3_THEME.spacing.lg,
+    paddingHorizontal: 18,
+    paddingTop: 18,
     paddingBottom: 120,
   },
-
-  quickSection: {
-    marginTop: V3_THEME.spacing.lg,
-    flexDirection: 'row',
-    gap: V3_THEME.spacing.sm,
+  welcome: {
+    marginBottom: 16,
   },
-  quickAction: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 88,
-    paddingHorizontal: V3_THEME.spacing.sm,
-    paddingVertical: V3_THEME.spacing.md,
-    borderRadius: V3_THEME.radius.card,
-    borderWidth: V3_THEME.border.width,
-    borderColor: V3_THEME.border.color,
-    backgroundColor: V3_THEME.colors.surfaceGlass,
-    alignItems: 'center',
-    justifyContent: 'center',
+  eyebrow: {
+    color: V3_THEME.colors.primary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
-  quickActionPressed: {
-    opacity: 0.72,
-    transform: [{ scale: 0.98 }],
+  title: {
+    marginTop: 4,
+    ...V3_THEME.typography.pageTitle,
   },
-  quickIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: V3_THEME.spacing.sm,
-    backgroundColor: V3_THEME.colors.accentSoft,
-  },
-  quickIcon: {
-    fontSize: 20,
-  },
-  quickLabel: {
-    color: V3_THEME.colors.textPrimary,
+  subtitle: {
+    marginTop: 5,
+    color: V3_THEME.colors.textSecondary,
     fontSize: 12,
+  },
+  doubleColumn: {
+    marginTop: 16,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    minHeight: 104,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: V3_THEME.colors.borderGlow,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    justifyContent: 'center',
+    ...V3_THEME.shadow,
+  },
+  statLabel: {
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 11,
     fontWeight: '600',
   },
-
-  sectionHeader: {
-    marginTop: V3_THEME.spacing.xxl,
-    marginBottom: V3_THEME.spacing.md,
+  statValue: {
+    marginTop: 8,
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 22,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  disciplineCard: {
+    marginTop: 16,
+    minHeight: 88,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    backgroundColor: V3_THEME.colors.accentSoft,
+    padding: 16,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    gap: 12,
+  },
+  disciplineIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: V3_THEME.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disciplineIconText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  disciplineText: {
+    flex: 1,
+  },
+  disciplineTitle: {
+    color: V3_THEME.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  disciplineBody: {
+    marginTop: 3,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  quickRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  quickButton: {
+    width: '48%',
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: V3_THEME.colors.borderGlow,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickButtonText: {
+    color: V3_THEME.colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  sectionHeader: {
+    marginTop: 26,
+    marginBottom: 12,
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: V3_THEME.spacing.md,
+    alignItems: 'flex-end',
   },
   sectionTitle: {
     ...V3_THEME.typography.cardTitle,
   },
   sectionSubtitle: {
-    ...V3_THEME.typography.helper,
     marginTop: 3,
+    color: V3_THEME.colors.textSecondary,
+    fontSize: 11,
   },
-  sectionLink: {
-    color: V3_THEME.colors.accent,
-    fontSize: 13,
-    fontWeight: '700',
+  link: {
+    color: V3_THEME.colors.primary,
+    fontSize: 11,
+    fontWeight: '800',
   },
-  linkPressed: {
-    opacity: 0.6,
-  },
-
   list: {
-    gap: V3_THEME.spacing.md,
+    gap: 12,
   },
-  etfCard: {
-    width: '100%',
-    borderRadius: V3_THEME.radius.card,
-    borderWidth: V3_THEME.border.width,
-    borderColor: V3_THEME.border.color,
-    backgroundColor: V3_THEME.colors.surfaceGlass,
-    padding: V3_THEME.spacing.lg,
-  },
-  etfCardPressed: {
-    opacity: 0.76,
-    transform: [{ scale: 0.995 }],
-  },
-  etfTopRow: {
+  holdingCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: V3_THEME.colors.borderGlow,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: V3_THEME.spacing.md,
+    ...V3_THEME.shadow,
   },
-  etfIdentity: {
-    minWidth: 0,
+  holdingLeft: {
     flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
   },
   symbolPill: {
-    minWidth: 68,
+    minWidth: 66,
     height: 34,
-    paddingHorizontal: V3_THEME.spacing.sm,
-    borderRadius: V3_THEME.radius.pill,
-    borderWidth: 1,
-    borderColor: V3_THEME.colors.borderGlow,
+    borderRadius: 999,
     backgroundColor: V3_THEME.colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 10,
   },
   symbolText: {
-    color: V3_THEME.colors.accent,
-    fontSize: 13,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
+    color: V3_THEME.colors.primary,
+    fontSize: 12,
+    fontWeight: '900',
   },
   nameWrap: {
-    minWidth: 0,
     flex: 1,
-    marginLeft: V3_THEME.spacing.md,
+    minWidth: 0,
+    marginLeft: 12,
   },
-  etfName: {
+  holdingName: {
     color: V3_THEME.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
   },
-  etfMeta: {
+  holdingMeta: {
     marginTop: 4,
     color: V3_THEME.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 10,
   },
-  priceBlock: {
+  holdingRight: {
     alignItems: 'flex-end',
+    marginLeft: 10,
   },
-  priceLabel: {
-    color: V3_THEME.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  priceValue: {
-    marginTop: 2,
-    color: V3_THEME.colors.textPrimary,
-    fontSize: 17,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-
-  etfBottomRow: {
-    marginTop: V3_THEME.spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: V3_THEME.spacing.md,
-  },
-  trendWrap: {
-    flex: 1,
-    minWidth: 92,
-  },
-  badgesWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: V3_THEME.spacing.sm,
-  },
-  pnlBadge: {
-    minHeight: 34,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: V3_THEME.radius.pill,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  pnlBadgeLabel: {
-    color: V3_THEME.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pnlBadgeValue: {
-    fontSize: 12,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-
-  emptyCard: {
-    borderRadius: V3_THEME.radius.card,
-    borderWidth: V3_THEME.border.width,
-    borderColor: V3_THEME.border.color,
-    backgroundColor: V3_THEME.colors.surfaceGlass,
-    padding: V3_THEME.spacing.xl,
-  },
-  emptyTitle: {
+  marketValue: {
     color: V3_THEME.colors.textPrimary,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  emptyText: {
-    marginTop: V3_THEME.spacing.sm,
-    color: V3_THEME.colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 18,
+  pnlPill: {
+    marginTop: 6,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  pnlText: {
+    fontSize: 10,
+    fontWeight: '800',
   },
 });
 
