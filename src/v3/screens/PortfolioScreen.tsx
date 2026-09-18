@@ -271,7 +271,7 @@ function HoldingCard({
         />
       </View>
 
-      <View style={styles.holdingMetrics}>
+      <View style={styles.holdingStats}>
         <View style={styles.metricBlock}>
           <Text style={styles.metricLabel}>現價 / 平均成本</Text>
           <Text style={styles.metricValue}>
@@ -916,7 +916,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
 
-  holdingMetrics: {
+  holdingStats: {
     marginTop: V3_THEME.spacing.lg,
     flexDirection: 'row',
     gap: V3_THEME.spacing.md,
